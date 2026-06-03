@@ -1,0 +1,208 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  Type, Image as ImageIcon, Square, Plus, Copy, Trash2, ChevronLeft, ChevronRight, Film,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useBrands } from "@/hooks/use-brands";
+import { useStudio, blankSlide } from "./StudioProvider";
+import { CANVAS_W, CANVAS_H, EXPORT_W, EXPORT_H, uid, type El, type Slide } from "./types";
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [head, b64] = dataUrl.split(",");
+  const mime = /:(.*?);/.exec(head)?.[1] || "image/png";
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+export { dataUrlToBlob };
+
+export function DesignCanvas() {
+  const {
+    doc, slide, currentSlide, selectedElId, set, setSlides, patchSlide, patchEl,
+    addEl, pushHistory, select, setCurrentSlide, registerExporter,
+  } = useStudio();
+  const { brands } = useBrands();
+  const brand = brands.find((b) => b.id === doc.brandId) || null;
+  const c1 = brand?.colors?.[0] || "#8b5cf6";
+  const c2 = brand?.colors?.[1] || "#d946ef";
+  const accent = brand?.colors?.[2] || "#ffffff";
+
+  const [exporting, setExporting] = useState(false);
+  const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const drag = useRef<{ id: string; sx: number; sy: number; ex: number; ey: number } | null>(null);
+
+  const isCarousel = doc.format === "carousel";
+  const isVideo = doc.format === "video";
+
+  // ── drag move ──
+  useEffect(() => {
+    const move = (ev: MouseEvent) => {
+      if (!drag.current) return;
+      const d = drag.current;
+      patchEl(d.id, { x: Math.round(d.ex + (ev.clientX - d.sx)), y: Math.round(d.ey + (ev.clientY - d.sy)) }, false);
+    };
+    const up = () => { drag.current = null; };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+  }, [patchEl]);
+
+  const startDrag = (ev: React.MouseEvent, e: El) => {
+    ev.stopPropagation();
+    select(e.id);
+    pushHistory();
+    drag.current = { id: e.id, sx: ev.clientX, sy: ev.clientY, ex: e.x, ey: e.y };
+  };
+
+  // ── export (registra no provider) ──
+  const exporter = useCallback(async (): Promise<string[]> => {
+    if (isVideo) return doc.videoUrl ? [doc.videoUrl] : [];
+    const { default: html2canvas } = await import("html2canvas"); // carregado sob demanda
+    setExporting(true);
+    await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 80)));
+    const urls: string[] = [];
+    try {
+      for (let i = 0; i < (slideRefs.current.length || 0); i++) {
+        const node = slideRefs.current[i];
+        if (!node) continue;
+        const canvas = await html2canvas(node, { useCORS: true, backgroundColor: null, scale: EXPORT_W / CANVAS_W, width: EXPORT_W, height: EXPORT_H });
+        urls.push(canvas.toDataURL("image/png"));
+      }
+    } finally {
+      setExporting(false);
+    }
+    return urls;
+  }, [isVideo, doc.videoUrl]);
+
+  useEffect(() => {
+    registerExporter(exporter);
+    return () => registerExporter(null);
+  }, [exporter, registerExporter]);
+
+  // ── slide ops ──
+  const addSlide = () => { setSlides([...doc.slides, blankSlide(c1, c2, accent)]); setCurrentSlide(doc.slides.length); };
+  const dupSlide = () => {
+    const copy: Slide = JSON.parse(JSON.stringify(doc.slides[currentSlide]));
+    copy.els = copy.els.map((e) => ({ ...e, id: uid() }));
+    setSlides([...doc.slides.slice(0, currentSlide + 1), copy, ...doc.slides.slice(currentSlide + 1)]);
+    setCurrentSlide(currentSlide + 1);
+  };
+  const delSlide = () => {
+    if (doc.slides.length === 1) return;
+    setSlides(doc.slides.filter((_, i) => i !== currentSlide));
+    setCurrentSlide(Math.max(0, currentSlide - 1));
+  };
+
+  const addElement = (type: El["type"]) => {
+    const base: El = type === "text"
+      ? { id: uid(), type, x: 40, y: 180, w: 320, h: 70, text: "Novo texto", fontSize: 24, color: accent, weight: 600, align: "left" }
+      : type === "image"
+      ? { id: uid(), type, x: 130, y: 130, w: 140, h: 140, src: "", radius: 12 }
+      : { id: uid(), type, x: 130, y: 150, w: 140, h: 100, bg: accent, radius: 12, opacity: 1 };
+    addEl(base);
+  };
+
+  const PRESETS = [
+    { name: "Clean", bg: "#ffffff", text: "#111111" },
+    { name: "Dark", bg: "#0b0b12", text: "#ffffff" },
+    { name: "Marca", bg: `linear-gradient(135deg, ${c1}, ${c2})`, text: accent },
+  ];
+  const applyPreset = (p: { bg: string; text: string }) =>
+    patchSlide(currentSlide, {
+      bg: p.bg, bgImage: undefined,
+      els: slide.els.map((e) => (e.type === "text" ? { ...e, color: p.text } : e)),
+    });
+
+  // ── render ──
+  if (isVideo) {
+    return (
+      <div className="flex h-full w-full items-center justify-center p-6">
+        {doc.videoUrl ? (
+          <video src={doc.videoUrl} controls className="max-h-full max-w-full rounded-xl border border-border shadow-lg" />
+        ) : (
+          <div className="flex flex-col items-center gap-3 text-center text-muted-foreground">
+            <Film className="h-12 w-12 opacity-40" />
+            <p className="max-w-xs text-sm">Use o copiloto à direita para gerar um vídeo (Higgsfield) com a marca.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const renderSlide = (s: Slide, i: number, exportMode: boolean) => (
+    <div
+      key={i}
+      ref={(el) => { slideRefs.current[i] = el; }}
+      onMouseDown={() => select(null)}
+      className={`relative overflow-hidden rounded-xl ${exportMode ? "absolute left-0 top-0" : "shadow-lg"}`}
+      style={{
+        width: CANVAS_W, height: CANVAS_H,
+        background: s.bgImage ? undefined : s.bg,
+        display: exportMode ? "block" : i === currentSlide ? "block" : "none",
+      }}
+    >
+      {s.bgImage && <img src={s.bgImage} crossOrigin="anonymous" alt="" className="absolute inset-0 h-full w-full object-cover" />}
+      {s.els.map((e) => (
+        <div
+          key={e.id}
+          onMouseDown={(ev) => !exportMode && startDrag(ev, e)}
+          className={`absolute ${exportMode ? "" : "cursor-move"} ${!exportMode && selectedElId === e.id ? "ring-2 ring-violet-400" : ""}`}
+          style={{ left: e.x, top: e.y, width: e.w, height: e.h }}
+        >
+          {e.type === "text" && (
+            <span style={{ fontSize: e.fontSize, color: e.color, fontWeight: e.weight, textAlign: e.align, display: "block", width: "100%", lineHeight: 1.15 }}>{e.text}</span>
+          )}
+          {e.type === "image" && (e.src
+            ? <img src={e.src} crossOrigin="anonymous" alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: e.radius }} />
+            : <div className="flex h-full w-full items-center justify-center rounded bg-black/20 text-[10px] text-white/70">imagem</div>)}
+          {e.type === "shape" && <div style={{ width: "100%", height: "100%", background: e.bg, borderRadius: e.radius, opacity: e.opacity }} />}
+        </div>
+      ))}
+      {/* marca: logo + handle — só em slides "chapados" (sem arte de fundo) e fora do card,
+          pra não duplicar a marca em imagens já desenhadas (arte/auto/gpt-image-2). */}
+      {!s.bgImage && doc.format !== "card" && (
+        <>
+          {brand?.logo_url && <img src={brand.logo_url} crossOrigin="anonymous" alt="" className="absolute left-3 top-3 h-6 w-6 rounded object-cover" />}
+          {(brand?.handle || brand?.name) && (
+            <div className="absolute bottom-3 left-3 text-[11px] font-medium" style={{ color: accent, opacity: 0.92 }}>{brand?.handle || brand?.name}</div>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="flex h-full w-full flex-col items-center gap-4 overflow-auto p-6">
+      {/* presets */}
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <span className="text-[11px] text-muted-foreground">Tema:</span>
+        {PRESETS.map((p) => (
+          <Button key={p.name} variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(p)}>{p.name}</Button>
+        ))}
+        <span className="mx-1 text-border">|</span>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("text")}><Type className="mr-1 h-3.5 w-3.5" />Texto</Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("image")}><ImageIcon className="mr-1 h-3.5 w-3.5" />Imagem</Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("shape")}><Square className="mr-1 h-3.5 w-3.5" />Forma</Button>
+      </div>
+
+      {/* canvas */}
+      <div className="relative" style={{ width: CANVAS_W, height: CANVAS_H }}>
+        {doc.slides.map((s, i) => renderSlide(s, i, exporting))}
+      </div>
+
+      {/* carousel nav */}
+      {isCarousel && (
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))} disabled={currentSlide === 0}><ChevronLeft className="h-4 w-4" /></Button>
+          <span className="text-xs text-muted-foreground">{currentSlide + 1}/{doc.slides.length}</span>
+          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setCurrentSlide(Math.min(doc.slides.length - 1, currentSlide + 1))} disabled={currentSlide === doc.slides.length - 1}><ChevronRight className="h-4 w-4" /></Button>
+          <span className="mx-1 text-border">|</span>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={addSlide} title="Novo slide"><Plus className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={dupSlide} title="Duplicar"><Copy className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={delSlide} disabled={doc.slides.length === 1} title="Excluir"><Trash2 className="h-4 w-4" /></Button>
+        </div>
+      )}
+    </div>
+  );
+}
