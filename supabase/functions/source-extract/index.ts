@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 /**
  * Source Extract — substitui blotato_create_source para extração de conteúdo.
