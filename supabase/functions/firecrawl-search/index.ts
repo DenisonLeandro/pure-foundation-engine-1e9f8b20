@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 /**
  * Firecrawl Search Proxy
