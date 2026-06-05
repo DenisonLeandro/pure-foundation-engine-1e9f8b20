@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 /**
  * AI Assist — helper de IA genérico (Lovable AI Gateway).
