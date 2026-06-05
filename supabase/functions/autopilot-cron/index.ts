@@ -41,7 +41,20 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
+  // Cron-only endpoint: require shared secret. The scheduled pg_cron job must
+  // send header "x-cron-secret: <CRON_SECRET>" matching the env var.
+  const expectedSecret = Deno.env.get("CRON_SECRET");
+  const providedSecret =
+    req.headers.get("x-cron-secret") || req.headers.get("X-Cron-Secret");
+  if (!expectedSecret || providedSecret !== expectedSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
+
     const sb = supabaseAdmin();
     const now = new Date().toISOString();
     const results = { generated: 0, curated: 0, scheduled: 0, visuals_checked: 0, confirmed: 0 };

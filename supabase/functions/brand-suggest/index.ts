@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,10 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
+
+  const auth = await requireUser(req, corsHeaders);
+  if (auth instanceof Response) return auth;
+
 
   try {
     const { name, description, industry } = await req.json();

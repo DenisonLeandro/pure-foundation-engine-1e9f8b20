@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { requireUser } from "../_shared/auth.ts";
 
 /**
  * Higgsfield AI Video Generation Proxy
@@ -159,6 +160,10 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
+
+  const auth = await requireUser(req, corsHeaders);
+  if (auth instanceof Response) return auth;
+
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
