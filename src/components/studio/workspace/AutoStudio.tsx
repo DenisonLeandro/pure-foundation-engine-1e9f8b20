@@ -14,7 +14,7 @@ import {
 import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/brand";
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
 import { saveVisualToGallery } from "@/lib/gallery";
-import { composeSlideWithText } from "@/lib/slide-compose";
+import { composeSlideWithText, SLIDE_TEMPLATES, preferredCleanArea, type SlideTemplate } from "@/lib/slide-compose";
 import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
@@ -71,6 +71,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const [prompt, setPrompt] = useState("");
   const [artStyle, setArtStyle] = useState<string>("auto");
   const [artDirection, setArtDirection] = useState("");
+  const [layoutMode, setLayoutMode] = useState<string>("auto");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(null);
@@ -148,17 +149,26 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const slideArt = async (
     topic: string, objective: string, heading: string, body: string,
     idx: number, total: number, sceneBrief: string, styleHint: string, direction: string,
+    template: SlideTemplate,
   ): Promise<string | undefined> => {
     // Pedimos APENAS o cenário visual — NUNCA texto/letras/logos. Os modelos de
     // imagem erram a grafia em pt-BR ("trabaio" no lugar de "trabalho"), então
     // o texto real é desenhado depois via canvas com fonte do navegador.
+    const cleanArea = preferredCleanArea(template);
+    const cleanAreaPt: Record<string, string> = {
+      bottom: "a METADE INFERIOR mais limpa e em tom mais escuro",
+      top: "a METADE SUPERIOR mais limpa e em tom mais escuro",
+      center: "o CENTRO da imagem mais sóbrio (assunto deslocado para as bordas)",
+      left: "o LADO ESQUERDO mais limpo e neutro (assunto deslocado para a direita)",
+      right: "o LADO DIREITO mais limpo e neutro (assunto deslocado para a esquerda)",
+    };
     const artPrompt = [
       brandImageDirective(brand),
       styleHint ? `Estilo visual GLOBAL deste post: ${styleHint}.` : "",
       direction ? `Direção de arte adicional: ${direction}.` : "",
       `Arte vertical (1024x1536) de fundo para post sobre "${topic}" (objetivo: ${objective}).`,
       `CENA ESPECÍFICA deste slide (${idx + 1}/${total}) — siga à risca, não invente outra: ${sceneBrief}`,
-      `Composição editorial profissional, profundidade e atmosfera. Deixe a metade inferior MAIS LIMPA e em tom mais escuro (será sobreposta por texto).`,
+      `Composição editorial profissional, profundidade e atmosfera. Deixe ${cleanAreaPt[cleanArea]} (será sobreposto por texto).`,
       `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras, números ou logotipos renderizados na imagem.`,
     ].filter(Boolean).join("\n\n");
 
@@ -175,11 +185,13 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         brandHandle: brand?.handle,
         index: idx,
         total,
+        template,
       });
     } catch {
       return bg;
     }
   };
+
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Descreva o que você quer criar."); return; }
@@ -230,6 +242,16 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       const styleHint = ART_STYLES.find((s) => s.value === artStyle)?.hint || "";
       const direction = artDirection.trim();
 
+      // Resolve o template por slide. "auto" rotaciona; qualquer outro valor fixa.
+      const rotation = SLIDE_TEMPLATES;
+      const offset = Math.floor(Math.random() * rotation.length);
+      const pickTemplate = (i: number): SlideTemplate => {
+        if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
+        // capa sempre num template "forte"
+        if (i === 0) return "bottom";
+        return rotation[(i + offset) % rotation.length];
+      };
+
       let slides: Slide[];
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
@@ -239,7 +261,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         slides = [];
         for (let i = 0; i < specs.length; i++) {
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
-          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction);
+          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, pickTemplate(i));
           slides.push({ bg: grad, bgImage: img, els: [] });
         }
       } else {
@@ -251,9 +273,13 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         });
         const head = (headline || brief.topic).trim();
         const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint);
-        const img = await slideArt(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction);
+        const soloTemplate: SlideTemplate = layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)
+          ? (layoutMode as SlideTemplate)
+          : (["bottom", "side-bar", "kicker", "center-card"] as SlideTemplate[])[Math.floor(Math.random() * 4)];
+        const img = await slideArt(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
         slides = [{ bg: grad, bgImage: img, els: [] }];
       }
+
 
       const finalDoc: StudioDoc = {
         ...base,
@@ -331,8 +357,24 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
               />
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">A IA varia a cena entre slides do mesmo carrossel para não saírem todos iguais.</p>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Layout do texto</label>
+            <Select value={layoutMode} onValueChange={setLayoutMode} disabled={generating}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Variado (rotaciona entre slides)</SelectItem>
+                <SelectItem value="bottom">Sempre no rodapé</SelectItem>
+                <SelectItem value="top">Sempre no topo</SelectItem>
+                <SelectItem value="center-card">Sempre cartão central</SelectItem>
+                <SelectItem value="side-bar">Sempre barra lateral</SelectItem>
+                <SelectItem value="kicker">Sempre com etiqueta</SelectItem>
+                <SelectItem value="quote">Sempre citação</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Em "Variado", cada slide do carrossel ganha uma composição diferente — não saem todos iguais.</p>
         </div>
+
 
         <div className="rounded-lg border border-border bg-card/40 p-3">
           <div className="flex items-center justify-between gap-2">
