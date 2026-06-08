@@ -1,54 +1,60 @@
-# Resolver erro de geração de imagem no "Gerar tudo com IA"
+# Corrigir texto errado nas imagens geradas pela IA
 
-## O que está acontecendo
+## Causa
 
-Ao clicar em **Gerar tudo com IA**, o fluxo gera texto (OK) e em seguida tenta gerar a imagem chamando a edge function `openai-image`, que responde:
+Modelos de imagem (Gemini, GPT-image) **desenham letras como pixels**, não como tipografia real. Resultado: "trabaio agoura" no lugar de "trabalho agora", palavras cortadas, acentos errados. Isso acontece em qualquer idioma, mas piora em pt-BR.
 
+## Solução: separar arte e texto
+
+A IA gera **apenas o fundo/cenário, sem nenhum texto**. O título e a frase de apoio são desenhados por cima via `<canvas>` com fonte real do navegador — zero erro ortográfico, 100% legível, e ainda fica editável depois no modo assistido.
+
+```text
+┌──────────────────────┐      ┌──────────────────────┐      ┌──────────────────────┐
+│ IA gera fundo limpo  │  →   │ Canvas desenha texto │  →   │ Slide final salvo    │
+│ (cenário, paleta,    │      │ (fonte real, sem     │      │ na galeria como      │
+│ ícone — SEM letras)  │      │ erro ortográfico)    │      │ imagem composta      │
+└──────────────────────┘      └──────────────────────┘      └──────────────────────┘
 ```
-401 — OPENAI_API_KEY não disponível (Vault/secret) e nenhum x-openai-api-key informado.
-```
 
-A função procura a chave em 3 lugares, nessa ordem:
-1. Header `x-openai-api-key` (a chave que você salva em **Configurações → Chaves**)
-2. Supabase Vault (`get_vault_secret`)
-3. Variável de ambiente `OPENAI_API_KEY` da edge function
+## Mudanças
 
-Nenhum dos três tem chave hoje — por isso o erro. Não é bug de código, é configuração ausente.
+### 1. `src/components/studio/workspace/AutoStudio.tsx`
+- **`slideArt()`**: reescrever o prompt para **proibir** texto/letras/logos na imagem. Pedir só cenário visual (paleta, mood, ícones simbólicos, composição). Manter `brandImageDirective` que já reforça "não renderize texto".
+- Após receber a imagem da IA, chamar um novo `composeSlideOverlay(bgUrl, heading, body, brand, idx, total)` e usar o **resultado composto** como `bgImage` do slide.
+- Aplicar tanto no caminho de carrossel quanto no de post único.
 
-## Plano (duas frentes, complementares)
+### 2. Novo arquivo `src/lib/slide-compose.ts`
+Helper puro de canvas (sem dependências externas):
+- Carrega a imagem de fundo em um `<canvas>` 1024×1536.
+- Desenha um gradiente sutil de leitura (overlay escuro embaixo) para garantir contraste.
+- Desenha o **título** em fonte bold grande (ex: Inter/Plus Jakarta) com cor da marca como destaque na primeira palavra (estilo do mockup enviado pelo usuário).
+- Desenha o **body/apoio** abaixo, em peso regular menor.
+- Se `total > 1`, desenha o indicador "idx/total" no canto superior direito.
+- Faz quebra de linha automática (`wrapText`) respeitando margens.
+- Retorna um `data:image/png;base64,…` pronto para `saveVisualToGallery` (que já lida com data URLs).
 
-### 1) Fallback automático para Lovable AI (sem precisar de chave OpenAI)
+### 3. Sem mudanças em edge functions
+O `openai-image` continua igual. A correção é 100% client-side. Nenhuma alteração de schema, RLS ou secrets.
 
-Hoje a app já usa Lovable AI Gateway para texto. Para imagem, existe `google/gemini-2.5-flash-image` ("Nano Banana") e `google/gemini-3.1-flash-image-preview` no mesmo gateway, sem chave do usuário.
+## Detalhes técnicos
 
-Mudanças:
-- Editar `supabase/functions/openai-image/index.ts`: se nenhuma chave OpenAI for resolvida, em vez de retornar 401, cair em um caminho alternativo que chama `https://ai.gateway.lovable.dev/v1/images/generations` (ou o endpoint de chat com modelo de imagem) usando `LOVABLE_API_KEY`, e devolver no mesmo formato `{ images: [...] }`. Assim o cliente não precisa mudar.
-- Mensagens de erro do gateway (429 / 402) repassadas com texto claro em pt-BR.
-
-Efeito: **Gerar tudo com IA** volta a funcionar imediatamente, sem você precisar configurar nada.
-
-### 2) UX melhor quando o usuário quer usar a própria chave OpenAI
-
-- Em **Configurações → Chaves → OpenAI**, deixar explícito: "opcional — sem ela usamos o modelo de imagem do Lovable AI".
-- No erro de geração de imagem, trocar a mensagem técnica atual por um aviso amigável com botão "Abrir configurações de chaves" (só aparece se o fallback Lovable também falhar, ex.: créditos esgotados).
-
-## Arquivos afetados
-
-- `supabase/functions/openai-image/index.ts` — adicionar fallback Lovable AI Gateway.
-- `src/lib/api/openai.ts` (ou onde a chamada é feita) — tratar erros 402/429 com mensagem traduzida.
-- `src/components/setup/ManageKeysView.tsx` — texto auxiliar no campo OpenAI.
-- `src/components/studio/workspace/AutoStudio.tsx` (ou caller do "Gerar tudo com IA") — toast amigável em caso de falha.
-
-## O que NÃO vou fazer
-
-- Não vou pedir sua chave da OpenAI nem expor nada no cliente.
-- Não vou alterar o fluxo de texto (que já funciona).
-- Não vou mexer no schema do banco.
+- **Fonte**: usar a fonte do sistema de design já carregada (`Inter`, via Tailwind/index.css). Sem download extra de fonte → render imediato e determinístico.
+- **Acessibilidade visual**: overlay com `rgba(0,0,0,0.55)` na metade inferior garante contraste WCAG mesmo se o fundo for claro.
+- **Cor de destaque**: primeira ou última palavra do título recebe `brand.colors[0]` (laranja/âmbar no exemplo do usuário) — replica o padrão "Justiça **feita**" do mockup enviado.
+- **Performance**: canvas roda em <100ms por slide; não muda o tempo total de geração.
+- **Reuso**: o helper pode ser usado depois no modo assistido (Studio) para re-renderizar texto quando o usuário editar a legenda.
 
 ## Validação
 
-- Clicar em **Gerar tudo com IA** com uma das sugestões → texto + imagem geram sem erro 401.
-- Console e network mostram chamada única a `openai-image` com 200.
-- Se Lovable AI retornar 402 (créditos), aparece toast pedindo para adicionar créditos no workspace.
+1. Gerar um post com o mesmo prompt ("Justiça feita: o tempo de trabalho agora basta") e confirmar:
+   - Fundo limpo sem nenhuma letra desenhada pela IA.
+   - Texto sobreposto pelo canvas com ortografia perfeita.
+   - Acentos corretos (ç, ã, é).
+2. Gerar um carrossel de 3 slides e confirmar que o indicador "2/3" aparece e o texto de cada slide está correto.
+3. Verificar que a imagem salva na galeria contém o texto sobreposto (não só o fundo).
 
-Posso seguir com isso?
+## Fora de escopo
+
+- Trocar o modelo de imagem (Gemini continua sendo o fallback).
+- Editor de tipografia (cor/fonte/tamanho customizáveis). Pode vir depois se o usuário pedir.
+- Re-renderizar imagens antigas da galeria.

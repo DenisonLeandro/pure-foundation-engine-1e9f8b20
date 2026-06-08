@@ -11,6 +11,7 @@ import {
 import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/brand";
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
 import { saveVisualToGallery } from "@/lib/gallery";
+import { composeSlideWithText } from "@/lib/slide-compose";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
@@ -78,15 +79,33 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   };
 
   const slideArt = async (topic: string, objective: string, heading: string, body: string, idx: number, total: number): Promise<string | undefined> => {
-    const prompt = [
+    // Pedimos APENAS o cenário visual — NUNCA texto/letras/logos. Os modelos de
+    // imagem erram a grafia em pt-BR ("trabaio" no lugar de "trabalho"), então
+    // o texto real é desenhado depois via canvas com fonte do navegador.
+    const artPrompt = [
       brandImageDirective(brand),
-      `Arte quadrada de slide para carrossel de redes sociais sobre "${topic}" (objetivo: ${objective}). Design profissional e moderno.`,
-      `Renderize o texto de forma legível, bonita e bem composta — TÍTULO: "${heading}".${body ? ` APOIO: "${body}".` : ""}`,
-      total > 1 ? `Inclua um indicador discreto "${idx + 1}/${total}".` : "",
-      "Use a paleta da marca.",
+      `Arte vertical (1024x1536) de fundo para post de redes sociais sobre "${topic}" (objetivo: ${objective}). Cenário, ambientação, iconografia simbólica, composição editorial profissional. Use a paleta da marca, com profundidade e atmosfera.`,
+      `Deixe a metade inferior MAIS LIMPA e com tom mais escuro, pois será sobreposta por texto. Nada de letras, palavras, números, logotipos ou marca d'água — apenas elementos visuais.`,
+      `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras ou números renderizados na imagem.`,
     ].filter(Boolean).join("\n\n");
-    const { images } = await generateOpenAiImage({ prompt, size: "1024x1536", quality: "medium", n: 1 });
-    return images?.[0];
+
+    const { images } = await generateOpenAiImage({ prompt: artPrompt, size: "1024x1536", quality: "medium", n: 1 });
+    const bg = images?.[0];
+    if (!bg) return undefined;
+
+    try {
+      return await composeSlideWithText({
+        bgUrl: bg,
+        heading,
+        body,
+        brandColor: brand?.colors?.[0] || "#f59e0b",
+        brandHandle: brand?.handle,
+        index: idx,
+        total,
+      });
+    } catch {
+      return bg;
+    }
   };
 
   const handleGenerate = async () => {
