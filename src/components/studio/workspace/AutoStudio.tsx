@@ -207,7 +207,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         // headline curto pra estampar na imagem
         const { text: headline } = await aiAssist({
           system: `Escreva uma frase curta e impactante (máx 8 palavras) em pt-BR para estampar numa arte sobre o tema, na voz da marca. Responda só a frase.`,
-          prompt: `${brief.topic} (${brief.objective})`, temperature: 0.8,
+          prompt: `${brief.topic} (${brief.objective})${sourcesCtx}`, temperature: 0.8,
         });
         const img = await slideArt(brief.topic, brief.objective, (headline || brief.topic).trim(), "", 0, 1);
         slides = [{ bg: grad, bgImage: img, els: [] }];
