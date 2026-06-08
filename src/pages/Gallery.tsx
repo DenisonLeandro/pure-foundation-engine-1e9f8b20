@@ -74,17 +74,54 @@ export default function Gallery() {
     navigate("/studio", { state: { mediaUrls: creation.urls, fromVisual: true } });
   }
 
-  function handleDownload(creation: Creation) {
-    const url = creation.thumbnailUrl ?? creation.urls[0];
-    if (url) {
+  async function handleDownload(creation: Creation) {
+    const urls = creation.urls?.length ? creation.urls : (creation.thumbnailUrl ? [creation.thumbnailUrl] : []);
+    if (!urls.length) { toast({ title: "Nada para baixar" }); return; }
+
+    const safeName = (creation.templateName || "criacao").replace(/[^\w\-]+/g, "_");
+
+    // 1 arquivo só → download direto
+    if (urls.length === 1) {
       const a = document.createElement("a");
-      a.href = url;
-      a.download = creation.templateName ?? "download";
+      a.href = urls[0];
+      a.download = safeName;
       a.target = "_blank";
       a.click();
+      toast({ title: "Download iniciado" });
+      return;
     }
-    toast({ title: "Download iniciado" });
+
+    // Vários (carrossel) → empacota em .zip
+    toast({ title: `Preparando ${urls.length} arquivos…` });
+    try {
+      const { default: JSZip } = await import("jszip");
+      const zip = new JSZip();
+      const folder = zip.folder(safeName) || zip;
+
+      await Promise.all(urls.map(async (url, i) => {
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          const ext = (blob.type.split("/")[1] || "png").split(";")[0].replace("jpeg", "jpg");
+          folder.file(`${String(i + 1).padStart(2, "0")}.${ext}`, blob);
+        } catch {
+          /* pula arquivos que falharem (ex: CORS) */
+        }
+      }));
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const blobUrl = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${safeName}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+      toast({ title: "Download iniciado", description: `${urls.length} arquivos em .zip` });
+    } catch (e) {
+      toast({ title: "Erro ao empacotar", description: e instanceof Error ? e.message : "tente novamente", variant: "destructive" });
+    }
   }
+
 
   function handleDeleteCreation(creation: Creation) {
     handleDelete(creation.id);
