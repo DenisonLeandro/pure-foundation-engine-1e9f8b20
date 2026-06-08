@@ -79,12 +79,52 @@ export function brandTextProfile(b?: BrandProfile | null): BrandProfileForAI | u
 export function brandImageDirective(b?: BrandProfile | null): string {
   if (!b?.name) return "";
   const parts: string[] = [];
-  if (b.colors?.length) parts.push(`paleta de cores base ${b.colors.join(", ")}`);
-  if (b.tone) parts.push(`estética alinhada ao tom ${b.tone}`);
+  if (b.colors?.length) {
+    const named = b.colors.map((c) => `${c} (${hexToColorName(c)})`).join(", ");
+    parts.push(`paleta exclusiva e dominante: ${named} — use ESTAS cores, nunca substitua por gradientes roxos/azuis genéricos`);
+  }
+  if (b.tone) parts.push(`estética alinhada ao tom "${b.tone}"`);
   if (b.industry) parts.push(`contexto do setor de ${b.industry}`);
   if (b.values) parts.push(`refletindo os valores: ${b.values}`);
-  const style = parts.length ? `Identidade visual da marca ${b.name}: ${parts.join("; ")}.` : "";
-  return `${style} Não renderize texto, palavras nem logotipos na imagem, a menos que explicitamente pedido.`.trim();
+  const style = parts.length ? `Identidade visual OBRIGATÓRIA da marca ${b.name}: ${parts.join("; ")}.` : "";
+  const antipattern = `Evite estética genérica de IA: nada de gradientes roxo→rosa padrão, nada de fundos de stock photo banais, nada de bokeh aleatório sem propósito.`;
+  return `${style} ${antipattern} Não renderize texto, palavras nem logotipos na imagem, a menos que explicitamente pedido.`.trim();
+}
+
+/** Converte hex em um nome de cor aproximado em pt-BR para ajudar o modelo a entender a paleta. */
+function hexToColorName(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return "cor";
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2 / 255;
+  if (max - min < 18) {
+    if (l < 0.1) return "preto";
+    if (l < 0.3) return "cinza escuro";
+    if (l < 0.65) return "cinza";
+    if (l < 0.9) return "cinza claro";
+    return "branco";
+  }
+  let h = 0;
+  const d = max - min;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h = Math.round(h * 60); if (h < 0) h += 360;
+  const tone = l < 0.35 ? "escuro" : l > 0.7 ? "claro" : "";
+  let base = "cor";
+  if (h < 15 || h >= 345) base = "vermelho";
+  else if (h < 40) base = "laranja";
+  else if (h < 65) base = "amarelo";
+  else if (h < 95) base = "verde-limão";
+  else if (h < 160) base = "verde";
+  else if (h < 200) base = "ciano";
+  else if (h < 240) base = "azul";
+  else if (h < 280) base = "violeta";
+  else if (h < 320) base = "magenta";
+  else base = "rosa";
+  return tone ? `${base} ${tone}` : base;
 }
 
 /** Linha de assinatura/handle para legendas e carrosséis (a marca como raiz textual). */
