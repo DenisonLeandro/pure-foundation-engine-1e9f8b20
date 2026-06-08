@@ -150,13 +150,15 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     if (!prompt.trim()) { toast.error("Descreva o que você quer criar."); return; }
     setGenerating(true); setProgress("Interpretando seu pedido…"); setDoc(null);
     try {
-      const brief = await parseBrief(prompt.trim());
+      const sourcesCtx = buildSourcesContext(selectedSources);
+      const briefInput = prompt.trim() + sourcesCtx;
+      const brief = await parseBrief(briefInput);
       const base = emptyDoc(brief.format, brandId);
 
       if (brief.format === "video") {
         setProgress("Gerando vídeo (Higgsfield)…");
         const model = HF_VIDEO_MODELS[0].id;
-        const vp = [brandImageDirective(brand), `${brief.topic}. ${brief.objective}.`].filter(Boolean).join("\n\n");
+        const vp = [brandImageDirective(brand), `${brief.topic}. ${brief.objective}.`, sourcesCtx].filter(Boolean).join("\n\n");
         const r = await callHiggsfield("hf_text_to_video_direct", { model, prompt: vp, duration: 5, with_audio: true, audio_language: "pt-BR" }) as HfGenerationResult;
         if (!r?.request_id) throw new Error("Sem request_id do vídeo.");
         pollRef.current = setInterval(async () => {
@@ -181,7 +183,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       // texto (legenda + hashtags + slides se carrossel)
       setProgress("Escrevendo o conteúdo…");
       const res = await generateContent({
-        prompt: `${brief.topic}. Objetivo: ${brief.objective}.${brief.format === "carousel" ? ` Gere um carrossel de ${brief.count} slides.` : ""}`,
+        prompt: `${brief.topic}. Objetivo: ${brief.objective}.${brief.format === "carousel" ? ` Gere um carrossel de ${brief.count} slides.` : ""}${sourcesCtx}`,
         platforms: brief.platforms,
         tone: brand?.tone,
         language: "português brasileiro",
