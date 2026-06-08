@@ -48,20 +48,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const isConfigured = !!config.postformeApiKey;
   const onboardingCompleted = !!config.onboardingCompleted;
 
-  // Load config from DB on mount
+  // Load config from DB on mount AND whenever auth state changes
   useEffect(() => {
-    loadConfigFromDb();
+    let cancelled = false;
+
+    // Initial hydration from current session (if any)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return;
+      if (session?.user) {
+        loadConfigFromDb(session.user.id);
+      } else {
+        setConfigLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setConfigLoading(false);
+    });
+
+    // React to login/logout/refresh so config is hydrated after auth completes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        setConfigState(DEFAULT_CONFIG);
+        userStorage.remove("config");
+        setPfmUserKey("");
+        setConfigLoading(false);
+        return;
+      }
+      if (session?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION" || event === "USER_UPDATED")) {
+        loadConfigFromDb(session.user.id);
+      }
+    });
+
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
 
-  async function loadConfigFromDb() {
+  async function loadConfigFromDb(userId?: string) {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setConfigLoading(false); return; }
+      let uid = userId;
+      if (!uid) {
+        const { data: { user } } = await supabase.auth.getUser();
+        uid = user?.id;
+      }
+      if (!uid) { setConfigLoading(false); return; }
 
       const { data } = await supabase
         .from("user_configs")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", uid)
         .maybeSingle();
 
       if (data) {
@@ -95,6 +127,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setConfigLoading(false);
     }
   }
+
 
   async function saveConfigToDb(cfg: AppConfig) {
     const nextConfig: AppConfig = {
