@@ -304,6 +304,36 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
           ))}
         </div>
 
+        <div className="rounded-lg border border-border bg-card/40 p-3 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Palette className="h-4 w-4 text-violet-500" />
+            Direção visual
+            <span className="text-xs font-normal text-muted-foreground">(opcional)</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Estilo</label>
+              <Select value={artStyle} onValueChange={setArtStyle} disabled={generating}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ART_STYLES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Direção livre</label>
+              <Input
+                value={artDirection}
+                onChange={(e) => setArtDirection(e.target.value)}
+                placeholder="Ex: tons terrosos, luz de janela, grão"
+                className="h-9 text-sm"
+                disabled={generating}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">A IA varia a cena entre slides do mesmo carrossel para não saírem todos iguais.</p>
+        </div>
+
         <div className="rounded-lg border border-border bg-card/40 p-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-medium">
