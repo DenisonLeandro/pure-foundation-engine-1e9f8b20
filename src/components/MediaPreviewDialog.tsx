@@ -82,6 +82,31 @@ export function MediaPreviewDialog({
     document.body.removeChild(link);
   };
 
+  const handleDownloadAll = async () => {
+    const safeName = (title || "carrossel").replace(/[^\w\-]+/g, "_");
+    try {
+      const { default: JSZip } = await import("jszip");
+      const zip = new JSZip();
+      const folder = zip.folder(safeName) || zip;
+      await Promise.all(urls.map(async (url, i) => {
+        try {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          const ext = (blob.type.split("/")[1] || "png").split(";")[0].replace("jpeg", "jpg");
+          folder.file(`${String(i + 1).padStart(2, "0")}.${ext}`, blob);
+        } catch { /* skip */ }
+      }));
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const blobUrl = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${safeName}.zip`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+    } catch { /* noop */ }
+  };
+
+
   const handleUseInPost = () => {
     onUseInPost?.(urls);
   };
