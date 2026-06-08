@@ -1,58 +1,54 @@
-# Plano: correções de segurança críticas
+## Problema
 
-Tudo em **uma única migration**. Sem mudança de UI nem de lógica de aplicação — só endurecer o backend.
+No **Criar com IA** (`AutoStudio`), todos os slides estão saindo:
+- **Parecidos entre si** — cada slide do mesmo carrossel reusa basicamente o mesmo prompt (`topic + objective`), mudando só o texto sobreposto. O modelo não tem variação visual entre slides 1, 2, 3…
+- **Fora da identidade da marca** — a diretiva atual só passa "paleta de cores base" como string genérica. O modelo (gpt-image-2 / Gemini) entende mal e cai num visual padrão.
+- **Estilo ignorado** — não existe um seletor de estilo no AutoStudio (só existe em `ArtStyles.tsx`, que atua no canvas, não no fluxo automático).
 
-## O que será corrigido
+## O que vou mudar
 
-### 1. `system_settings` — bloquear escrita para usuários comuns 🔴
-Hoje qualquer usuário logado pode `INSERT`/`UPDATE` (inclusive desligar o cadastro de novos usuários).
+### 1. Variação por slide (resolve "todos iguais")
 
-- Criar enum `app_role` (`admin`, `user`) e tabela `public.user_roles` (padrão recomendado, evita escalonamento de privilégio).
-- Criar função `public.has_role(_user_id, _role)` (SECURITY DEFINER, search_path fixo).
-- Substituir policies de `system_settings`:
-  - SELECT: continua liberado para todos (a flag de registration_enabled precisa ser lida no login).
-  - INSERT/UPDATE/DELETE: apenas `has_role(auth.uid(), 'admin')`.
+Em `slideArt(...)` (linha 119 de `AutoStudio.tsx`) passar a IA gerar **um conceito visual único por slide** antes de pedir a imagem:
 
-### 2. Bucket `media` — remover listagem pública 🟡
-Existem **duas** policies SELECT públicas em `storage.objects` para o bucket (`Public read access to media` e `media_public_read`). Isso permite `list()` de todos os arquivos.
+- Antes de criar o carrossel, chamar `aiAssist` uma única vez pedindo um JSON com N "scene briefs" (1 por slide), cada um descrevendo: cenário concreto, ângulo, paleta dominante (dentro das cores da marca), atmosfera. Ex.: slide 1 = "vitrine de loja ao amanhecer, low-angle"; slide 2 = "macro de produto sobre tecido cru"; slide 3 = "skyline urbano ao entardecer".
+- Cada slide usa SEU scene brief no prompt do `gpt-image-2`, em vez do mesmo `topic+objective` repetido.
+- Garante variedade visual mas mantém coesão (mesma paleta, mesma marca, mesmo tema).
 
-- Remover ambas as policies SELECT públicas.
-- Manter `media_authenticated_rw` (dono mexe nos próprios arquivos por pasta).
-- Arquivos continuam acessíveis por URL pública (`/object/public/media/...`) porque o bucket é público — só o `list()` deixa de funcionar para terceiros.
+### 2. Controles novos no AutoStudio
 
-### 3. Função `get_vault_secret` — revogar EXECUTE 🟡
-Hoje qualquer um (anon/authenticated) pode chamar e ler segredos do Vault.
+Adicionar dois campos opcionais acima do botão "Gerar":
 
-- `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated`.
-- Mantém EXECUTE só para `service_role` (edge functions continuam funcionando).
-- Mesmo tratamento em `handle_updated_at` (é trigger, não precisa ser chamável).
+- **Estilo visual** (Select): "Auto", "Editorial fotográfico", "3D render", "Minimalista", "Pôster tipográfico", "Aquarela", "Cinematográfico", "Flat ilustrado". Mesmas opções de `ArtStyles.tsx` para consistência.
+- **Direção de arte** (Textarea curta, opcional): "Ex: tons quentes, vintage anos 70, com bastante grão" — texto livre injetado no prompt.
 
-### 4. Policies faltando 🟢
-- `saved_sources`: adicionar UPDATE (`auth.uid() = user_id`) — hoje impede editar fontes salvas.
-- `post_history`: adicionar DELETE (`auth.uid() = user_id`).
-- `analytics_snapshots`: adicionar UPDATE (`auth.uid() = user_id`).
+Ambos opcionais. "Auto" = deixa a IA escolher com base na marca/tema (comportamento atual, mas com variação por slide).
 
-## O que NÃO será feito agora (justificativa)
+### 3. Diretiva de marca mais forte
 
-- **Migrar chaves de terceiros em `user_configs` para Vault** — refator grande, envolve várias edge functions. Vale fazer numa próxima rodada dedicada. Hoje RLS já protege bem (cada usuário só vê as próprias chaves).
-- **Mover extensão do schema `public`** — risco baixíssimo, raramente vale o esforço.
-- **Validação com zod nos formulários** — boa prática, mas não é vulnerabilidade.
+Em `supabase/functions/_shared/brand.ts` → `brandImageDirective`:
+- Traduzir cada cor hex para nome ("#f59e0b" → "âmbar/laranja queimado") para o modelo entender melhor.
+- Mencionar logo/profile_photo como referência de "humor visual" quando existir.
+- Adicionar exemplos do que NÃO fazer (gradientes roxos genéricos, fundos de stock).
 
-## Detalhes técnicos
+### 4. Qualidade
 
-```text
-Migration única:
-  - CREATE TYPE app_role
-  - CREATE TABLE public.user_roles (+ GRANT + RLS + policies)
-  - CREATE FUNCTION public.has_role (SECURITY DEFINER, stable, search_path=public)
-  - DROP + CREATE policies de system_settings (admin-only para writes)
-  - DROP policies SELECT públicas em storage.objects (bucket media)
-  - REVOKE EXECUTE em get_vault_secret e handle_updated_at
-  - CREATE POLICY UPDATE em saved_sources
-  - CREATE POLICY DELETE em post_history
-  - CREATE POLICY UPDATE em analytics_snapshots
-```
+Subir `quality: "medium"` → `"high"` no `slideArt` (a edge `openai-image` já rebaixa para medium se estourar 150s, então é seguro pedir high).
 
-Nenhum código TS precisa mudar. Você vai precisar **promover seu usuário a admin manualmente** depois (te passo o comando — basta um INSERT em `user_roles`).
+## Arquivos afetados
 
-Após aplicar: rodo o scanner de novo para confirmar que os itens críticos sumiram.
+- `src/components/studio/workspace/AutoStudio.tsx` — adicionar controles de estilo + art direction, gerar scene briefs por slide, passar tudo para `slideArt`.
+- `supabase/functions/_shared/brand.ts` — `brandImageDirective` mais rico (nomes de cores, antipattern explícito).
+- `src/lib/brand.ts` — espelhar a mesma melhoria no client (usado em `ArtStyles.tsx`).
+
+## Não vou mexer
+
+- Composição do texto via canvas (`slide-compose.ts`) — está correta e é o que evita erro ortográfico.
+- Edge `openai-image` — pipeline + fallback Gemini já estão bons.
+- ArtStyles (estilos manuais no canvas) — já funciona; só vou reaproveitar a lista de estilos.
+
+## Resultado esperado
+
+- Carrossel de 6 slides → 6 cenas visualmente distintas, mesma paleta da marca.
+- Com "Estilo: Editorial fotográfico" + "Direção: tons terrosos, luz de janela" → todos os slides nesse mood, variando o cenário.
+- Sem mais "post genérico roxo".

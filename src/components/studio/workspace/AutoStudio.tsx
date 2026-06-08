@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { Wand2, Loader2, ArrowLeft, Sparkles, BookOpen, X, Check } from "lucide-react";
+import { Wand2, Loader2, ArrowLeft, Sparkles, BookOpen, X, Check, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
@@ -17,6 +19,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
+
+const ART_STYLES: { value: string; label: string; hint: string }[] = [
+  { value: "auto", label: "Auto (IA escolhe)", hint: "" },
+  { value: "editorial", label: "Editorial fotográfico", hint: "fotografia editorial premium, luz natural, profundidade de campo, sensação de revista" },
+  { value: "cinematic", label: "Cinematográfico", hint: "iluminação cinematográfica dramática, grão sutil, paleta coesa, sensação de still de filme" },
+  { value: "3d", label: "3D render", hint: "render 3D moderno, materiais suaves (clay/glass), iluminação volumétrica, sombras macias" },
+  { value: "minimal", label: "Minimalista", hint: "design minimalista, muito espaço negativo, formas geométricas simples, elegante" },
+  { value: "poster", label: "Pôster tipográfico", hint: "estética de pôster impresso, composição ousada, alto contraste, texturas de papel" },
+  { value: "flat", label: "Flat ilustrado", hint: "ilustração flat vetorial, formas chapadas, contornos limpos, sem gradientes pesados" },
+  { value: "watercolor", label: "Aquarela", hint: "ilustração em aquarela, traços orgânicos, papel texturizado, manchas suaves" },
+];
 
 type SourceRow = { id: string; title: string | null; source_type: string; content: string | null };
 
@@ -56,6 +69,8 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const brand = (brands.find((b) => b.id === brandId) || defaultBrand || null) as BrandProfile | null;
 
   const [prompt, setPrompt] = useState("");
+  const [artStyle, setArtStyle] = useState<string>("auto");
+  const [artDirection, setArtDirection] = useState("");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(null);
@@ -116,18 +131,38 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     }
   };
 
-  const slideArt = async (topic: string, objective: string, heading: string, body: string, idx: number, total: number): Promise<string | undefined> => {
+  /** Gera N scene briefs únicos para um carrossel — garante variação visual entre slides. */
+  const generateSceneBriefs = async (topic: string, objective: string, headings: string[], styleHint: string): Promise<string[]> => {
+    try {
+      const { json } = await aiAssist({
+        system: `Você é diretor de arte. Crie um JSON {"scenes":[...]} com EXATAMENTE ${headings.length} cenas visuais distintas para um carrossel coeso de redes sociais. Cada cena = uma string curta (1-2 frases) descrevendo: sujeito/cenário CONCRETO, ângulo da câmera, atmosfera/luz. Mantenha a mesma paleta e o mesmo estilo, mas varie radicalmente o sujeito/ângulo entre slides — NUNCA repita o mesmo cenário. Sem texto, sem palavras, sem logos. Responda APENAS o JSON.`,
+        prompt: `Tema: ${topic}\nObjetivo: ${objective}\nEstilo geral: ${styleHint || "livre, alinhado à marca"}\n\nTítulos dos slides (para guiar o sujeito de cada cena):\n${headings.map((h, i) => `${i + 1}. ${h}`).join("\n")}`,
+        expectJson: true, temperature: 0.9,
+      });
+      const arr = (json as { scenes?: string[] })?.scenes;
+      if (Array.isArray(arr) && arr.length) return headings.map((_, i) => arr[i] || arr[arr.length - 1]);
+    } catch { /* fallback */ }
+    return headings.map((h) => `Cena visual representando: ${h}`);
+  };
+
+  const slideArt = async (
+    topic: string, objective: string, heading: string, body: string,
+    idx: number, total: number, sceneBrief: string, styleHint: string, direction: string,
+  ): Promise<string | undefined> => {
     // Pedimos APENAS o cenário visual — NUNCA texto/letras/logos. Os modelos de
     // imagem erram a grafia em pt-BR ("trabaio" no lugar de "trabalho"), então
     // o texto real é desenhado depois via canvas com fonte do navegador.
     const artPrompt = [
       brandImageDirective(brand),
-      `Arte vertical (1024x1536) de fundo para post de redes sociais sobre "${topic}" (objetivo: ${objective}). Cenário, ambientação, iconografia simbólica, composição editorial profissional. Use a paleta da marca, com profundidade e atmosfera.`,
-      `Deixe a metade inferior MAIS LIMPA e com tom mais escuro, pois será sobreposta por texto. Nada de letras, palavras, números, logotipos ou marca d'água — apenas elementos visuais.`,
-      `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras ou números renderizados na imagem.`,
+      styleHint ? `Estilo visual GLOBAL deste post: ${styleHint}.` : "",
+      direction ? `Direção de arte adicional: ${direction}.` : "",
+      `Arte vertical (1024x1536) de fundo para post sobre "${topic}" (objetivo: ${objective}).`,
+      `CENA ESPECÍFICA deste slide (${idx + 1}/${total}) — siga à risca, não invente outra: ${sceneBrief}`,
+      `Composição editorial profissional, profundidade e atmosfera. Deixe a metade inferior MAIS LIMPA e em tom mais escuro (será sobreposta por texto).`,
+      `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras, números ou logotipos renderizados na imagem.`,
     ].filter(Boolean).join("\n\n");
 
-    const { images } = await generateOpenAiImage({ prompt: artPrompt, size: "1024x1536", quality: "medium", n: 1 });
+    const { images } = await generateOpenAiImage({ prompt: artPrompt, size: "1024x1536", quality: "high", n: 1 });
     const bg = images?.[0];
     if (!bg) return undefined;
 
@@ -192,14 +227,19 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       const plat = brief.platforms[0];
       const caption = res.posts?.[plat] || Object.values(res.posts || {})[0] || brief.topic;
 
+      const styleHint = ART_STYLES.find((s) => s.value === artStyle)?.hint || "";
+      const direction = artDirection.trim();
+
       let slides: Slide[];
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
         if (!specs.length) throw new Error("A IA não retornou slides.");
+        setProgress("Definindo a direção visual…");
+        const scenes = await generateSceneBriefs(brief.topic, brief.objective, specs.map((s) => s.heading), styleHint);
         slides = [];
         for (let i = 0; i < specs.length; i++) {
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
-          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length);
+          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction);
           slides.push({ bg: grad, bgImage: img, els: [] });
         }
       } else {
@@ -209,7 +249,9 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
           system: `Escreva uma frase curta e impactante (máx 8 palavras) em pt-BR para estampar numa arte sobre o tema, na voz da marca. Responda só a frase.`,
           prompt: `${brief.topic} (${brief.objective})${sourcesCtx}`, temperature: 0.8,
         });
-        const img = await slideArt(brief.topic, brief.objective, (headline || brief.topic).trim(), "", 0, 1);
+        const head = (headline || brief.topic).trim();
+        const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint);
+        const img = await slideArt(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction);
         slides = [{ bg: grad, bgImage: img, els: [] }];
       }
 
@@ -260,6 +302,36 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
               {ex}
             </button>
           ))}
+        </div>
+
+        <div className="rounded-lg border border-border bg-card/40 p-3 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Palette className="h-4 w-4 text-violet-500" />
+            Direção visual
+            <span className="text-xs font-normal text-muted-foreground">(opcional)</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Estilo</label>
+              <Select value={artStyle} onValueChange={setArtStyle} disabled={generating}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ART_STYLES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Direção livre</label>
+              <Input
+                value={artDirection}
+                onChange={(e) => setArtDirection(e.target.value)}
+                placeholder="Ex: tons terrosos, luz de janela, grão"
+                className="h-9 text-sm"
+                disabled={generating}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">A IA varia a cena entre slides do mesmo carrossel para não saírem todos iguais.</p>
         </div>
 
         <div className="rounded-lg border border-border bg-card/40 p-3">
