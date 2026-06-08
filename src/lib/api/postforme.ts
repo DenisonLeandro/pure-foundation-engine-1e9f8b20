@@ -36,14 +36,19 @@ async function callPfm(
     body: JSON.stringify({ tool, args }),
   });
 
-  if (!res.ok) {
-    let errorMsg: string;
-    try { const e = await res.json(); errorMsg = e.error || `HTTP ${res.status}`; }
-    catch { errorMsg = `HTTP ${res.status}`; }
+  let payload: any = null;
+  try {
+    payload = await res.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!res.ok || payload?.handled) {
+    const errorMsg = payload?.error || payload?.details?.message || `HTTP ${payload?.status || res.status}`;
     throw new Error(errorMsg);
   }
 
-  return res.json();
+  return payload;
 }
 
 /** Validate PFM key by listing accounts */

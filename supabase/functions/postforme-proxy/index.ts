@@ -321,8 +321,24 @@ Deno.serve(async (req: Request) => {
     const data = await response.json();
 
     if (!response.ok) {
+      const message = data?.message || `PFM API ${response.status}`;
+      const isMissingProviderCredentials = /social provider app credentials not found/i.test(message);
+
+      if (isMissingProviderCredentials) {
+        return new Response(
+          JSON.stringify({
+            handled: true,
+            error: message,
+            code: "SOCIAL_PROVIDER_CREDENTIALS_MISSING",
+            status: response.status,
+            details: data,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ error: data.message || `PFM API ${response.status}`, details: data }),
+        JSON.stringify({ error: message, details: data }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
