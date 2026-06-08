@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Wand2, Loader2, ArrowLeft, Sparkles } from "lucide-react";
+import { Wand2, Loader2, ArrowLeft, Sparkles, BookOpen, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
 import {
@@ -12,9 +13,26 @@ import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
 import { saveVisualToGallery } from "@/lib/gallery";
 import { composeSlideWithText } from "@/lib/slide-compose";
+import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
+
+type SourceRow = { id: string; title: string | null; source_type: string; content: string | null };
+
+const MAX_PER_SOURCE = 1500;
+const MAX_TOTAL = 6000;
+
+function buildSourcesContext(sources: SourceRow[]): string {
+  if (!sources.length) return "";
+  const parts = sources.map((s, i) => {
+    const body = (s.content || "").trim().slice(0, MAX_PER_SOURCE);
+    return `[Fonte ${i + 1} — ${s.title || s.source_type}]\n${body}`;
+  });
+  let joined = parts.join("\n---\n");
+  if (joined.length > MAX_TOTAL) joined = joined.slice(0, MAX_TOTAL) + "…";
+  return `\n\nCONTEXTO DE REFERÊNCIA (use como base factual, não copie literalmente):\n${joined}`;
+}
 
 const EXAMPLES = [
   "Um carrossel de 6 slides sobre o Natal para engajamento",
@@ -41,8 +59,28 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(null);
+  const [sources, setSources] = useState<SourceRow[]>([]);
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const { data } = await supabase
+        .from("saved_sources")
+        .select("id,title,source_type,content")
+        .eq("user_id", u.user.id)
+        .order("created_at", { ascending: false });
+      setSources(data || []);
+    })();
+  }, []);
+
+  const selectedSources = sources.filter((s) => selectedSourceIds.includes(s.id));
+  const toggleSource = (id: string) =>
+    setSelectedSourceIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const c1 = brand?.colors?.[0] || "#8b5cf6";
   const c2 = brand?.colors?.[1] || "#d946ef";
@@ -112,13 +150,15 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     if (!prompt.trim()) { toast.error("Descreva o que você quer criar."); return; }
     setGenerating(true); setProgress("Interpretando seu pedido…"); setDoc(null);
     try {
-      const brief = await parseBrief(prompt.trim());
+      const sourcesCtx = buildSourcesContext(selectedSources);
+      const briefInput = prompt.trim() + sourcesCtx;
+      const brief = await parseBrief(briefInput);
       const base = emptyDoc(brief.format, brandId);
 
       if (brief.format === "video") {
         setProgress("Gerando vídeo (Higgsfield)…");
         const model = HF_VIDEO_MODELS[0].id;
-        const vp = [brandImageDirective(brand), `${brief.topic}. ${brief.objective}.`].filter(Boolean).join("\n\n");
+        const vp = [brandImageDirective(brand), `${brief.topic}. ${brief.objective}.`, sourcesCtx].filter(Boolean).join("\n\n");
         const r = await callHiggsfield("hf_text_to_video_direct", { model, prompt: vp, duration: 5, with_audio: true, audio_language: "pt-BR" }) as HfGenerationResult;
         if (!r?.request_id) throw new Error("Sem request_id do vídeo.");
         pollRef.current = setInterval(async () => {
@@ -143,7 +183,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       // texto (legenda + hashtags + slides se carrossel)
       setProgress("Escrevendo o conteúdo…");
       const res = await generateContent({
-        prompt: `${brief.topic}. Objetivo: ${brief.objective}.${brief.format === "carousel" ? ` Gere um carrossel de ${brief.count} slides.` : ""}`,
+        prompt: `${brief.topic}. Objetivo: ${brief.objective}.${brief.format === "carousel" ? ` Gere um carrossel de ${brief.count} slides.` : ""}${sourcesCtx}`,
         platforms: brief.platforms,
         tone: brand?.tone,
         language: "português brasileiro",
@@ -167,7 +207,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         // headline curto pra estampar na imagem
         const { text: headline } = await aiAssist({
           system: `Escreva uma frase curta e impactante (máx 8 palavras) em pt-BR para estampar numa arte sobre o tema, na voz da marca. Responda só a frase.`,
-          prompt: `${brief.topic} (${brief.objective})`, temperature: 0.8,
+          prompt: `${brief.topic} (${brief.objective})${sourcesCtx}`, temperature: 0.8,
         });
         const img = await slideArt(brief.topic, brief.objective, (headline || brief.topic).trim(), "", 0, 1);
         slides = [{ bg: grad, bgImage: img, els: [] }];
@@ -220,6 +260,67 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
               {ex}
             </button>
           ))}
+        </div>
+
+        <div className="rounded-lg border border-border bg-card/40 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <BookOpen className="h-4 w-4 text-violet-500" />
+              Fontes de referência
+              {selectedSources.length > 0 && (
+                <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-600">
+                  {selectedSources.length}
+                </span>
+              )}
+            </div>
+            <Popover open={sourcesOpen} onOpenChange={setSourcesOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" disabled={generating} className="h-7 text-xs">
+                  + Usar fonte
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                {sources.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground">
+                    Você ainda não salvou nenhuma fonte. Vá em <span className="font-medium text-foreground">Fontes</span> para adicionar.
+                  </div>
+                ) : (
+                  <div className="max-h-72 overflow-y-auto py-1">
+                    {sources.map((s) => {
+                      const checked = selectedSourceIds.includes(s.id);
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => toggleSource(s.id)}
+                          className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-accent"
+                        >
+                          <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-violet-500 bg-violet-500 text-white" : "border-border"}`}>
+                            {checked && <Check className="h-3 w-3" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm">{s.title || "Sem título"}</div>
+                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{s.source_type}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
+          {selectedSources.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {selectedSources.map((s) => (
+                <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-1 text-[11px] text-violet-700 dark:text-violet-300">
+                  {s.title || s.source_type}
+                  <button onClick={() => toggleSource(s.id)} disabled={generating} className="hover:opacity-70">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <Button className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-500" size="lg" onClick={handleGenerate} disabled={generating || !prompt.trim()}>
           {generating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {progress || "Gerando…"}</> : <><Sparkles className="mr-2 h-4 w-4" /> Gerar tudo com IA</>}

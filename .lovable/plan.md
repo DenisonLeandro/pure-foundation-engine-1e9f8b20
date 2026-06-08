@@ -1,61 +1,49 @@
-# Por que está falhando
+## Objetivo
+Permitir que o usuário escolha uma ou mais **Fontes** salvas (de `/sources`) dentro do fluxo **"Criar com IA"** no Studio, para que o conteúdo gerado (legenda, slides, arte) seja baseado nelas.
 
-Encontrei a causa raiz do "Não foi possível preparar a mídia".
+## O que muda na UI
 
-A política de upload do bucket `media` exige que o **primeiro segmento** do caminho seja o ID do usuário:
+Em `src/components/studio/workspace/AutoStudio.tsx`, abaixo do textarea de prompt e antes do botão "Gerar tudo com IA", adicionar:
 
+- Um botão/chip **"+ Usar uma fonte"** (ícone `BookOpen` ou `Link2`).
+- Ao clicar, abre um `Popover` com a lista das fontes do usuário (`saved_sources`), mostrando título, tipo (artigo/youtube/pdf/tweet) e um checkbox.
+- Fontes selecionadas aparecem como chips abaixo, com `x` para remover.
+- Estado vazio: "Você ainda não salvou nenhuma fonte. Vá em Fontes para adicionar."
+
+## O que muda na lógica
+
+Em `handleGenerate` (mesmo arquivo):
+
+1. Concatenar o conteúdo das fontes selecionadas num bloco de contexto:
+   ```
+   CONTEXTO DE REFERÊNCIA (use como base factual, não copie literalmente):
+   [Fonte 1 - título]
+   <content resumido, máx ~1500 chars cada>
+   ---
+   [Fonte 2 - título]
+   ...
+   ```
+2. Passar esse bloco para:
+   - `parseBrief(prompt + contexto)` — para o briefing entender o tema.
+   - `generateContent({ prompt: ..., sources: contexto })` — adicionar campo `sources` no payload (ou anexar ao prompt se a edge function não aceitar).
+   - `slideArt(...)` e o `aiAssist` do headline — incluir uma linha resumida do contexto.
+
+3. Truncar cada fonte (ex.: 1500 chars) para não estourar o limite de tokens. Se a soma passar de ~6000 chars, avisar via toast.
+
+## Dados
+
+Buscar fontes via:
+```ts
+supabase.from("saved_sources").select("id,title,source_type,content").eq("user_id", uid).order("created_at",{ascending:false})
 ```
-foldername(name)[1] = auth.uid()
-```
+Cachear no estado local do componente (carregado uma vez ao montar).
 
-Mas o código salva em caminhos como:
-- `studio/{user_id}/gal_xxx.png` ← OutputScreen (Salvar na galeria)
-- `gallery/{user_id}/xxx.png` ← `src/lib/gallery.ts` (auto-save)
-- `studio/{user_id}/...` ← upload para PFM e fluxo de publicação
+## Arquivos a alterar
+- `src/components/studio/workspace/AutoStudio.tsx` — UI + lógica (único arquivo de código).
 
-Nesses caminhos o primeiro segmento é `studio` / `gallery`, não o uid. O Supabase bloqueia silenciosamente o upload com erro de RLS, a função devolve `urls.length === 0` e o toast vermelho aparece.
+Nenhuma mudança de banco ou edge function é necessária — o conteúdo das fontes vai dentro do prompt existente.
 
-(Já existe a política antiga "Users can upload to their own folder" que aceita `carousel/{uid}/...`, mas nada cobre `studio/` nem `gallery/`.)
-
-# O que vou fazer
-
-**1. Migração no banco — uma política única e robusta no `storage.objects`**
-
-Criar políticas que permitam ao usuário autenticado ler, inserir, atualizar e deletar qualquer objeto no bucket `media` desde que o **uid dele apareça em qualquer segmento do caminho**. Isso cobre todos os padrões existentes sem precisar reescrever cada upload:
-
-- `{uid}/...`
-- `studio/{uid}/...`
-- `gallery/{uid}/...`
-- `carousel/{uid}/...`
-- qualquer novo padrão futuro que siga a convenção de incluir o uid no caminho
-
-Em SQL (resumido):
-
-```sql
-create policy "media_authenticated_rw"
-on storage.objects for all to authenticated
-using  (bucket_id = 'media' and (auth.uid())::text = any(storage.foldername(name)))
-with check (bucket_id = 'media' and (auth.uid())::text = any(storage.foldername(name)));
-```
-
-E removo as políticas antigas redundantes/quebradas do bucket `media` ("Users can upload media", "Users can upload to their own folder", "Users can delete own media", "Users can delete their own media files", "Users can update their own media files", "Users can read own media") para deixar só:
-- `media_public_read` (leitura pública — já existe, mantenho)
-- `media_authenticated_rw` (a nova, escrita do dono)
-
-**2. Sem mudança nos paths do app**
-
-Não toco nos caminhos de upload nos componentes — eles continuam funcionando como já estão escritos (`studio/{uid}/...`, `gallery/{uid}/...`, etc.). A correção é só de permissão.
-
-# Como validar
-
-Depois de aplicar:
-1. Em `/studio`, gerar uma criação no modo automático.
-2. Clicar em **Salvar na galeria** → deve aparecer "Salvo na galeria" (toast verde).
-3. Ir em `/gallery` → a criação deve aparecer na grade.
-4. Verificar console — nenhum erro `new row violates row-level security policy` no upload.
-
-# Fora de escopo
-
-- Não vou reescrever os caminhos no código.
-- Não vou mexer em outras tabelas/policies.
-- Não vou alterar o fluxo de auto-save nem o `composeSlideWithText`.
+## Validação
+- Abrir `/studio` → "Criar com IA" → ver botão "+ Usar uma fonte".
+- Selecionar 1-2 fontes → gerar → legenda/slides devem refletir o conteúdo da fonte.
+- Sem fontes selecionadas → comportamento atual permanece idêntico.
