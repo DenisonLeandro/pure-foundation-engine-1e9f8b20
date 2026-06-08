@@ -148,17 +148,26 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const slideArt = async (
     topic: string, objective: string, heading: string, body: string,
     idx: number, total: number, sceneBrief: string, styleHint: string, direction: string,
+    template: SlideTemplate,
   ): Promise<string | undefined> => {
     // Pedimos APENAS o cenário visual — NUNCA texto/letras/logos. Os modelos de
     // imagem erram a grafia em pt-BR ("trabaio" no lugar de "trabalho"), então
     // o texto real é desenhado depois via canvas com fonte do navegador.
+    const cleanArea = preferredCleanArea(template);
+    const cleanAreaPt: Record<string, string> = {
+      bottom: "a METADE INFERIOR mais limpa e em tom mais escuro",
+      top: "a METADE SUPERIOR mais limpa e em tom mais escuro",
+      center: "o CENTRO da imagem mais sóbrio (assunto deslocado para as bordas)",
+      left: "o LADO ESQUERDO mais limpo e neutro (assunto deslocado para a direita)",
+      right: "o LADO DIREITO mais limpo e neutro (assunto deslocado para a esquerda)",
+    };
     const artPrompt = [
       brandImageDirective(brand),
       styleHint ? `Estilo visual GLOBAL deste post: ${styleHint}.` : "",
       direction ? `Direção de arte adicional: ${direction}.` : "",
       `Arte vertical (1024x1536) de fundo para post sobre "${topic}" (objetivo: ${objective}).`,
       `CENA ESPECÍFICA deste slide (${idx + 1}/${total}) — siga à risca, não invente outra: ${sceneBrief}`,
-      `Composição editorial profissional, profundidade e atmosfera. Deixe a metade inferior MAIS LIMPA e em tom mais escuro (será sobreposta por texto).`,
+      `Composição editorial profissional, profundidade e atmosfera. Deixe ${cleanAreaPt[cleanArea]} (será sobreposto por texto).`,
       `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras, números ou logotipos renderizados na imagem.`,
     ].filter(Boolean).join("\n\n");
 
@@ -175,11 +184,13 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         brandHandle: brand?.handle,
         index: idx,
         total,
+        template,
       });
     } catch {
       return bg;
     }
   };
+
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Descreva o que você quer criar."); return; }
