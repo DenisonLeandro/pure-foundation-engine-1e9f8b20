@@ -74,11 +74,65 @@ Deno.serve(async (req: Request) => {
     }
 
     const apiKey = await resolveOpenAiKey(req.headers.get("x-openai-api-key"));
+
+    // Fallback: sem chave OpenAI → usa Lovable AI Gateway (Gemini image).
     if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "OPENAI_API_KEY não disponível (Vault/secret) e nenhum x-openai-api-key informado." }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+      if (!lovableKey) {
+        return new Response(
+          JSON.stringify({ error: "Nenhuma chave de imagem disponível (OpenAI ou Lovable AI)." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      try {
+        console.log(`[openai-image] fallback Lovable AI Gateway (Gemini image) size=${size} n=${n}`);
+        const gwResp = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${lovableKey}`,
+            "Content-Type": "application/json",
+            "X-Lovable-AIG-SDK": "edge-function",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash-image",
+            messages: [{ role: "user", content: prompt }],
+            modalities: ["image", "text"],
+            n,
+          }),
+        });
+
+        if (!gwResp.ok) {
+          const errText = await gwResp.text();
+          console.error("[openai-image] Lovable AI error:", gwResp.status, errText);
+          let msg = `Lovable AI ${gwResp.status}`;
+          try { msg = JSON.parse(errText)?.error?.message || msg; } catch { /* keep raw */ }
+          if (gwResp.status === 429) msg = "Limite de uso da IA atingido. Tente novamente em alguns segundos.";
+          if (gwResp.status === 402) msg = "Créditos de IA esgotados. Adicione créditos ao workspace em Configurações → Workspace → Uso.";
+          return new Response(JSON.stringify({ error: msg }), {
+            status: gwResp.status === 429 || gwResp.status === 402 ? gwResp.status : 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const gwData = await gwResp.json();
+        const images: string[] = (gwData.data || [])
+          .map((d: { b64_json?: string; url?: string }) =>
+            d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url
+          )
+          .filter(Boolean);
+
+        return new Response(JSON.stringify({ images, model: "google/gemini-2.5-flash-image" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Erro desconhecido no fallback Lovable AI";
+        console.error("[openai-image] fallback error:", message);
+        return new Response(JSON.stringify({ error: message }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Edge Functions têm limite de 150s. `quality: "high"` em gpt-image-2
