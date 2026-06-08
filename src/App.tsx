@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Loader2 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 
 // Auth pages (not lazy — need fast load)
 import Login from "./pages/Login";
@@ -75,14 +76,17 @@ function GuestOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function ThemeBoot({ children }: { children: React.ReactNode }) {
+  useTheme(); // garante que a classe `light`/`dark` seja aplicada já no boot
+  return <>{children}</>;
+}
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
+      <ThemeBoot>
+        <AuthProvider>
+          <AppProvider>
             <BrowserRouter>
               <Suspense fallback={<PageLoader />}>
                 <Routes>
