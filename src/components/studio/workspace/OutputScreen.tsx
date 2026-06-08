@@ -135,24 +135,51 @@ export function OutputScreen({
   };
 
   const handleSaveGallery = async () => {
-    if (!user) return;
+    if (!user) { toast.error("Faça login para salvar"); return; }
+    if (!media.length) { toast.error("Nenhuma mídia para salvar"); return; }
     setSaving(true);
     try {
       const urls: string[] = [];
       for (const url of media) {
-        if (url.startsWith("data:")) {
-          const blob = dataUrlToBlob(url);
-          const path = `studio/${user.id}/gal_${crypto.randomUUID()}.png`;
-          const { error } = await supabase.storage.from("media").upload(path, blob, { contentType: "image/png" });
-          if (!error) urls.push(supabase.storage.from("media").getPublicUrl(path).data.publicUrl);
-        } else if (isHttp(url)) urls.push(url);
+        try {
+          if (url.startsWith("data:")) {
+            const blob = dataUrlToBlob(url);
+            const mime = blob.type || "image/png";
+            const ext = mime.split("/")[1]?.split(";")[0] || "png";
+            const path = `studio/${user.id}/gal_${crypto.randomUUID()}.${ext}`;
+            const { error } = await supabase.storage.from("media").upload(path, blob, { contentType: mime });
+            if (error) { console.error("[gallery] upload data:", error); continue; }
+            urls.push(supabase.storage.from("media").getPublicUrl(path).data.publicUrl);
+          } else if (url.startsWith("blob:")) {
+            const resp = await fetch(url);
+            const blob = await resp.blob();
+            const mime = blob.type || "image/png";
+            const ext = mime.split("/")[1]?.split(";")[0] || "png";
+            const path = `studio/${user.id}/gal_${crypto.randomUUID()}.${ext}`;
+            const { error } = await supabase.storage.from("media").upload(path, blob, { contentType: mime });
+            if (error) { console.error("[gallery] upload blob:", error); continue; }
+            urls.push(supabase.storage.from("media").getPublicUrl(path).data.publicUrl);
+          } else if (isHttp(url)) {
+            urls.push(url);
+          }
+        } catch (err) {
+          console.error("[gallery] item failed:", err);
+        }
       }
-      if (urls.length) {
-        await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático" });
-        toast.success("Salvo na galeria");
+      if (!urls.length) {
+        toast.error("Não foi possível preparar a mídia");
+        return;
       }
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Erro ao salvar"); }
-    finally { setSaving(false); }
+      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático" });
+      if (!saved) {
+        toast.error("Falha ao salvar na galeria");
+        return;
+      }
+      toast.success("Salvo na galeria");
+    } catch (e) {
+      console.error("[gallery] save error:", e);
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+    } finally { setSaving(false); }
   };
 
   return (
