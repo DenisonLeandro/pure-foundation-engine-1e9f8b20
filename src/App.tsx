@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Loader2 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
 
 // Auth pages (not lazy — need fast load)
 import Login from "./pages/Login";
@@ -40,7 +41,7 @@ const queryClient = new QueryClient({
 
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center min-h-[50vh]">
+    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
       <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
     </div>
   );
@@ -75,55 +76,62 @@ function GuestOnly({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function ThemeBoot({ children }: { children: React.ReactNode }) {
+  useTheme(); // garante que a classe `light`/`dark` seja aplicada já no boot
+  return <>{children}</>;
+}
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Suspense fallback={<PageLoader />}>
-                <Routes>
-                  {/* Auth routes (guest only) */}
-                  <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
-                  <Route path="/signup" element={<GuestOnly><Signup /></GuestOnly>} />
-                  <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
-                  <Route path="/update-password" element={<UpdatePassword />} />
+      <ThemeBoot>
+        <AuthProvider>
+          <AppProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Suspense fallback={<PageLoader />}>
+                  <Routes>
+                    {/* Auth routes (guest only) */}
+                    <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
+                    <Route path="/signup" element={<GuestOnly><Signup /></GuestOnly>} />
+                    <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
+                    <Route path="/update-password" element={<UpdatePassword />} />
 
-                  {/* Onboarding (authenticated) */}
-                  <Route path="/setup" element={<RequireAuth><Setup /></RequireAuth>} />
+                    {/* Onboarding (authenticated) */}
+                    <Route path="/setup" element={<RequireAuth><Setup /></RequireAuth>} />
 
-                  {/* App routes (authenticated + onboarded + layout) */}
-                  <Route element={<RequireAuth><RequireOnboarding><AppLayout /></RequireOnboarding></RequireAuth>}>
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/accounts" element={<Accounts />} />
-                    <Route path="/studio" element={<Studio />} />
-                    {/* Telas antigas aposentadas — redirecionam ao Studio unificado */}
-                    <Route path="/create" element={<Navigate to="/studio" replace />} />
-                    <Route path="/carousel" element={<Navigate to="/studio" replace />} />
-                    <Route path="/visuals" element={<Navigate to="/studio" replace />} />
-                    <Route path="/gallery" element={<Gallery />} />
-                    <Route path="/analytics" element={<Analytics />} />
-                    <Route path="/lab" element={<Lab />} />
-                    <Route path="/schedule" element={<Schedule />} />
-                    <Route path="/sources" element={<Sources />} />
-                    <Route path="/brands" element={<Brands />} />
-                    <Route path="/insights" element={<Insights />} />
-                    <Route path="/autopilot" element={<Autopilot />} />
-                    <Route path="/admin" element={<Admin />} />
-                  </Route>
+                    {/* App routes (authenticated + onboarded + layout) */}
+                    <Route element={<RequireAuth><RequireOnboarding><AppLayout /></RequireOnboarding></RequireAuth>}>
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/accounts" element={<Accounts />} />
+                      <Route path="/studio" element={<Studio />} />
+                      {/* Telas antigas aposentadas — redirecionam ao Studio unificado */}
+                      <Route path="/create" element={<Navigate to="/studio" replace />} />
+                      <Route path="/carousel" element={<Navigate to="/studio" replace />} />
+                      <Route path="/visuals" element={<Navigate to="/studio" replace />} />
+                      <Route path="/gallery" element={<Gallery />} />
+                      <Route path="/analytics" element={<Analytics />} />
+                      <Route path="/lab" element={<Lab />} />
+                      <Route path="/schedule" element={<Schedule />} />
+                      <Route path="/sources" element={<Sources />} />
+                      <Route path="/brands" element={<Brands />} />
+                      <Route path="/insights" element={<Insights />} />
+                      <Route path="/autopilot" element={<Autopilot />} />
+                      <Route path="/admin" element={<Admin />} />
+                    </Route>
 
-                  {/* Redirects */}
-                  <Route path="/" element={<Navigate to="/login" replace />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </BrowserRouter>
-          </TooltipProvider>
-        </AppProvider>
-      </AuthProvider>
+                    {/* Redirects */}
+                    <Route path="/" element={<Navigate to="/login" replace />} />
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
+              </BrowserRouter>
+            </TooltipProvider>
+          </AppProvider>
+        </AuthProvider>
+      </ThemeBoot>
     </QueryClientProvider>
   </ErrorBoundary>
 );
