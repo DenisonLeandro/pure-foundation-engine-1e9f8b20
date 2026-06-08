@@ -297,7 +297,7 @@ export default function Setup() {
   // ── Render ───────────────────────────────────────────────────
   if (isManageMode) {
     return (
-      <ManageKeysView
+      <SettingsShell
         currentConfig={config}
         onSave={async (partial) => {
           const updated = {
