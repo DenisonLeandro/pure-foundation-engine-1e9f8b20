@@ -25,7 +25,7 @@ export async function callHiggsfield(
 ): Promise<unknown> {
   const url = `${getSupabaseUrl()}/functions/v1/higgsfield-proxy`;
   const cfg = getSavedConfig();
-  const headers = baseHeaders();
+  const headers = await baseHeaders();
   if (cfg.higgsFieldApiId) headers["x-higgsfield-api-id"] = cfg.higgsFieldApiId;
   if (cfg.higgsFieldApiSecret) headers["x-higgsfield-api-secret"] = cfg.higgsFieldApiSecret;
 

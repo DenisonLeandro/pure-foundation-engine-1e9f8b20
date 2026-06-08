@@ -10,7 +10,7 @@ export async function firecrawlSearch(
   limit = 5
 ): Promise<{ success?: boolean; results: { url: string; title: string; markdown: string }[] }> {
   const url = `${getSupabaseUrl()}/functions/v1/firecrawl-search`;
-  const headers = baseHeaders();
+  const headers = await baseHeaders();
   headers["x-firecrawl-api-key"] = apiKey;
 
   const response = await fetch(url, {

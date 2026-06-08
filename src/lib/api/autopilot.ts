@@ -9,7 +9,7 @@ export async function runAutopilot(
   params: { config_id?: string; calendar_id?: string }
 ): Promise<Record<string, unknown>> {
   const url = `${getSupabaseUrl()}/functions/v1/autopilot-run`;
-  const headers = baseHeaders();
+  const headers = await baseHeaders();
 
   const response = await fetch(url, {
     method: "POST",
