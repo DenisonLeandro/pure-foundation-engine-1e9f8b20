@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Wand2, Loader2, ArrowLeft, Sparkles } from "lucide-react";
+import { Wand2, Loader2, ArrowLeft, Sparkles, BookOpen, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
 import {
@@ -12,9 +13,26 @@ import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
 import { saveVisualToGallery } from "@/lib/gallery";
 import { composeSlideWithText } from "@/lib/slide-compose";
+import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
+
+type SourceRow = { id: string; title: string | null; source_type: string; content: string | null };
+
+const MAX_PER_SOURCE = 1500;
+const MAX_TOTAL = 6000;
+
+function buildSourcesContext(sources: SourceRow[]): string {
+  if (!sources.length) return "";
+  const parts = sources.map((s, i) => {
+    const body = (s.content || "").trim().slice(0, MAX_PER_SOURCE);
+    return `[Fonte ${i + 1} — ${s.title || s.source_type}]\n${body}`;
+  });
+  let joined = parts.join("\n---\n");
+  if (joined.length > MAX_TOTAL) joined = joined.slice(0, MAX_TOTAL) + "…";
+  return `\n\nCONTEXTO DE REFERÊNCIA (use como base factual, não copie literalmente):\n${joined}`;
+}
 
 const EXAMPLES = [
   "Um carrossel de 6 slides sobre o Natal para engajamento",
