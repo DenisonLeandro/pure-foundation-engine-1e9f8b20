@@ -242,6 +242,16 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       const styleHint = ART_STYLES.find((s) => s.value === artStyle)?.hint || "";
       const direction = artDirection.trim();
 
+      // Resolve o template por slide. "auto" rotaciona; qualquer outro valor fixa.
+      const rotation = SLIDE_TEMPLATES;
+      const offset = Math.floor(Math.random() * rotation.length);
+      const pickTemplate = (i: number): SlideTemplate => {
+        if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
+        // capa sempre num template "forte"
+        if (i === 0) return "bottom";
+        return rotation[(i + offset) % rotation.length];
+      };
+
       let slides: Slide[];
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
@@ -251,7 +261,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         slides = [];
         for (let i = 0; i < specs.length; i++) {
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
-          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction);
+          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, pickTemplate(i));
           slides.push({ bg: grad, bgImage: img, els: [] });
         }
       } else {
@@ -263,9 +273,13 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         });
         const head = (headline || brief.topic).trim();
         const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint);
-        const img = await slideArt(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction);
+        const soloTemplate: SlideTemplate = layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)
+          ? (layoutMode as SlideTemplate)
+          : (["bottom", "side-bar", "kicker", "center-card"] as SlideTemplate[])[Math.floor(Math.random() * 4)];
+        const img = await slideArt(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
         slides = [{ bg: grad, bgImage: img, els: [] }];
       }
+
 
       const finalDoc: StudioDoc = {
         ...base,
