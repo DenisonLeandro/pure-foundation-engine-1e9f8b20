@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { Wand2, Loader2, ArrowLeft, Sparkles, BookOpen, X, Check } from "lucide-react";
+import { Wand2, Loader2, ArrowLeft, Sparkles, BookOpen, X, Check, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
@@ -17,6 +19,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
+
+const ART_STYLES: { value: string; label: string; hint: string }[] = [
+  { value: "auto", label: "Auto (IA escolhe)", hint: "" },
+  { value: "editorial", label: "Editorial fotográfico", hint: "fotografia editorial premium, luz natural, profundidade de campo, sensação de revista" },
+  { value: "cinematic", label: "Cinematográfico", hint: "iluminação cinematográfica dramática, grão sutil, paleta coesa, sensação de still de filme" },
+  { value: "3d", label: "3D render", hint: "render 3D moderno, materiais suaves (clay/glass), iluminação volumétrica, sombras macias" },
+  { value: "minimal", label: "Minimalista", hint: "design minimalista, muito espaço negativo, formas geométricas simples, elegante" },
+  { value: "poster", label: "Pôster tipográfico", hint: "estética de pôster impresso, composição ousada, alto contraste, texturas de papel" },
+  { value: "flat", label: "Flat ilustrado", hint: "ilustração flat vetorial, formas chapadas, contornos limpos, sem gradientes pesados" },
+  { value: "watercolor", label: "Aquarela", hint: "ilustração em aquarela, traços orgânicos, papel texturizado, manchas suaves" },
+];
 
 type SourceRow = { id: string; title: string | null; source_type: string; content: string | null };
 
