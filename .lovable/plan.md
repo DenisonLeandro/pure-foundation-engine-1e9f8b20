@@ -1,49 +1,58 @@
-## Objetivo
-Permitir que o usuário escolha uma ou mais **Fontes** salvas (de `/sources`) dentro do fluxo **"Criar com IA"** no Studio, para que o conteúdo gerado (legenda, slides, arte) seja baseado nelas.
+# Plano: correções de segurança críticas
 
-## O que muda na UI
+Tudo em **uma única migration**. Sem mudança de UI nem de lógica de aplicação — só endurecer o backend.
 
-Em `src/components/studio/workspace/AutoStudio.tsx`, abaixo do textarea de prompt e antes do botão "Gerar tudo com IA", adicionar:
+## O que será corrigido
 
-- Um botão/chip **"+ Usar uma fonte"** (ícone `BookOpen` ou `Link2`).
-- Ao clicar, abre um `Popover` com a lista das fontes do usuário (`saved_sources`), mostrando título, tipo (artigo/youtube/pdf/tweet) e um checkbox.
-- Fontes selecionadas aparecem como chips abaixo, com `x` para remover.
-- Estado vazio: "Você ainda não salvou nenhuma fonte. Vá em Fontes para adicionar."
+### 1. `system_settings` — bloquear escrita para usuários comuns 🔴
+Hoje qualquer usuário logado pode `INSERT`/`UPDATE` (inclusive desligar o cadastro de novos usuários).
 
-## O que muda na lógica
+- Criar enum `app_role` (`admin`, `user`) e tabela `public.user_roles` (padrão recomendado, evita escalonamento de privilégio).
+- Criar função `public.has_role(_user_id, _role)` (SECURITY DEFINER, search_path fixo).
+- Substituir policies de `system_settings`:
+  - SELECT: continua liberado para todos (a flag de registration_enabled precisa ser lida no login).
+  - INSERT/UPDATE/DELETE: apenas `has_role(auth.uid(), 'admin')`.
 
-Em `handleGenerate` (mesmo arquivo):
+### 2. Bucket `media` — remover listagem pública 🟡
+Existem **duas** policies SELECT públicas em `storage.objects` para o bucket (`Public read access to media` e `media_public_read`). Isso permite `list()` de todos os arquivos.
 
-1. Concatenar o conteúdo das fontes selecionadas num bloco de contexto:
-   ```
-   CONTEXTO DE REFERÊNCIA (use como base factual, não copie literalmente):
-   [Fonte 1 - título]
-   <content resumido, máx ~1500 chars cada>
-   ---
-   [Fonte 2 - título]
-   ...
-   ```
-2. Passar esse bloco para:
-   - `parseBrief(prompt + contexto)` — para o briefing entender o tema.
-   - `generateContent({ prompt: ..., sources: contexto })` — adicionar campo `sources` no payload (ou anexar ao prompt se a edge function não aceitar).
-   - `slideArt(...)` e o `aiAssist` do headline — incluir uma linha resumida do contexto.
+- Remover ambas as policies SELECT públicas.
+- Manter `media_authenticated_rw` (dono mexe nos próprios arquivos por pasta).
+- Arquivos continuam acessíveis por URL pública (`/object/public/media/...`) porque o bucket é público — só o `list()` deixa de funcionar para terceiros.
 
-3. Truncar cada fonte (ex.: 1500 chars) para não estourar o limite de tokens. Se a soma passar de ~6000 chars, avisar via toast.
+### 3. Função `get_vault_secret` — revogar EXECUTE 🟡
+Hoje qualquer um (anon/authenticated) pode chamar e ler segredos do Vault.
 
-## Dados
+- `REVOKE EXECUTE ... FROM PUBLIC, anon, authenticated`.
+- Mantém EXECUTE só para `service_role` (edge functions continuam funcionando).
+- Mesmo tratamento em `handle_updated_at` (é trigger, não precisa ser chamável).
 
-Buscar fontes via:
-```ts
-supabase.from("saved_sources").select("id,title,source_type,content").eq("user_id", uid).order("created_at",{ascending:false})
+### 4. Policies faltando 🟢
+- `saved_sources`: adicionar UPDATE (`auth.uid() = user_id`) — hoje impede editar fontes salvas.
+- `post_history`: adicionar DELETE (`auth.uid() = user_id`).
+- `analytics_snapshots`: adicionar UPDATE (`auth.uid() = user_id`).
+
+## O que NÃO será feito agora (justificativa)
+
+- **Migrar chaves de terceiros em `user_configs` para Vault** — refator grande, envolve várias edge functions. Vale fazer numa próxima rodada dedicada. Hoje RLS já protege bem (cada usuário só vê as próprias chaves).
+- **Mover extensão do schema `public`** — risco baixíssimo, raramente vale o esforço.
+- **Validação com zod nos formulários** — boa prática, mas não é vulnerabilidade.
+
+## Detalhes técnicos
+
+```text
+Migration única:
+  - CREATE TYPE app_role
+  - CREATE TABLE public.user_roles (+ GRANT + RLS + policies)
+  - CREATE FUNCTION public.has_role (SECURITY DEFINER, stable, search_path=public)
+  - DROP + CREATE policies de system_settings (admin-only para writes)
+  - DROP policies SELECT públicas em storage.objects (bucket media)
+  - REVOKE EXECUTE em get_vault_secret e handle_updated_at
+  - CREATE POLICY UPDATE em saved_sources
+  - CREATE POLICY DELETE em post_history
+  - CREATE POLICY UPDATE em analytics_snapshots
 ```
-Cachear no estado local do componente (carregado uma vez ao montar).
 
-## Arquivos a alterar
-- `src/components/studio/workspace/AutoStudio.tsx` — UI + lógica (único arquivo de código).
+Nenhum código TS precisa mudar. Você vai precisar **promover seu usuário a admin manualmente** depois (te passo o comando — basta um INSERT em `user_roles`).
 
-Nenhuma mudança de banco ou edge function é necessária — o conteúdo das fontes vai dentro do prompt existente.
-
-## Validação
-- Abrir `/studio` → "Criar com IA" → ver botão "+ Usar uma fonte".
-- Selecionar 1-2 fontes → gerar → legenda/slides devem refletir o conteúdo da fonte.
-- Sem fontes selecionadas → comportamento atual permanece idêntico.
+Após aplicar: rodo o scanner de novo para confirmar que os itens críticos sumiram.
