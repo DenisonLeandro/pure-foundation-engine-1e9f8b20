@@ -261,6 +261,67 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
             </button>
           ))}
         </div>
+
+        <div className="rounded-lg border border-border bg-card/40 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <BookOpen className="h-4 w-4 text-violet-500" />
+              Fontes de referência
+              {selectedSources.length > 0 && (
+                <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-600">
+                  {selectedSources.length}
+                </span>
+              )}
+            </div>
+            <Popover open={sourcesOpen} onOpenChange={setSourcesOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" disabled={generating} className="h-7 text-xs">
+                  + Usar fonte
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-0" align="end">
+                {sources.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground">
+                    Você ainda não salvou nenhuma fonte. Vá em <span className="font-medium text-foreground">Fontes</span> para adicionar.
+                  </div>
+                ) : (
+                  <div className="max-h-72 overflow-y-auto py-1">
+                    {sources.map((s) => {
+                      const checked = selectedSourceIds.includes(s.id);
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => toggleSource(s.id)}
+                          className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-accent"
+                        >
+                          <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? "border-violet-500 bg-violet-500 text-white" : "border-border"}`}>
+                            {checked && <Check className="h-3 w-3" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm">{s.title || "Sem título"}</div>
+                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{s.source_type}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
+          {selectedSources.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {selectedSources.map((s) => (
+                <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-1 text-[11px] text-violet-700 dark:text-violet-300">
+                  {s.title || s.source_type}
+                  <button onClick={() => toggleSource(s.id)} disabled={generating} className="hover:opacity-70">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
         <Button className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-500" size="lg" onClick={handleGenerate} disabled={generating || !prompt.trim()}>
           {generating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {progress || "Gerando…"}</> : <><Sparkles className="mr-2 h-4 w-4" /> Gerar tudo com IA</>}
         </Button>
