@@ -227,14 +227,19 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       const plat = brief.platforms[0];
       const caption = res.posts?.[plat] || Object.values(res.posts || {})[0] || brief.topic;
 
+      const styleHint = ART_STYLES.find((s) => s.value === artStyle)?.hint || "";
+      const direction = artDirection.trim();
+
       let slides: Slide[];
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
         if (!specs.length) throw new Error("A IA não retornou slides.");
+        setProgress("Definindo a direção visual…");
+        const scenes = await generateSceneBriefs(brief.topic, brief.objective, specs.map((s) => s.heading), styleHint);
         slides = [];
         for (let i = 0; i < specs.length; i++) {
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
-          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length);
+          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction);
           slides.push({ bg: grad, bgImage: img, els: [] });
         }
       } else {
@@ -244,7 +249,9 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
           system: `Escreva uma frase curta e impactante (máx 8 palavras) em pt-BR para estampar numa arte sobre o tema, na voz da marca. Responda só a frase.`,
           prompt: `${brief.topic} (${brief.objective})${sourcesCtx}`, temperature: 0.8,
         });
-        const img = await slideArt(brief.topic, brief.objective, (headline || brief.topic).trim(), "", 0, 1);
+        const head = (headline || brief.topic).trim();
+        const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint);
+        const img = await slideArt(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction);
         slides = [{ bg: grad, bgImage: img, els: [] }];
       }
 
