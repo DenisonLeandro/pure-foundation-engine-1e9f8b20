@@ -26,7 +26,7 @@ async function callPfm(
 ): Promise<unknown> {
   const url = `${getSupabaseUrl()}/functions/v1/postforme-proxy`;
   const cfg = getSavedConfig();
-  const headers = baseHeaders();
+  const headers = await baseHeaders();
   if (_pfmUserKey) headers["x-pfm-api-key"] = _pfmUserKey;
   else if (cfg.postformeApiKey) headers["x-pfm-api-key"] = cfg.postformeApiKey;
 
@@ -50,7 +50,7 @@ async function callPfm(
 export async function validatePfmKey(key: string): Promise<{ valid: boolean; error?: string }> {
   try {
     const url = `${getSupabaseUrl()}/functions/v1/postforme-proxy`;
-    const headers = baseHeaders();
+    const headers = await baseHeaders();
     headers["x-pfm-api-key"] = key;
     const res = await fetch(url, {
       method: "POST",

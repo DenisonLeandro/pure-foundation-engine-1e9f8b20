@@ -21,7 +21,7 @@ export interface OpenAiImageResult {
 
 export async function generateOpenAiImage(params: OpenAiImageParams): Promise<OpenAiImageResult> {
   const url = `${getSupabaseUrl()}/functions/v1/openai-image`;
-  const headers = baseHeaders();
+  const headers = await baseHeaders();
 
   const response = await fetch(url, {
     method: "POST",

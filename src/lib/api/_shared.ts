@@ -6,6 +6,7 @@
  */
 
 import { userStorage } from "@/lib/storage";
+import { supabase } from "@/integrations/supabase/client";
 import type { AppConfig } from "@/types";
 
 export function getSupabaseUrl(): string {
@@ -34,12 +35,24 @@ export function getAnonKey(): string {
   );
 }
 
-export function baseHeaders(): Record<string, string> {
+/**
+ * Headers for calling Lovable Cloud edge functions.
+ * Sends `apikey` (anon) for PostgREST gateway AND `Authorization: Bearer <user JWT>`
+ * so edge functions that call `requireUser()` accept the request.
+ * Falls back to anon key as Bearer when there's no session (e.g. pre-login flows).
+ */
+export async function baseHeaders(): Promise<Record<string, string>> {
   const anonKey = getAnonKey();
   const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (anonKey) {
-    h["apikey"] = anonKey;
-    h["Authorization"] = `Bearer ${anonKey}`;
+  if (anonKey) h["apikey"] = anonKey;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    h["Authorization"] = `Bearer ${token || anonKey}`;
+  } catch {
+    if (anonKey) h["Authorization"] = `Bearer ${anonKey}`;
   }
   return h;
 }
+

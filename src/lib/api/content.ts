@@ -70,7 +70,7 @@ export async function searchImages(
 ): Promise<{ images: StockImage[] }> {
   const url = `${getSupabaseUrl()}/functions/v1/image-search`;
   const cfg = getSavedConfig();
-  const headers = baseHeaders();
+  const headers = await baseHeaders();
   if (cfg.higgsFieldApiId) headers["x-higgsfield-api-id"] = cfg.higgsFieldApiId;
   if (cfg.higgsFieldApiSecret) headers["x-higgsfield-api-secret"] = cfg.higgsFieldApiSecret;
 
@@ -99,7 +99,7 @@ export async function searchStockImages(
 ): Promise<{ images: StockImage[] }> {
   const url = `${getSupabaseUrl()}/functions/v1/stock-search`;
   const cfg = getSavedConfig();
-  const headers = baseHeaders();
+  const headers = await baseHeaders();
   if (cfg.pexelsApiKey) headers["x-pexels-api-key"] = cfg.pexelsApiKey;
 
   const response = await fetch(url, {
@@ -122,7 +122,7 @@ export async function searchStockImages(
 export async function validatePexelsKey(key: string): Promise<{ valid: boolean; error?: string }> {
   try {
     const url = `${getSupabaseUrl()}/functions/v1/stock-search`;
-    const headers = baseHeaders();
+    const headers = await baseHeaders();
     headers["x-pexels-api-key"] = key;
     const res = await fetch(url, {
       method: "POST",
@@ -143,7 +143,7 @@ export async function generateContent(
   params: GenerateContentParams
 ): Promise<GenerateContentResult> {
   const url = `${getSupabaseUrl()}/functions/v1/generate-content`;
-  const headers = baseHeaders();
+  const headers = await baseHeaders();
 
   const response = await fetch(url, {
     method: "POST",
