@@ -59,8 +59,28 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(null);
+  const [sources, setSources] = useState<SourceRow[]>([]);
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const { data } = await supabase
+        .from("saved_sources")
+        .select("id,title,source_type,content")
+        .eq("user_id", u.user.id)
+        .order("created_at", { ascending: false });
+      setSources(data || []);
+    })();
+  }, []);
+
+  const selectedSources = sources.filter((s) => selectedSourceIds.includes(s.id));
+  const toggleSource = (id: string) =>
+    setSelectedSourceIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const c1 = brand?.colors?.[0] || "#8b5cf6";
   const c2 = brand?.colors?.[1] || "#d946ef";
