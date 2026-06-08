@@ -17,7 +17,7 @@ import { ConnectAccountDialog } from "@/components/ConnectAccountDialog";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { SecretInput } from "@/components/setup/SecretInput";
 import { STEPS } from "@/components/setup/steps";
-import { ManageKeysView } from "@/components/setup/ManageKeysView";
+import { SettingsShell } from "@/components/setup/SettingsShell";
 
 // ─── Componente principal ────────────────────────────────────────
 
@@ -297,7 +297,7 @@ export default function Setup() {
   // ── Render ───────────────────────────────────────────────────
   if (isManageMode) {
     return (
-      <ManageKeysView
+      <SettingsShell
         currentConfig={config}
         onSave={async (partial) => {
           const updated = {

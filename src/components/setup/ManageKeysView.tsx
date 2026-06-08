@@ -85,11 +85,33 @@ export function ManageKeysView({
   currentConfig,
   onSave,
   onBack,
+  embedded = false,
 }: {
   currentConfig: AppConfig;
   onSave: (partial: Partial<AppConfig>) => Promise<void>;
-  onBack: () => void;
+  onBack?: () => void;
+  embedded?: boolean;
 }) {
+  const content = (
+    <div className="grid gap-4">
+      {MANAGE_KEYS.map((def) => (
+        <ManageKeyCard
+          key={def.id as string}
+          def={def}
+          currentValue={currentConfig[def.id] as string | undefined}
+          onSave={onSave}
+        />
+      ))}
+      <HiggsfieldCard
+        apiId={currentConfig.higgsFieldApiId}
+        apiSecret={currentConfig.higgsFieldApiSecret}
+        onSave={onSave}
+      />
+    </div>
+  );
+
+  if (embedded) return content;
+
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8 relative overflow-hidden">
       <AnimatedBackground />
@@ -103,28 +125,13 @@ export function ManageKeysView({
               Atualize ou remova suas chaves a qualquer momento.
             </p>
           </div>
-          <Button variant="outline" onClick={onBack}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
-          </Button>
+          {onBack && (
+            <Button variant="outline" onClick={onBack}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+            </Button>
+          )}
         </div>
-
-        <div className="grid gap-4">
-          {MANAGE_KEYS.map((def) => (
-            <ManageKeyCard
-              key={def.id as string}
-              def={def}
-              currentValue={currentConfig[def.id] as string | undefined}
-              onSave={onSave}
-            />
-          ))}
-
-          {/* Higgsfield = par ID + Secret tratado como bloco */}
-          <HiggsfieldCard
-            apiId={currentConfig.higgsFieldApiId}
-            apiSecret={currentConfig.higgsFieldApiSecret}
-            onSave={onSave}
-          />
-        </div>
+        {content}
       </div>
     </div>
   );
