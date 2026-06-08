@@ -1,60 +1,61 @@
-# Corrigir texto errado nas imagens geradas pela IA
+# Por que está falhando
 
-## Causa
+Encontrei a causa raiz do "Não foi possível preparar a mídia".
 
-Modelos de imagem (Gemini, GPT-image) **desenham letras como pixels**, não como tipografia real. Resultado: "trabaio agoura" no lugar de "trabalho agora", palavras cortadas, acentos errados. Isso acontece em qualquer idioma, mas piora em pt-BR.
+A política de upload do bucket `media` exige que o **primeiro segmento** do caminho seja o ID do usuário:
 
-## Solução: separar arte e texto
-
-A IA gera **apenas o fundo/cenário, sem nenhum texto**. O título e a frase de apoio são desenhados por cima via `<canvas>` com fonte real do navegador — zero erro ortográfico, 100% legível, e ainda fica editável depois no modo assistido.
-
-```text
-┌──────────────────────┐      ┌──────────────────────┐      ┌──────────────────────┐
-│ IA gera fundo limpo  │  →   │ Canvas desenha texto │  →   │ Slide final salvo    │
-│ (cenário, paleta,    │      │ (fonte real, sem     │      │ na galeria como      │
-│ ícone — SEM letras)  │      │ erro ortográfico)    │      │ imagem composta      │
-└──────────────────────┘      └──────────────────────┘      └──────────────────────┘
+```
+foldername(name)[1] = auth.uid()
 ```
 
-## Mudanças
+Mas o código salva em caminhos como:
+- `studio/{user_id}/gal_xxx.png` ← OutputScreen (Salvar na galeria)
+- `gallery/{user_id}/xxx.png` ← `src/lib/gallery.ts` (auto-save)
+- `studio/{user_id}/...` ← upload para PFM e fluxo de publicação
 
-### 1. `src/components/studio/workspace/AutoStudio.tsx`
-- **`slideArt()`**: reescrever o prompt para **proibir** texto/letras/logos na imagem. Pedir só cenário visual (paleta, mood, ícones simbólicos, composição). Manter `brandImageDirective` que já reforça "não renderize texto".
-- Após receber a imagem da IA, chamar um novo `composeSlideOverlay(bgUrl, heading, body, brand, idx, total)` e usar o **resultado composto** como `bgImage` do slide.
-- Aplicar tanto no caminho de carrossel quanto no de post único.
+Nesses caminhos o primeiro segmento é `studio` / `gallery`, não o uid. O Supabase bloqueia silenciosamente o upload com erro de RLS, a função devolve `urls.length === 0` e o toast vermelho aparece.
 
-### 2. Novo arquivo `src/lib/slide-compose.ts`
-Helper puro de canvas (sem dependências externas):
-- Carrega a imagem de fundo em um `<canvas>` 1024×1536.
-- Desenha um gradiente sutil de leitura (overlay escuro embaixo) para garantir contraste.
-- Desenha o **título** em fonte bold grande (ex: Inter/Plus Jakarta) com cor da marca como destaque na primeira palavra (estilo do mockup enviado pelo usuário).
-- Desenha o **body/apoio** abaixo, em peso regular menor.
-- Se `total > 1`, desenha o indicador "idx/total" no canto superior direito.
-- Faz quebra de linha automática (`wrapText`) respeitando margens.
-- Retorna um `data:image/png;base64,…` pronto para `saveVisualToGallery` (que já lida com data URLs).
+(Já existe a política antiga "Users can upload to their own folder" que aceita `carousel/{uid}/...`, mas nada cobre `studio/` nem `gallery/`.)
 
-### 3. Sem mudanças em edge functions
-O `openai-image` continua igual. A correção é 100% client-side. Nenhuma alteração de schema, RLS ou secrets.
+# O que vou fazer
 
-## Detalhes técnicos
+**1. Migração no banco — uma política única e robusta no `storage.objects`**
 
-- **Fonte**: usar a fonte do sistema de design já carregada (`Inter`, via Tailwind/index.css). Sem download extra de fonte → render imediato e determinístico.
-- **Acessibilidade visual**: overlay com `rgba(0,0,0,0.55)` na metade inferior garante contraste WCAG mesmo se o fundo for claro.
-- **Cor de destaque**: primeira ou última palavra do título recebe `brand.colors[0]` (laranja/âmbar no exemplo do usuário) — replica o padrão "Justiça **feita**" do mockup enviado.
-- **Performance**: canvas roda em <100ms por slide; não muda o tempo total de geração.
-- **Reuso**: o helper pode ser usado depois no modo assistido (Studio) para re-renderizar texto quando o usuário editar a legenda.
+Criar políticas que permitam ao usuário autenticado ler, inserir, atualizar e deletar qualquer objeto no bucket `media` desde que o **uid dele apareça em qualquer segmento do caminho**. Isso cobre todos os padrões existentes sem precisar reescrever cada upload:
 
-## Validação
+- `{uid}/...`
+- `studio/{uid}/...`
+- `gallery/{uid}/...`
+- `carousel/{uid}/...`
+- qualquer novo padrão futuro que siga a convenção de incluir o uid no caminho
 
-1. Gerar um post com o mesmo prompt ("Justiça feita: o tempo de trabalho agora basta") e confirmar:
-   - Fundo limpo sem nenhuma letra desenhada pela IA.
-   - Texto sobreposto pelo canvas com ortografia perfeita.
-   - Acentos corretos (ç, ã, é).
-2. Gerar um carrossel de 3 slides e confirmar que o indicador "2/3" aparece e o texto de cada slide está correto.
-3. Verificar que a imagem salva na galeria contém o texto sobreposto (não só o fundo).
+Em SQL (resumido):
 
-## Fora de escopo
+```sql
+create policy "media_authenticated_rw"
+on storage.objects for all to authenticated
+using  (bucket_id = 'media' and (auth.uid())::text = any(storage.foldername(name)))
+with check (bucket_id = 'media' and (auth.uid())::text = any(storage.foldername(name)));
+```
 
-- Trocar o modelo de imagem (Gemini continua sendo o fallback).
-- Editor de tipografia (cor/fonte/tamanho customizáveis). Pode vir depois se o usuário pedir.
-- Re-renderizar imagens antigas da galeria.
+E removo as políticas antigas redundantes/quebradas do bucket `media` ("Users can upload media", "Users can upload to their own folder", "Users can delete own media", "Users can delete their own media files", "Users can update their own media files", "Users can read own media") para deixar só:
+- `media_public_read` (leitura pública — já existe, mantenho)
+- `media_authenticated_rw` (a nova, escrita do dono)
+
+**2. Sem mudança nos paths do app**
+
+Não toco nos caminhos de upload nos componentes — eles continuam funcionando como já estão escritos (`studio/{uid}/...`, `gallery/{uid}/...`, etc.). A correção é só de permissão.
+
+# Como validar
+
+Depois de aplicar:
+1. Em `/studio`, gerar uma criação no modo automático.
+2. Clicar em **Salvar na galeria** → deve aparecer "Salvo na galeria" (toast verde).
+3. Ir em `/gallery` → a criação deve aparecer na grade.
+4. Verificar console — nenhum erro `new row violates row-level security policy` no upload.
+
+# Fora de escopo
+
+- Não vou reescrever os caminhos no código.
+- Não vou mexer em outras tabelas/policies.
+- Não vou alterar o fluxo de auto-save nem o `composeSlideWithText`.
