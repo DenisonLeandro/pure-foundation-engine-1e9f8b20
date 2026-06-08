@@ -208,8 +208,15 @@ export function MediaPreviewDialog({
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleDownload}>
               <Download className="h-4 w-4 mr-2" />
-              Baixar
+              Baixar {hasMultiple ? "este" : ""}
             </Button>
+            {hasMultiple && (
+              <Button variant="outline" size="sm" onClick={handleDownloadAll}>
+                <Download className="h-4 w-4 mr-2" />
+                Baixar tudo (.zip)
+              </Button>
+            )}
+
             {onUseInPost && (
               <Button size="sm" onClick={handleUseInPost}>
                 <Send className="h-4 w-4 mr-2" />
