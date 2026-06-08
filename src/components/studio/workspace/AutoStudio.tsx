@@ -131,18 +131,38 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     }
   };
 
-  const slideArt = async (topic: string, objective: string, heading: string, body: string, idx: number, total: number): Promise<string | undefined> => {
+  /** Gera N scene briefs únicos para um carrossel — garante variação visual entre slides. */
+  const generateSceneBriefs = async (topic: string, objective: string, headings: string[], styleHint: string): Promise<string[]> => {
+    try {
+      const { json } = await aiAssist({
+        system: `Você é diretor de arte. Crie um JSON {"scenes":[...]} com EXATAMENTE ${headings.length} cenas visuais distintas para um carrossel coeso de redes sociais. Cada cena = uma string curta (1-2 frases) descrevendo: sujeito/cenário CONCRETO, ângulo da câmera, atmosfera/luz. Mantenha a mesma paleta e o mesmo estilo, mas varie radicalmente o sujeito/ângulo entre slides — NUNCA repita o mesmo cenário. Sem texto, sem palavras, sem logos. Responda APENAS o JSON.`,
+        prompt: `Tema: ${topic}\nObjetivo: ${objective}\nEstilo geral: ${styleHint || "livre, alinhado à marca"}\n\nTítulos dos slides (para guiar o sujeito de cada cena):\n${headings.map((h, i) => `${i + 1}. ${h}`).join("\n")}`,
+        expectJson: true, temperature: 0.9,
+      });
+      const arr = (json as { scenes?: string[] })?.scenes;
+      if (Array.isArray(arr) && arr.length) return headings.map((_, i) => arr[i] || arr[arr.length - 1]);
+    } catch { /* fallback */ }
+    return headings.map((h) => `Cena visual representando: ${h}`);
+  };
+
+  const slideArt = async (
+    topic: string, objective: string, heading: string, body: string,
+    idx: number, total: number, sceneBrief: string, styleHint: string, direction: string,
+  ): Promise<string | undefined> => {
     // Pedimos APENAS o cenário visual — NUNCA texto/letras/logos. Os modelos de
     // imagem erram a grafia em pt-BR ("trabaio" no lugar de "trabalho"), então
     // o texto real é desenhado depois via canvas com fonte do navegador.
     const artPrompt = [
       brandImageDirective(brand),
-      `Arte vertical (1024x1536) de fundo para post de redes sociais sobre "${topic}" (objetivo: ${objective}). Cenário, ambientação, iconografia simbólica, composição editorial profissional. Use a paleta da marca, com profundidade e atmosfera.`,
-      `Deixe a metade inferior MAIS LIMPA e com tom mais escuro, pois será sobreposta por texto. Nada de letras, palavras, números, logotipos ou marca d'água — apenas elementos visuais.`,
-      `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras ou números renderizados na imagem.`,
+      styleHint ? `Estilo visual GLOBAL deste post: ${styleHint}.` : "",
+      direction ? `Direção de arte adicional: ${direction}.` : "",
+      `Arte vertical (1024x1536) de fundo para post sobre "${topic}" (objetivo: ${objective}).`,
+      `CENA ESPECÍFICA deste slide (${idx + 1}/${total}) — siga à risca, não invente outra: ${sceneBrief}`,
+      `Composição editorial profissional, profundidade e atmosfera. Deixe a metade inferior MAIS LIMPA e em tom mais escuro (será sobreposta por texto).`,
+      `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras, números ou logotipos renderizados na imagem.`,
     ].filter(Boolean).join("\n\n");
 
-    const { images } = await generateOpenAiImage({ prompt: artPrompt, size: "1024x1536", quality: "medium", n: 1 });
+    const { images } = await generateOpenAiImage({ prompt: artPrompt, size: "1024x1536", quality: "high", n: 1 });
     const bg = images?.[0];
     if (!bg) return undefined;
 
