@@ -357,8 +357,24 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
               />
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">A IA varia a cena entre slides do mesmo carrossel para não saírem todos iguais.</p>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Layout do texto</label>
+            <Select value={layoutMode} onValueChange={setLayoutMode} disabled={generating}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Variado (rotaciona entre slides)</SelectItem>
+                <SelectItem value="bottom">Sempre no rodapé</SelectItem>
+                <SelectItem value="top">Sempre no topo</SelectItem>
+                <SelectItem value="center-card">Sempre cartão central</SelectItem>
+                <SelectItem value="side-bar">Sempre barra lateral</SelectItem>
+                <SelectItem value="kicker">Sempre com etiqueta</SelectItem>
+                <SelectItem value="quote">Sempre citação</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Em "Variado", cada slide do carrossel ganha uma composição diferente — não saem todos iguais.</p>
         </div>
+
 
         <div className="rounded-lg border border-border bg-card/40 p-3">
           <div className="flex items-center justify-between gap-2">
