@@ -243,7 +243,15 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
       startPolling(platform);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao conectar. Tente novamente.");
+      const msg = err instanceof Error ? err.message : "Erro ao conectar. Tente novamente.";
+      if (/social provider app credentials not found/i.test(msg)) {
+        setError(
+          `O Post for Me ainda não tem as credenciais OAuth do ${PLATFORMS[platform]?.name ?? platform} configuradas. ` +
+          `Acesse app.postforme.dev → Settings → Social Providers e cadastre o app (Client ID/Secret) dessa rede antes de conectar.`
+        );
+      } else {
+        setError(msg);
+      }
       setConnecting(null);
     }
   }, [bskyHandle, bskyPassword, loadAccounts, startPolling, toast]);
