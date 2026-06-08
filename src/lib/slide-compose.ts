@@ -2,12 +2,31 @@
  * Compõe um slide final desenhando texto real (via canvas, sem erros ortográficos)
  * sobre uma imagem de fundo gerada pela IA.
  *
- * Motivação: modelos de imagem renderizam letras como pixels e erram a grafia,
- * principalmente em pt-BR. A IA gera só o cenário; aqui escrevemos o texto.
+ * Biblioteca de templates: cada template tem uma composição visual distinta
+ * (rodapé, topo, cartão central, barra lateral, kicker, citação). O AutoStudio
+ * rotaciona templates entre slides do mesmo carrossel pra evitar que os posts
+ * saiam todos com a mesma cara.
  */
 
 const W = 1024;
 const H = 1536;
+
+export type SlideTemplate = "bottom" | "top" | "center-card" | "side-bar" | "kicker" | "quote";
+
+export const SLIDE_TEMPLATES: SlideTemplate[] = ["bottom", "side-bar", "kicker", "center-card", "top", "quote"];
+
+/** Posição preferida do "espaço limpo" no fundo, dado o template. Usado pra
+ *  orientar o prompt da cena (a IA deixa essa metade mais simples/escura). */
+export function preferredCleanArea(t: SlideTemplate): "bottom" | "top" | "center" | "left" | "right" {
+  switch (t) {
+    case "bottom":
+    case "kicker": return "bottom";
+    case "top": return "top";
+    case "center-card":
+    case "quote": return "center";
+    case "side-bar": return "left";
+  }
+}
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -36,136 +55,438 @@ function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number
   return lines;
 }
 
+/** Ajusta o tamanho da fonte até caber em maxLines linhas dentro de maxW. */
+function fitHeading(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxW: number,
+  maxLines: number,
+  startSize: number,
+  minSize: number,
+  weight = 800,
+  fontStack = `"Inter", "Helvetica Neue", Arial, system-ui, sans-serif`,
+): { size: number; lines: string[] } {
+  let size = startSize;
+  ctx.font = `${weight} ${size}px ${fontStack}`;
+  let lines = wrapLines(ctx, text.trim(), maxW);
+  while ((lines.length > maxLines || lines.some((l) => ctx.measureText(l).width > maxW)) && size > minSize) {
+    size -= 4;
+    ctx.font = `${weight} ${size}px ${fontStack}`;
+    lines = wrapLines(ctx, text.trim(), maxW);
+  }
+  return { size, lines };
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace("#", "");
+  const v = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  return {
+    r: parseInt(v.slice(0, 2), 16) || 0,
+    g: parseInt(v.slice(2, 4), 16) || 0,
+    b: parseInt(v.slice(4, 6), 16) || 0,
+  };
+}
+const rgba = (hex: string, a: number) => {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${a})`;
+};
+
 export interface ComposeOpts {
   bgUrl: string;
   heading: string;
   body?: string;
-  brandColor?: string;        // cor de destaque (ex: laranja da marca)
-  brandHandle?: string;       // ex: "#NTV05"
-  index?: number;             // 0-based
+  brandColor?: string;
+  brandHandle?: string;
+  index?: number;
   total?: number;
+  template?: SlideTemplate;
 }
 
-/**
- * Retorna um data URL PNG 1024x1536 com o texto sobreposto.
- * Se a imagem de fundo falhar, retorna a própria bgUrl (fallback gracioso).
- */
-export async function composeSlideWithText(opts: ComposeOpts): Promise<string> {
-  const { bgUrl, heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+const FONT = `"Inter", "Helvetica Neue", Arial, system-ui, sans-serif`;
 
-  let bg: HTMLImageElement | null = null;
-  try {
-    bg = await loadImage(bgUrl);
-  } catch {
-    return bgUrl;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return bgUrl;
-
-  // 1) fundo (cover)
-  const scale = Math.max(W / bg.width, H / bg.height);
-  const dw = bg.width * scale;
-  const dh = bg.height * scale;
-  ctx.drawImage(bg, (W - dw) / 2, (H - dh) / 2, dw, dh);
-
-  // 2) overlay escuro pra garantir contraste do texto (metade inferior + topo sutil)
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, "rgba(10,15,30,0.35)");
-  grad.addColorStop(0.45, "rgba(10,15,30,0.15)");
-  grad.addColorStop(1, "rgba(10,15,30,0.85)");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  const fontStack = `"Inter", "Helvetica Neue", Arial, system-ui, sans-serif`;
-  const margin = 88;
-  const maxW = W - margin * 2;
-
-  // 3) indicador idx/total + handle no topo
+/** Desenha o contador (idx/total) e o handle da marca no topo. */
+function drawChrome(
+  ctx: CanvasRenderingContext2D,
+  brandHandle: string | undefined,
+  index: number | undefined,
+  total: number | undefined,
+  margin: number,
+  color = "rgba(255,255,255,0.85)",
+) {
   ctx.textBaseline = "top";
   if (typeof index === "number" && typeof total === "number" && total > 1) {
-    ctx.font = `600 26px ${fontStack}`;
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = `600 26px ${FONT}`;
+    ctx.fillStyle = color;
     ctx.textAlign = "right";
     ctx.fillText(`${index + 1} / ${total}`, W - margin, margin);
   }
   if (brandHandle) {
-    ctx.font = `500 24px ${fontStack}`;
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.font = `500 24px ${FONT}`;
+    ctx.fillStyle = color === "rgba(255,255,255,0.85)" ? "rgba(255,255,255,0.7)" : color;
     ctx.textAlign = "left";
     ctx.fillText(brandHandle, margin, margin);
   }
+}
 
-  // 4) título — quebra com tamanho adaptativo
-  let headingSize = 92;
-  ctx.font = `800 ${headingSize}px ${fontStack}`;
-  let lines = wrapLines(ctx, heading.trim(), maxW);
-  while ((lines.length > 4 || lines.some((l) => ctx.measureText(l).width > maxW)) && headingSize > 48) {
-    headingSize -= 6;
-    ctx.font = `800 ${headingSize}px ${fontStack}`;
-    lines = wrapLines(ctx, heading.trim(), maxW);
+/** Desenha o fundo (cover) no canvas. */
+function drawBackground(ctx: CanvasRenderingContext2D, bg: HTMLImageElement) {
+  const scale = Math.max(W / bg.width, H / bg.height);
+  const dw = bg.width * scale;
+  const dh = bg.height * scale;
+  ctx.drawImage(bg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+}
+
+/** Render principal — escolhe o template e delega. */
+export async function composeSlideWithText(opts: ComposeOpts): Promise<string> {
+  const { bgUrl } = opts;
+  let bg: HTMLImageElement | null = null;
+  try { bg = await loadImage(bgUrl); } catch { return bgUrl; }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return bgUrl;
+
+  drawBackground(ctx, bg);
+
+  const template: SlideTemplate = opts.template || "bottom";
+  switch (template) {
+    case "top": renderTop(ctx, opts); break;
+    case "center-card": renderCenterCard(ctx, opts); break;
+    case "side-bar": renderSideBar(ctx, opts); break;
+    case "kicker": renderKicker(ctx, opts); break;
+    case "quote": renderQuote(ctx, opts); break;
+    case "bottom":
+    default: renderBottom(ctx, opts); break;
   }
 
-  // posicionamento: começa em ~55% pra deixar espaço de respiro acima
+  return canvas.toDataURL("image/png");
+}
+
+// ============================================================================
+// Templates
+// ============================================================================
+
+function renderBottom(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
+  const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const margin = 88;
+  const maxW = W - margin * 2;
+
+  // Overlay escuro com peso no rodapé
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "rgba(10,15,30,0.35)");
+  grad.addColorStop(0.45, "rgba(10,15,30,0.15)");
+  grad.addColorStop(1, "rgba(10,15,30,0.88)");
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+  drawChrome(ctx, brandHandle, index, total, margin);
+
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 92, 48);
   const lineHeight = Math.round(headingSize * 1.08);
   const bodyText = (body || "").trim();
   const bodySize = Math.max(28, Math.round(headingSize * 0.38));
   const bodyLineHeight = Math.round(bodySize * 1.35);
 
-  // Calcula altura total do bloco e ancora no rodapé com margem
-  ctx.font = `500 ${bodySize}px ${fontStack}`;
+  ctx.font = `500 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
-  const bodyBlockH = bodyLines.length ? bodyLines.length * bodyLineHeight + 32 : 0;
-  const headingBlockH = lines.length * lineHeight;
-  const totalBlockH = headingBlockH + bodyBlockH;
-  let y = H - margin - totalBlockH - 40;
-  if (y < H * 0.45) y = H * 0.45;
+  const totalBlockH = lines.length * lineHeight + (bodyLines.length ? bodyLines.length * bodyLineHeight + 32 : 0);
+  let y = Math.max(H * 0.45, H - margin - totalBlockH - 40);
 
-  // 5) desenha título — primeira palavra em cor de destaque
-  ctx.textAlign = "left";
-  ctx.textBaseline = "top";
-  ctx.font = `800 ${headingSize}px ${fontStack}`;
-  ctx.shadowColor = "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = 14;
-  ctx.shadowOffsetY = 2;
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.font = `800 ${headingSize}px ${FONT}`;
+  ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 14; ctx.shadowOffsetY = 2;
 
-  const firstWordOfHeading = heading.trim().split(/\s+/)[0] || "";
-
+  const first = heading.trim().split(/\s+/)[0] || "";
   for (const line of lines) {
     let x = margin;
     const words = line.split(" ");
     for (let i = 0; i < words.length; i++) {
-      const word = words[i];
-      const isAccent = word === firstWordOfHeading;
-      ctx.fillStyle = isAccent ? brandColor : "#ffffff";
-      ctx.fillText(word, x, y);
-      x += ctx.measureText(word + (i < words.length - 1 ? " " : "")).width;
+      const w = words[i];
+      ctx.fillStyle = w === first ? brandColor : "#ffffff";
+      ctx.fillText(w, x, y);
+      x += ctx.measureText(w + (i < words.length - 1 ? " " : "")).width;
     }
     y += lineHeight;
   }
 
-  // 6) body
   if (bodyLines.length) {
     y += 32;
-    ctx.font = `500 ${bodySize}px ${fontStack}`;
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.shadowBlur = 8;
-    for (const line of bodyLines) {
-      ctx.fillText(line, margin, y);
-      y += bodyLineHeight;
-    }
+    ctx.font = `500 ${bodySize}px ${FONT}`;
+    ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.shadowBlur = 8;
+    for (const line of bodyLines) { ctx.fillText(line, margin, y); y += bodyLineHeight; }
+  }
+  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.fillStyle = brandColor; ctx.fillRect(margin, H - margin, 120, 4);
+}
+
+function renderTop(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
+  const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const margin = 88;
+  const maxW = W - margin * 2;
+
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "rgba(10,15,30,0.88)");
+  grad.addColorStop(0.5, "rgba(10,15,30,0.25)");
+  grad.addColorStop(1, "rgba(10,15,30,0.15)");
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+  // Chrome no rodapé (oposto do padrão)
+  ctx.textBaseline = "alphabetic";
+  if (typeof index === "number" && typeof total === "number" && total > 1) {
+    ctx.font = `600 26px ${FONT}`; ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.textAlign = "right"; ctx.fillText(`${index + 1} / ${total}`, W - margin, H - margin);
+  }
+  if (brandHandle) {
+    ctx.font = `500 24px ${FONT}`; ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.textAlign = "left"; ctx.fillText(brandHandle, margin, H - margin);
   }
 
-  ctx.shadowColor = "transparent";
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
+  // Barra horizontal de marca no topo
+  ctx.fillStyle = brandColor; ctx.fillRect(margin, margin + 60, 120, 4);
 
-  // 7) detalhe da marca: linha fininha no rodapé com a cor da marca
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 84, 44);
+  const lineHeight = Math.round(headingSize * 1.08);
+  let y = margin + 100;
+
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.font = `800 ${headingSize}px ${FONT}`;
+  ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 14;
+
+  const first = heading.trim().split(/\s+/)[0] || "";
+  for (const line of lines) {
+    let x = margin;
+    const words = line.split(" ");
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      ctx.fillStyle = w === first ? brandColor : "#ffffff";
+      ctx.fillText(w, x, y);
+      x += ctx.measureText(w + (i < words.length - 1 ? " " : "")).width;
+    }
+    y += lineHeight;
+  }
+
+  const bodyText = (body || "").trim();
+  if (bodyText) {
+    const bodySize = Math.max(28, Math.round(headingSize * 0.38));
+    ctx.font = `500 ${bodySize}px ${FONT}`;
+    const bodyLines = wrapLines(ctx, bodyText, maxW);
+    ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.shadowBlur = 8;
+    y += 24;
+    for (const line of bodyLines) { ctx.fillText(line, margin, y); y += Math.round(bodySize * 1.35); }
+  }
+  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+}
+
+function renderCenterCard(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
+  const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const margin = 88;
+
+  // Overlay neutro suave
+  ctx.fillStyle = "rgba(10,15,30,0.35)"; ctx.fillRect(0, 0, W, H);
+
+  drawChrome(ctx, brandHandle, index, total, margin);
+
+  const cardPad = 56;
+  const cardW = W - margin * 2;
+  const maxW = cardW - cardPad * 2;
+
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 76, 44);
+  const lineHeight = Math.round(headingSize * 1.1);
+  const bodyText = (body || "").trim();
+  const bodySize = Math.max(26, Math.round(headingSize * 0.4));
+  ctx.font = `500 ${bodySize}px ${FONT}`;
+  const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
+
+  const cardH = cardPad * 2 + lines.length * lineHeight + (bodyLines.length ? 28 + bodyLines.length * Math.round(bodySize * 1.35) : 0);
+  const cardX = margin;
+  const cardY = Math.round((H - cardH) / 2);
+
+  // Card translúcido
+  ctx.fillStyle = "rgba(10,15,30,0.72)";
+  roundRect(ctx, cardX, cardY, cardW, cardH, 24); ctx.fill();
+  // Borda de marca fina
+  ctx.strokeStyle = rgba(brandColor, 0.55); ctx.lineWidth = 2;
+  roundRect(ctx, cardX, cardY, cardW, cardH, 24); ctx.stroke();
+
+  // Linha de marca no canto superior do card
+  ctx.fillStyle = brandColor; ctx.fillRect(cardX + cardPad, cardY + cardPad - 18, 64, 4);
+
+  let y = cardY + cardPad;
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.font = `800 ${headingSize}px ${FONT}`;
+
+  const first = heading.trim().split(/\s+/)[0] || "";
+  for (const line of lines) {
+    let x = cardX + cardPad;
+    const words = line.split(" ");
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      ctx.fillStyle = w === first ? brandColor : "#ffffff";
+      ctx.fillText(w, x, y);
+      x += ctx.measureText(w + (i < words.length - 1 ? " " : "")).width;
+    }
+    y += lineHeight;
+  }
+
+  if (bodyLines.length) {
+    y += 28;
+    ctx.font = `500 ${bodySize}px ${FONT}`;
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    for (const line of bodyLines) { ctx.fillText(line, cardX + cardPad, y); y += Math.round(bodySize * 1.35); }
+  }
+}
+
+function renderSideBar(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
+  const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const barW = Math.round(W * 0.42);
+  const pad = 64;
+
+  // Sombreia suavemente o resto
+  ctx.fillStyle = "rgba(10,15,30,0.35)"; ctx.fillRect(barW, 0, W - barW, H);
+
+  // Barra vertical da cor da marca (com leve gradiente)
+  const g = ctx.createLinearGradient(0, 0, barW, 0);
+  g.addColorStop(0, rgba(brandColor, 0.96));
+  g.addColorStop(1, rgba(brandColor, 0.82));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, barW, H);
+
+  // Chrome (sobre a barra à esquerda, sobre a foto à direita)
+  ctx.textBaseline = "top";
+  if (brandHandle) {
+    ctx.font = `500 24px ${FONT}`; ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.textAlign = "left"; ctx.fillText(brandHandle, pad, pad);
+  }
+  if (typeof index === "number" && typeof total === "number" && total > 1) {
+    ctx.font = `600 26px ${FONT}`; ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.textAlign = "right"; ctx.fillText(`${index + 1} / ${total}`, W - pad, pad);
+  }
+
+  const maxW = barW - pad * 2;
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 6, 72, 38);
+  const lineHeight = Math.round(headingSize * 1.08);
+  const bodyText = (body || "").trim();
+  const bodySize = Math.max(24, Math.round(headingSize * 0.4));
+  ctx.font = `500 ${bodySize}px ${FONT}`;
+  const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
+
+  const totalBlockH = lines.length * lineHeight + (bodyLines.length ? 24 + bodyLines.length * Math.round(bodySize * 1.35) : 0);
+  let y = Math.max(pad + 80, Math.round((H - totalBlockH) / 2));
+
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.font = `800 ${headingSize}px ${FONT}`;
+  ctx.fillStyle = "#ffffff";
+  for (const line of lines) { ctx.fillText(line, pad, y); y += lineHeight; }
+
+  if (bodyLines.length) {
+    y += 24;
+    ctx.font = `500 ${bodySize}px ${FONT}`;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    for (const line of bodyLines) { ctx.fillText(line, pad, y); y += Math.round(bodySize * 1.35); }
+  }
+
+  // Detalhe: traço branco no rodapé da barra
+  ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fillRect(pad, H - pad, 64, 4);
+}
+
+function renderKicker(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
+  const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const margin = 88;
+  const maxW = W - margin * 2;
+
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "rgba(10,15,30,0.30)");
+  grad.addColorStop(0.5, "rgba(10,15,30,0.20)");
+  grad.addColorStop(1, "rgba(10,15,30,0.90)");
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+
+  drawChrome(ctx, brandHandle, index, total, margin);
+
+  // Kicker (etiqueta caps com bolinha)
+  const kickerText = typeof index === "number" && typeof total === "number" && total > 1
+    ? `CAPÍTULO ${String(index + 1).padStart(2, "0")}`
+    : "DESTAQUE";
+
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 88, 46);
+  const lineHeight = Math.round(headingSize * 1.08);
+  const bodyText = (body || "").trim();
+  const bodySize = Math.max(28, Math.round(headingSize * 0.38));
+  ctx.font = `500 ${bodySize}px ${FONT}`;
+  const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
+
+  const kickerH = 60;
+  const totalBlockH = kickerH + lines.length * lineHeight + (bodyLines.length ? 32 + bodyLines.length * Math.round(bodySize * 1.35) : 0);
+  let y = Math.max(H * 0.42, H - margin - totalBlockH - 40);
+
+  // Kicker
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
   ctx.fillStyle = brandColor;
-  ctx.fillRect(margin, H - margin, 120, 4);
+  ctx.beginPath(); ctx.arc(margin + 8, y + 18, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.font = `700 22px ${FONT}`;
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.fillText(kickerText, margin + 32, y + 18);
+  y += kickerH;
 
-  return canvas.toDataURL("image/png");
+  ctx.textBaseline = "top";
+  ctx.font = `800 ${headingSize}px ${FONT}`;
+  ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 14;
+  ctx.fillStyle = "#ffffff";
+  for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
+
+  if (bodyLines.length) {
+    y += 32;
+    ctx.font = `500 ${bodySize}px ${FONT}`;
+    ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.shadowBlur = 8;
+    for (const line of bodyLines) { ctx.fillText(line, margin, y); y += Math.round(bodySize * 1.35); }
+  }
+  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+}
+
+function renderQuote(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
+  const { heading, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const margin = 88;
+  const maxW = W - margin * 2 - 60;
+
+  // Vinheta central
+  const rg = ctx.createRadialGradient(W / 2, H / 2, 200, W / 2, H / 2, W);
+  rg.addColorStop(0, "rgba(10,15,30,0.25)");
+  rg.addColorStop(1, "rgba(10,15,30,0.85)");
+  ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+
+  drawChrome(ctx, brandHandle, index, total, margin);
+
+  // Aspas gigantes
+  ctx.fillStyle = rgba(brandColor, 0.95);
+  ctx.font = `900 280px Georgia, "Times New Roman", serif`;
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText("“", margin, H * 0.22);
+
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 6, 68, 38, 600);
+  const lineHeight = Math.round(headingSize * 1.22);
+  const totalBlockH = lines.length * lineHeight;
+  let y = Math.round((H - totalBlockH) / 2);
+
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  ctx.font = `600 ${headingSize}px Georgia, "Times New Roman", serif`;
+  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 16;
+  for (const line of lines) { ctx.fillText(line, W / 2, y); y += lineHeight; }
+  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+
+  // Traço de marca centralizado abaixo
+  ctx.fillStyle = brandColor;
+  ctx.fillRect(W / 2 - 40, y + 24, 80, 4);
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
