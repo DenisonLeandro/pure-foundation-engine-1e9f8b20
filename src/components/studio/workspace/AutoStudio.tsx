@@ -313,7 +313,8 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         slides = [];
         for (let i = 0; i < specs.length; i++) {
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
-          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, pickTemplate(i));
+          const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
+          const img = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, pickTemplate(i));
           slides.push({ bg: grad, bgImage: img, els: [] });
         }
       } else {
