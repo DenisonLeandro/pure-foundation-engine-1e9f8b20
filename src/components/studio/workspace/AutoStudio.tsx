@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
 import {
-  generateContent, generateOpenAiImage, aiAssist,
+  generateContent, generateOpenAiImage, searchStockImages, aiAssist,
   callHiggsfield, hfStatus, type HfGenerationResult,
 } from "@/lib/api";
 import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/brand";
@@ -71,6 +71,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const [prompt, setPrompt] = useState("");
   const [artStyle, setArtStyle] = useState<string>("auto");
   const [artDirection, setArtDirection] = useState("");
+  const [imageSource, setImageSource] = useState<"pexels" | "ai">("pexels");
   const [layoutMode, setLayoutMode] = useState<string>("auto");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
@@ -192,6 +193,57 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     }
   };
 
+  /** Escolhe 2-4 palavras-chave em pt-BR para buscar uma foto real no Pexels. */
+  const pickStockQuery = async (topic: string, heading: string, sceneBrief: string): Promise<string> => {
+    try {
+      const { json } = await aiAssist({
+        system: `Você ajuda a buscar fotos de banco de imagens (Pexels). Devolva um JSON {"query":"..."} com 2 a 4 palavras-chave em PORTUGUÊS BRASILEIRO, concretas e visuais (sujeito + cenário/atmosfera), que retornem fotos reais e profissionais relacionadas ao tema. Sem aspas, sem pontuação, sem hashtags. Responda APENAS o JSON.`,
+        prompt: `Tema: ${topic}\nTítulo do slide: ${heading}\nCena pretendida: ${sceneBrief}`,
+        expectJson: true, temperature: 0.5,
+      });
+      const q = (json as { query?: string })?.query?.trim();
+      if (q) return q;
+    } catch { /* fallback */ }
+    return (heading || topic).trim();
+  };
+
+  /** Mesma assinatura de slideArt, mas usa foto real do Pexels como fundo. */
+  const slideStockPhoto = async (
+    topic: string, objective: string, heading: string, body: string,
+    idx: number, total: number, sceneBrief: string, _styleHint: string, _direction: string,
+    template: SlideTemplate,
+  ): Promise<string | undefined> => {
+    let bg: string | undefined;
+    try {
+      const query = await pickStockQuery(topic, heading, sceneBrief);
+      let { images } = await searchStockImages({ query, count: 5, orientation: "portrait" });
+      if (!images?.length) {
+        const fb = await searchStockImages({ query: "profissional negócios trabalho", count: 5, orientation: "portrait" });
+        images = fb.images;
+      }
+      if (images?.length) bg = images[idx % images.length].url;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao buscar foto no Pexels");
+      return undefined;
+    }
+    if (!bg) return undefined;
+
+    try {
+      return await composeSlideWithText({
+        bgUrl: bg,
+        heading,
+        body,
+        brandColor: brand?.colors?.[0] || "#f59e0b",
+        brandHandle: brand?.handle,
+        index: idx,
+        total,
+        template,
+      });
+    } catch {
+      return bg;
+    }
+  };
+
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Descreva o que você quer criar."); return; }
@@ -261,7 +313,8 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         slides = [];
         for (let i = 0; i < specs.length; i++) {
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
-          const img = await slideArt(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, pickTemplate(i));
+          const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
+          const img = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, pickTemplate(i));
           slides.push({ bg: grad, bgImage: img, els: [] });
         }
       } else {
@@ -276,7 +329,8 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         const soloTemplate: SlideTemplate = layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)
           ? (layoutMode as SlideTemplate)
           : (["bottom", "side-bar", "kicker", "center-card"] as SlideTemplate[])[Math.floor(Math.random() * 4)];
-        const img = await slideArt(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
+        const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
+        const img = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
         slides = [{ bg: grad, bgImage: img, els: [] }];
       }
 
@@ -356,6 +410,16 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
                 disabled={generating}
               />
             </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Origem da imagem</label>
+            <Select value={imageSource} onValueChange={(v) => setImageSource(v as "pexels" | "ai")} disabled={generating}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pexels">Foto real (Pexels) — recomendado</SelectItem>
+                <SelectItem value="ai">Arte gerada por IA</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Layout do texto</label>
