@@ -1,8 +1,22 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import type { AppConfig, SocialAccount, ScheduledPost } from "@/types";
 import { userStorage } from "@/lib/storage";
 import { supabase } from "@/integrations/supabase/client";
 import { getPfmUserKey, setPfmUserKey } from "@/lib/api";
+
+// Hard ceiling for the boot loader: even if Supabase hangs, the app must
+// stop spinning after this many ms and let routes render (login/setup).
+const BOOT_TIMEOUT_MS = 8000;
+
+function safeParseConfig(raw: string | null): Partial<AppConfig> | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as Partial<AppConfig>; }
+  catch (err) {
+    console.warn("[AppContext] config localStorage corrompido, descartando:", err);
+    try { userStorage.remove("config"); } catch { /* noop */ }
+    return null;
+  }
+}
 
 interface AppState {
   config: AppConfig;
