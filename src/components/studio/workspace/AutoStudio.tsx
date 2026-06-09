@@ -412,6 +412,16 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
             </div>
           </div>
           <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Origem da imagem</label>
+            <Select value={imageSource} onValueChange={(v) => setImageSource(v as "pexels" | "ai")} disabled={generating}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pexels">Foto real (Pexels) — recomendado</SelectItem>
+                <SelectItem value="ai">Arte gerada por IA</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Layout do texto</label>
             <Select value={layoutMode} onValueChange={setLayoutMode} disabled={generating}>
               <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
