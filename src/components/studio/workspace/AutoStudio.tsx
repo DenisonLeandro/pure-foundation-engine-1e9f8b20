@@ -193,6 +193,57 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     }
   };
 
+  /** Escolhe 2-4 palavras-chave em pt-BR para buscar uma foto real no Pexels. */
+  const pickStockQuery = async (topic: string, heading: string, sceneBrief: string): Promise<string> => {
+    try {
+      const { json } = await aiAssist({
+        system: `Você ajuda a buscar fotos de banco de imagens (Pexels). Devolva um JSON {"query":"..."} com 2 a 4 palavras-chave em PORTUGUÊS BRASILEIRO, concretas e visuais (sujeito + cenário/atmosfera), que retornem fotos reais e profissionais relacionadas ao tema. Sem aspas, sem pontuação, sem hashtags. Responda APENAS o JSON.`,
+        prompt: `Tema: ${topic}\nTítulo do slide: ${heading}\nCena pretendida: ${sceneBrief}`,
+        expectJson: true, temperature: 0.5,
+      });
+      const q = (json as { query?: string })?.query?.trim();
+      if (q) return q;
+    } catch { /* fallback */ }
+    return (heading || topic).trim();
+  };
+
+  /** Mesma assinatura de slideArt, mas usa foto real do Pexels como fundo. */
+  const slideStockPhoto = async (
+    topic: string, objective: string, heading: string, body: string,
+    idx: number, total: number, sceneBrief: string, _styleHint: string, _direction: string,
+    template: SlideTemplate,
+  ): Promise<string | undefined> => {
+    let bg: string | undefined;
+    try {
+      const query = await pickStockQuery(topic, heading, sceneBrief);
+      let { images } = await searchStockImages({ query, count: 5, orientation: "portrait" });
+      if (!images?.length) {
+        const fb = await searchStockImages({ query: "profissional negócios trabalho", count: 5, orientation: "portrait" });
+        images = fb.images;
+      }
+      if (images?.length) bg = images[idx % images.length].url;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao buscar foto no Pexels");
+      return undefined;
+    }
+    if (!bg) return undefined;
+
+    try {
+      return await composeSlideWithText({
+        bgUrl: bg,
+        heading,
+        body,
+        brandColor: brand?.colors?.[0] || "#f59e0b",
+        brandHandle: brand?.handle,
+        index: idx,
+        total,
+        template,
+      });
+    } catch {
+      return bg;
+    }
+  };
+
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Descreva o que você quer criar."); return; }
