@@ -102,15 +102,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setConfigState(DEFAULT_CONFIG);
         userStorage.remove("config");
         setPfmUserKey("");
+        finishedRef.current = true;
         setConfigLoading(false);
         return;
       }
-      if (session?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION" || event === "USER_UPDATED")) {
-        loadConfigFromDb(session.user.id);
+      // Avoid duplicate concurrent loads for the same user (getSession + INITIAL_SESSION race)
+      if (session?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED")) {
+        if (loadingRef.current === session.user.id) return;
+        loadConfigFromDb(session.user.id).finally(finishBoot);
       }
     });
 
-    return () => { cancelled = true; subscription.unsubscribe(); };
+    return () => { cancelled = true; window.clearTimeout(safety); subscription.unsubscribe(); };
   }, []);
 
   async function loadConfigFromDb(userId?: string) {
@@ -120,7 +123,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const { data: { user } } = await supabase.auth.getUser();
         uid = user?.id;
       }
-      if (!uid) { setConfigLoading(false); return; }
+      if (!uid) { return; }
+      if (loadingRef.current === uid) return; // dedupe in-flight
+      loadingRef.current = uid;
+
 
       const { data } = await supabase
         .from("user_configs")
