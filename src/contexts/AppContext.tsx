@@ -162,9 +162,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Failed to load config from DB:", err);
     } finally {
+      loadingRef.current = null;
       setConfigLoading(false);
     }
   }
+
 
 
   async function saveConfigToDb(cfg: AppConfig) {
