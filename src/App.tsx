@@ -40,12 +40,23 @@ const queryClient = new QueryClient({
 });
 
 function PageLoader() {
+  // Render a loader that, after a generous delay, also offers a "reload" escape hatch
+  // so the user never sees a permanently blank screen.
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-background text-foreground">
       <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+      <button
+        onClick={() => window.location.reload()}
+        className="text-xs text-muted-foreground hover:text-foreground underline opacity-0 animate-[fadeIn_1s_ease-in_6s_forwards]"
+        style={{ animation: "fadeIn 1s ease-in 6s forwards" }}
+      >
+        Demorando demais? Clique para recarregar
+      </button>
+      <style>{`@keyframes fadeIn { to { opacity: 1; } }`}</style>
     </div>
   );
 }
+
 
 // Redirect to login if not authenticated
 function RequireAuth({ children }: { children: React.ReactNode }) {
