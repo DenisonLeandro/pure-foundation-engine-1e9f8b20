@@ -51,12 +51,14 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [config, setConfigState] = useState<AppConfig>(() => {
-    const saved = userStorage.get("config");
-    return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+    const saved = safeParseConfig(userStorage.get("config"));
+    return saved ? { ...DEFAULT_CONFIG, ...saved } as AppConfig : DEFAULT_CONFIG;
   });
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [schedules, setSchedules] = useState<ScheduledPost[]>([]);
   const [configLoading, setConfigLoading] = useState(true);
+  const loadingRef = useRef<string | null>(null); // user id currently being loaded (dedupe)
+  const finishedRef = useRef(false);
 
   // Post for Me é a integração core (publicação). Blotato é legado/inerte.
   const isConfigured = !!config.postformeApiKey;
@@ -66,17 +68,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
+    const finishBoot = () => {
+      if (cancelled || finishedRef.current) return;
+      finishedRef.current = true;
+      setConfigLoading(false);
+    };
+
+    // Safety net: never let the boot loader stall forever.
+    const safety = window.setTimeout(() => {
+      if (!finishedRef.current) {
+        console.warn(`[AppContext] boot timeout (${BOOT_TIMEOUT_MS}ms) — liberando UI`);
+        finishBoot();
+      }
+    }, BOOT_TIMEOUT_MS);
+
     // Initial hydration from current session (if any)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
       if (session?.user) {
-        loadConfigFromDb(session.user.id);
+        loadConfigFromDb(session.user.id).finally(finishBoot);
       } else {
-        setConfigLoading(false);
+        finishBoot();
       }
-    }).catch(() => {
-      if (!cancelled) setConfigLoading(false);
+    }).catch((err) => {
+      console.warn("[AppContext] getSession falhou:", err);
+      finishBoot();
     });
+
 
     // React to login/logout/refresh so config is hydrated after auth completes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
