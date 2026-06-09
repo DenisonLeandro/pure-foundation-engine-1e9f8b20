@@ -1,8 +1,22 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import type { AppConfig, SocialAccount, ScheduledPost } from "@/types";
 import { userStorage } from "@/lib/storage";
 import { supabase } from "@/integrations/supabase/client";
 import { getPfmUserKey, setPfmUserKey } from "@/lib/api";
+
+// Hard ceiling for the boot loader: even if Supabase hangs, the app must
+// stop spinning after this many ms and let routes render (login/setup).
+const BOOT_TIMEOUT_MS = 8000;
+
+function safeParseConfig(raw: string | null): Partial<AppConfig> | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw) as Partial<AppConfig>; }
+  catch (err) {
+    console.warn("[AppContext] config localStorage corrompido, descartando:", err);
+    try { userStorage.remove("config"); } catch { /* noop */ }
+    return null;
+  }
+}
 
 interface AppState {
   config: AppConfig;
@@ -37,12 +51,14 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [config, setConfigState] = useState<AppConfig>(() => {
-    const saved = userStorage.get("config");
-    return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+    const saved = safeParseConfig(userStorage.get("config"));
+    return saved ? { ...DEFAULT_CONFIG, ...saved } as AppConfig : DEFAULT_CONFIG;
   });
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [schedules, setSchedules] = useState<ScheduledPost[]>([]);
   const [configLoading, setConfigLoading] = useState(true);
+  const loadingRef = useRef<string | null>(null); // user id currently being loaded (dedupe)
+  const finishedRef = useRef(false);
 
   // Post for Me é a integração core (publicação). Blotato é legado/inerte.
   const isConfigured = !!config.postformeApiKey;
@@ -52,17 +68,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
+    const finishBoot = () => {
+      if (cancelled || finishedRef.current) return;
+      finishedRef.current = true;
+      setConfigLoading(false);
+    };
+
+    // Safety net: never let the boot loader stall forever.
+    const safety = window.setTimeout(() => {
+      if (!finishedRef.current) {
+        console.warn(`[AppContext] boot timeout (${BOOT_TIMEOUT_MS}ms) — liberando UI`);
+        finishBoot();
+      }
+    }, BOOT_TIMEOUT_MS);
+
     // Initial hydration from current session (if any)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
       if (session?.user) {
-        loadConfigFromDb(session.user.id);
+        loadConfigFromDb(session.user.id).finally(finishBoot);
       } else {
-        setConfigLoading(false);
+        finishBoot();
       }
-    }).catch(() => {
-      if (!cancelled) setConfigLoading(false);
+    }).catch((err) => {
+      console.warn("[AppContext] getSession falhou:", err);
+      finishBoot();
     });
+
 
     // React to login/logout/refresh so config is hydrated after auth completes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -70,15 +102,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setConfigState(DEFAULT_CONFIG);
         userStorage.remove("config");
         setPfmUserKey("");
+        finishedRef.current = true;
         setConfigLoading(false);
         return;
       }
-      if (session?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION" || event === "USER_UPDATED")) {
-        loadConfigFromDb(session.user.id);
+      // Avoid duplicate concurrent loads for the same user (getSession + INITIAL_SESSION race)
+      if (session?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED")) {
+        if (loadingRef.current === session.user.id) return;
+        loadConfigFromDb(session.user.id).finally(finishBoot);
       }
     });
 
-    return () => { cancelled = true; subscription.unsubscribe(); };
+    return () => { cancelled = true; window.clearTimeout(safety); subscription.unsubscribe(); };
   }, []);
 
   async function loadConfigFromDb(userId?: string) {
@@ -88,7 +123,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const { data: { user } } = await supabase.auth.getUser();
         uid = user?.id;
       }
-      if (!uid) { setConfigLoading(false); return; }
+      if (!uid) { return; }
+      if (loadingRef.current === uid) return; // dedupe in-flight
+      loadingRef.current = uid;
+
 
       const { data } = await supabase
         .from("user_configs")
@@ -124,9 +162,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Failed to load config from DB:", err);
     } finally {
+      loadingRef.current = null;
       setConfigLoading(false);
     }
   }
+
 
 
   async function saveConfigToDb(cfg: AppConfig) {
