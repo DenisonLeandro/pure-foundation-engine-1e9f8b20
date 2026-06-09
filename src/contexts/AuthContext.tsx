@@ -29,24 +29,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let done = false;
+    const finish = () => { if (!done) { done = true; setLoading(false); } };
+
+    // Safety net: never let the auth loader stall forever (8s).
+    const safety = window.setTimeout(() => {
+      if (!done) console.warn("[AuthContext] getSession timeout — liberando UI");
+      finish();
+    }, 8000);
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
-      setLoading(false);
-    }).catch(() => {
-      setLoading(false);
+      finish();
+    }).catch((err) => {
+      console.warn("[AuthContext] getSession falhou:", err);
+      finish();
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
       setUser(s?.user ?? null);
-      setLoading(false);
+      finish();
     });
 
-    return () => subscription.unsubscribe();
+    return () => { window.clearTimeout(safety); subscription.unsubscribe(); };
   }, []);
+
 
   const signUp = async (email: string, password: string, name?: string) => {
     if (!supabaseConfigured) return { error: "Autenticação não configurada" };
