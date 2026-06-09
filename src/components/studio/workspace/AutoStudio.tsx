@@ -329,7 +329,8 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         const soloTemplate: SlideTemplate = layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)
           ? (layoutMode as SlideTemplate)
           : (["bottom", "side-bar", "kicker", "center-card"] as SlideTemplate[])[Math.floor(Math.random() * 4)];
-        const img = await slideArt(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
+        const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
+        const img = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
         slides = [{ bg: grad, bgImage: img, els: [] }];
       }
 
