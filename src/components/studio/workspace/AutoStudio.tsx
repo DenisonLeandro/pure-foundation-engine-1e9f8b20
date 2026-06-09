@@ -71,6 +71,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const [prompt, setPrompt] = useState("");
   const [artStyle, setArtStyle] = useState<string>("auto");
   const [artDirection, setArtDirection] = useState("");
+  const [imageSource, setImageSource] = useState<"pexels" | "ai">("pexels");
   const [layoutMode, setLayoutMode] = useState<string>("auto");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
