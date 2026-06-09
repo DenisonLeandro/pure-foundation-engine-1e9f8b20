@@ -81,6 +81,18 @@ function ThemeBoot({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Decide pra onde mandar quando o usuário abre a raiz "/"
+function RootRedirect() {
+  const { user, loading, isAuthEnabled } = useAuth();
+  const { onboardingCompleted, configLoading } = useApp();
+
+  if (loading) return <PageLoader />;
+  if (!isAuthEnabled) return <Navigate to="/dashboard" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (configLoading) return <PageLoader />;
+  return <Navigate to={onboardingCompleted ? "/dashboard" : "/setup"} replace />;
+}
+
 const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
