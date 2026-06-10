@@ -12,10 +12,15 @@ interface NavState {
   prompt?: string;
   mediaUrls?: string[];
   scheduleAt?: string;
+  /** Full StudioDoc to rehydrate into the canvas (re-edit from gallery). */
+  studioDoc?: StudioDoc;
+  /** Id of the existing creation being edited; re-export updates that row. */
+  creationId?: string;
 }
 
 function buildInitial(nav: NavState | null): StudioDoc | undefined {
   if (!nav) return undefined;
+  if (nav.studioDoc) return nav.studioDoc;
   const has = nav.sourceContent || nav.prompt || nav.sourceTitle || (nav.mediaUrls?.length ?? 0) > 0;
   if (!has) return undefined;
   const base = emptyDoc("post", null);
@@ -53,7 +58,7 @@ export default function Studio() {
   // assisted — full-bleed (cancela o padding do AppLayout)
   return (
     <div className="-m-4 sm:-m-6 lg:-m-8">
-      <StudioWorkspace initial={handoffDoc ?? navInitial} onBack={back} />
+      <StudioWorkspace initial={handoffDoc ?? navInitial} creationId={nav?.creationId} onBack={back} />
     </div>
   );
 }
