@@ -57,17 +57,6 @@ function PageLoader() {
   );
 }
 
-
-// Redirect to login if not authenticated
-function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAuthEnabled } = useAuth();
-
-  if (loading) return <PageLoader />;
-  if (!isAuthEnabled) return <>{children}</>;
-  if (!user) return <Navigate to="/login" replace />;
-  return <>{children}</>;
-}
-
 function RequireSetupAccess({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthEnabled } = useAuth();
   const { configLoading } = useApp();
