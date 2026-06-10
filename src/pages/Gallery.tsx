@@ -305,6 +305,17 @@ function CreationCard({
           >
             <Send className="h-4 w-4" />
           </Button>
+          {(creation.doc || creation.type !== "video") && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+              title={creation.doc ? "Editar no Studio" : "Abrir no Studio"}
+              onClick={() => onEditInStudio(creation)}
+            >
+              {creation.doc ? <Pencil className="h-4 w-4" /> : <PenTool className="h-4 w-4" />}
+            </Button>
+          )}
           <Button
             size="icon"
             variant="ghost"
