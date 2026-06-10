@@ -1,8 +1,9 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
+import { useState, useEffect, useRef, ReactNode } from "react";
 import type { AppConfig, SocialAccount, ScheduledPost } from "@/types";
 import { userStorage } from "@/lib/storage";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseConfigured } from "@/lib/supabase";
+import { AppContext } from "./app-context";
 import { getPfmUserKey, setPfmUserKey } from "@/lib/api";
 
 // Hard ceiling for the boot loader: even if Supabase hangs, the app must
