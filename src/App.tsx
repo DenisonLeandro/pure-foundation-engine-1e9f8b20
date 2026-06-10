@@ -88,15 +88,6 @@ function RequireAppAccess({ children }: { children: React.ReactNode }) {
   if (!onboardingCompleted) return <Navigate to="/setup" replace />;
   return <>{children}</>;
 }
-
-// Redirect to /setup if onboarding not completed
-function RequireOnboarding({ children }: { children: React.ReactNode }) {
-  const { onboardingCompleted, configLoading } = useApp();
-  if (configLoading) return <PageLoader />;
-  if (!onboardingCompleted) return <Navigate to="/setup" replace />;
-  return <>{children}</>;
-}
-
 // Redirect to dashboard if already authenticated
 function GuestOnly({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthEnabled } = useAuth();
