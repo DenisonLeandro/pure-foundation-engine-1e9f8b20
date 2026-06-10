@@ -1,49 +1,47 @@
-## Problema identificado
-A tela branca acontece no reabrir da app já caindo em rota interna (`/dashboard`), e o ponto mais suspeito é o boot autenticado/hidratação inicial entre `AuthProvider`, `AppProvider`, `RequireAuth`, `RequireOnboarding` e `AppLayout`.
+# Plano para corrigir a tela branca
 
-**Do I know what the issue is?**
-Ainda não com 100% de certeza, mas já isolei o problema para o fluxo de inicialização/autenticação, não para caption, imagens, nem APIs do Studio.
+## Objetivo
+Eliminar o estado em que o app abre com tela totalmente branca ao reabrir o projeto, sem mexer em autenticação, geração de legenda, seleção de imagem, CORS ou lógica de negócio fora do boot/renderização.
 
-## Arquivos isolados
+## O que vou fazer
+1. Ajustar o gate de inicialização das rotas internas
+   - Revisar a sequência entre `AuthProvider`, `AppProvider`, `RootRedirect`, `RequireAuth`, `RequireOnboarding` e `AppLayout`.
+   - Garantir que nenhuma rota interna possa cair num estado intermediário que renderize vazio.
+
+2. Corrigir o fluxo de redirecionamento para `/setup?manage=1`
+   - Hoje `/studio` pode acabar redirecionando para `/setup?manage=1`.
+   - Vou tornar esse redirecionamento determinístico para evitar flicker, loop ou frame vazio durante a troca de rota.
+
+3. Remover caminhos de renderização invisíveis
+   - Revisar `Setup`, `AppLayout` e a lógica de loader para garantir que sempre exista conteúdo visível enquanto o app decide a rota.
+   - Se houver estado transitório ambíguo, substituir por loader/placeholder explícito em vez de renderização “em branco”.
+
+4. Validar o cenário exato do bug
+   - Testar as rotas críticas: `/`, `/studio`, `/dashboard` e `/setup?manage=1`.
+   - Verificar console, rede e preview para confirmar que a página não fica mais vazia.
+
+## Arquivos mais prováveis
 - `src/App.tsx`
-- `src/contexts/AuthContext.tsx`
 - `src/contexts/AppContext.tsx`
+- `src/contexts/AuthContext.tsx`
+- `src/pages/Setup.tsx`
 - `src/components/layout/AppLayout.tsx`
-- `src/pages/Dashboard.tsx`
-- `src/components/layout/AppSidebar.tsx`
 
-## O que vou implementar
-1. **Unificar o gate de boot da app**
-   - Garantir uma decisão única e determinística antes de renderizar rotas internas.
-   - Evitar estados intermediários em que auth já resolveu, mas config/onboarding ainda não.
+## Achado principal da investigação
+- No meu teste, `/studio` não ficou realmente vazio: ele redirecionou para `/setup?manage=1`, e essa tela renderizou normalmente.
+- Isso indica que o problema mais provável está no estado transitório de boot/redirecionamento, não no conteúdo do Studio em si.
 
-2. **Blindar hidratação de sessão e config**
-   - Ajustar o fluxo para que o carregamento de config dependa do estado real de sessão validado.
-   - Remover a possibilidade de rota interna montar com dados de boot ainda indefinidos.
-
-3. **Eliminar render “vazio” em refresh/reopen**
-   - Trocar qualquer caminho implícito que hoje possa deixar layout/rotas sem conteúdo por fallback visual explícito.
-   - Garantir que `/`, `/dashboard` e demais rotas internas sempre caiam em: loader, redirect válido ou conteúdo.
-
-4. **Adicionar instrumentação mínima de diagnóstico**
-   - Inserir logs pontuais no boot para capturar o estado exato se o problema voltar.
-   - Foco em transições de sessão, config e redirects.
-
-5. **Validar os cenários críticos**
-   - Abrir raiz `/`
-   - Abrir `/dashboard` diretamente
-   - Reabrir com sessão existente
-   - Sessão ausente/deslogada
-
-## Detalhes técnicos
-- O padrão encontrado na investigação e na busca externa bate com problemas de **lazy routes + redirects + hidratação assíncrona** gerando tela branca/intermitente em refresh.
-- O ajuste será **somente no fluxo de inicialização/roteamento**.
-- Não vou mexer em autenticação funcional, regras de negócio, caption generation, seleção de imagens, armazenamento de chaves, CORS ou edge functions.
+## Fora de escopo
+- Autenticação e provedores
+- Armazenamento de chaves
+- Caption generation
+- Seleção de imagens
+- Edge functions e integrações externas
 
 ## Resultado esperado
-Ao reabrir o projeto, a app deve sempre mostrar:
-- login, ou
-- setup, ou
-- dashboard/layout
+Ao reabrir o projeto, o app deve sempre mostrar uma tela válida visível (loader, setup, dashboard ou studio), sem cair numa página totalmente branca.
 
-Nunca uma tela branca sem feedback.
+## Detalhes técnicos
+- Fortalecer guards de rota para evitar `Navigate` em cascata durante `loading/configLoading`
+- Garantir que o modo manage do `Setup` não dependa de estado ainda não hidratado
+- Centralizar a decisão de rota inicial para impedir transições sem renderização

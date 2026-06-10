@@ -57,33 +57,35 @@ function PageLoader() {
   );
 }
 
-
-// Redirect to login if not authenticated
-function RequireAuth({ children }: { children: React.ReactNode }) {
+function RequireSetupAccess({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthEnabled } = useAuth();
+  const { configLoading } = useApp();
 
-  if (loading) return <PageLoader />;
+  if (loading || configLoading) return <PageLoader />;
   if (!isAuthEnabled) return <>{children}</>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
-// Redirect to /setup if onboarding not completed
-function RequireOnboarding({ children }: { children: React.ReactNode }) {
+function RequireAppAccess({ children }: { children: React.ReactNode }) {
+  const { user, loading, isAuthEnabled } = useAuth();
   const { onboardingCompleted, configLoading } = useApp();
-  if (configLoading) return <PageLoader />;
+
+  if (loading || configLoading) return <PageLoader />;
+  if (!isAuthEnabled) return <>{children}</>;
+  if (!user) return <Navigate to="/login" replace />;
   if (!onboardingCompleted) return <Navigate to="/setup" replace />;
   return <>{children}</>;
 }
-
 // Redirect to dashboard if already authenticated
 function GuestOnly({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthEnabled } = useAuth();
+  const { onboardingCompleted, configLoading } = useApp();
 
-  if (loading) return <PageLoader />;
+  if (loading || (isAuthEnabled && user && configLoading)) return <PageLoader />;
   // If auth not configured, show the page (login will work when configured)
   if (!isAuthEnabled) return <>{children}</>;
-  if (user) return <Navigate to="/setup" replace />;
+  if (user) return <Navigate to={onboardingCompleted ? "/dashboard" : "/setup"} replace />;
   return <>{children}</>;
 }
 
@@ -123,10 +125,10 @@ const App = () => (
                     <Route path="/update-password" element={<UpdatePassword />} />
 
                     {/* Onboarding (authenticated) */}
-                    <Route path="/setup" element={<RequireAuth><Setup /></RequireAuth>} />
+                    <Route path="/setup" element={<RequireSetupAccess><Setup /></RequireSetupAccess>} />
 
                     {/* App routes (authenticated + onboarded + layout) */}
-                    <Route element={<RequireAuth><RequireOnboarding><AppLayout /></RequireOnboarding></RequireAuth>}>
+                    <Route element={<RequireAppAccess><AppLayout /></RequireAppAccess>}>
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/accounts" element={<Accounts />} />
                       <Route path="/studio" element={<Studio />} />
