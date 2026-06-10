@@ -2,8 +2,25 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// Read env values safely. If either is missing (e.g. a stale build served
+// without env injection), fall back to harmless placeholders so createClient
+// does not throw at module load — which would white-screen the app before
+// React mounts. The `supabaseConfigured` flag in src/lib/supabase.ts handles
+// the "backend not configured" UX gracefully across the app.
+const SUPABASE_URL =
+  (import.meta as any).env?.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY =
+  (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-key';
+
+if (
+  !(import.meta as any).env?.VITE_SUPABASE_URL ||
+  !(import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY
+) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[supabase/client] VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY missing at build time — using placeholders. Backend calls will be disabled via supabaseConfigured.'
+  );
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
