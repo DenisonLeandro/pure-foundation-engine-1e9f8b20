@@ -111,8 +111,6 @@ function WorkspaceInner({ creationId, legacy, onBack }: { creationId?: string; l
     if (!doc.brandId && defaultBrand) set({ brandId: defaultBrand.id }, false);
   }, [defaultBrand, doc.brandId, set]);
 
-  const brand = brands.find((b) => b.id === doc.brandId) || null;
-
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col md:h-screen">
       {/* Top bar */}
