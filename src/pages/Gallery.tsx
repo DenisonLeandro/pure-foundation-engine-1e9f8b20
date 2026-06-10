@@ -236,6 +236,7 @@ interface CreationCardProps {
   onUseInPost: (c: Creation) => void;
   onDownload: (c: Creation) => void;
   onDelete: (c: Creation) => void;
+  onEditInStudio: (c: Creation) => void;
 }
 
 function CreationCard({
@@ -244,6 +245,7 @@ function CreationCard({
   onUseInPost,
   onDownload,
   onDelete,
+  onEditInStudio,
 }: CreationCardProps) {
   const thumb = creation.thumbnailUrl ?? creation.urls[0] ?? "";
   const date = new Date(creation.createdAt).toLocaleDateString("pt-BR", {
