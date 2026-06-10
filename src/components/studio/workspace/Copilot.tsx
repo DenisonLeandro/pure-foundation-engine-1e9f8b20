@@ -38,6 +38,8 @@ export function Copilot() {
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [refining, setRefining] = useState<string | null>(null);
+  const [adjustInstr, setAdjustInstr] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
