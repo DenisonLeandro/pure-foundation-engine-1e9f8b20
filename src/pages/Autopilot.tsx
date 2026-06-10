@@ -31,7 +31,7 @@ import {
   useConfirmCalendar,
   useCurateCalendar,
 } from "@/hooks/use-autopilot";
-import { useApp } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/use-app";
 import type { AutopilotConfig, AutopilotCalendar } from "@/types";
 import { toast } from "sonner";
 import { AlertCircle } from "lucide-react";

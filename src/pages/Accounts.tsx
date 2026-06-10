@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConnectAccountDialog } from "@/components/ConnectAccountDialog";
-import { useApp } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/use-app";
 import { usePfmAccounts } from "@/hooks/use-blotato";
 import { ALL_PLATFORMS, PLATFORMS } from "@/lib/platforms";
 import { pfmDisconnectAccount } from "@/lib/api";

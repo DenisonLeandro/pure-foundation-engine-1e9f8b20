@@ -19,7 +19,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
-import { useApp } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/use-app";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
