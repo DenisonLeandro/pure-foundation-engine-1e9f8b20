@@ -52,6 +52,12 @@ export default function Setup() {
     }
   }, [configLoading, onboardingCompleted, isManageMode, navigate, searchParams]);
 
+  useEffect(() => {
+    if (configLoading) return;
+    const id = window.requestAnimationFrame(() => setBootReady(true));
+    return () => window.cancelAnimationFrame(id);
+  }, [configLoading]);
+
   const [step, setStep] = useState(1);
   const [isValidating, setIsValidating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -315,7 +321,7 @@ export default function Setup() {
     );
   }
 
-  if (configLoading) {
+  if (configLoading || !bootReady) {
     return (
       <div className="flex min-h-screen items-center justify-center relative overflow-hidden">
         <AnimatedBackground />
