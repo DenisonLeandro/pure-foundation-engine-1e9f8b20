@@ -82,10 +82,30 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ creationId, onBack }: { creationId?: string; onBack?: () => void }) {
+function WorkspaceInner({ creationId, legacy, onBack }: { creationId?: string; legacy?: boolean; onBack?: () => void }) {
   const { brands, defaultBrand } = useBrands();
-  const { doc, set, undo, redo, canUndo, canRedo } = useStudio();
+  const { doc, set, undo, redo, canUndo, canRedo, addEl } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  const brand = brands.find((b) => b.id === doc.brandId) || null;
+  const accent = brand?.colors?.[2] || "#ffffff";
+
+  const addTextElement = () => {
+    addEl({
+      id: Math.random().toString(36).slice(2, 9),
+      type: "text",
+      x: 40,
+      y: 180,
+      w: 320,
+      h: 70,
+      text: "Novo texto",
+      fontSize: 24,
+      color: accent,
+      weight: 600,
+      align: "left",
+    });
+  };
 
   useEffect(() => {
     if (!doc.brandId && defaultBrand) set({ brandId: defaultBrand.id }, false);
