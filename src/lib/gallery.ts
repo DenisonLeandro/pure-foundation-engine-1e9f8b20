@@ -86,6 +86,8 @@ export async function updateCreation(id: string, updates: Partial<Creation>): Pr
   if (updates.prompt !== undefined) payload.prompt = updates.prompt;
   if (updates.type) payload.type = updates.type;
   if (updates.thumbnailUrl !== undefined) payload.thumbnail_url = updates.thumbnailUrl;
+  if (updates.templateName !== undefined) payload.template_name = updates.templateName;
+  if (updates.doc !== undefined) payload.doc = updates.doc;
 
   const { data, error } = await supabase
     .from("creations")
