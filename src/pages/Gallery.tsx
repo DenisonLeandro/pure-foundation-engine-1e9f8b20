@@ -77,6 +77,26 @@ export default function Gallery() {
     navigate("/studio", { state: { mediaUrls: creation.urls, fromVisual: true } });
   }
 
+  function handleEditInStudio(creation: Creation) {
+    if (creation.doc) {
+      navigate("/studio", { state: { studioDoc: creation.doc, creationId: creation.id } });
+      return;
+    }
+    // Legacy item: synthesize a minimal single-image doc so the user can add elements on top.
+    const firstUrl = creation.urls[0];
+    if (!firstUrl) return;
+    const synth: StudioDoc = {
+      format: "image",
+      brandId: null,
+      slides: [{ bg: "#0f172a", bgImage: firstUrl, els: [] }],
+      caption: creation.prompt || "",
+      hashtags: [],
+      platforms: ["instagram"],
+      schedule: { when: "now" },
+    };
+    navigate("/studio", { state: { studioDoc: synth, creationId: creation.id } });
+  }
+
   async function handleDownload(creation: Creation) {
     const urls = creation.urls?.length ? creation.urls : (creation.thumbnailUrl ? [creation.thumbnailUrl] : []);
     if (!urls.length) { toast({ title: "Nada para baixar" }); return; }
