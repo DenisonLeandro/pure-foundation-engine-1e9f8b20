@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft,
+  PanelLeft, Quote, ArrowLeft, X, Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +16,7 @@ import { Copilot } from "./Copilot";
 import { AssetsRail } from "./AssetsRail";
 import { FlowBar } from "./FlowBar";
 import { PublishDrawer } from "./PublishDrawer";
-import type { StudioDoc, StudioFormat } from "./types";
+import { uid, type StudioDoc, type StudioFormat } from "./types";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
@@ -26,10 +26,10 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
   { value: "video", label: "Vídeo", icon: Film },
 ];
 
-export function StudioWorkspace({ initial, creationId, onBack }: { initial?: StudioDoc; creationId?: string; onBack?: () => void }) {
+export function StudioWorkspace({ initial, creationId, legacy, onBack }: { initial?: StudioDoc; creationId?: string; legacy?: boolean; onBack?: () => void }) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner creationId={creationId} onBack={onBack} />
+      <WorkspaceInner creationId={creationId} legacy={legacy} onBack={onBack} />
     </StudioProvider>
   );
 }
@@ -82,16 +82,34 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ creationId, onBack }: { creationId?: string; onBack?: () => void }) {
+function WorkspaceInner({ creationId, legacy, onBack }: { creationId?: string; legacy?: boolean; onBack?: () => void }) {
   const { brands, defaultBrand } = useBrands();
-  const { doc, set, undo, redo, canUndo, canRedo } = useStudio();
+  const { doc, set, undo, redo, canUndo, canRedo, addEl } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  const brand = brands.find((b) => b.id === doc.brandId) || null;
+  const accent = brand?.colors?.[2] || "#ffffff";
+
+  const addTextElement = () => {
+    addEl({
+      id: uid(),
+      type: "text",
+      x: 40,
+      y: 180,
+      w: 320,
+      h: 70,
+      text: "Novo texto",
+      fontSize: 24,
+      color: accent,
+      weight: 600,
+      align: "left",
+    });
+  };
 
   useEffect(() => {
     if (!doc.brandId && defaultBrand) set({ brandId: defaultBrand.id }, false);
   }, [defaultBrand, doc.brandId, set]);
-
-  const brand = brands.find((b) => b.id === doc.brandId) || null;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col md:h-screen">
@@ -154,6 +172,28 @@ function WorkspaceInner({ creationId, onBack }: { creationId?: string; onBack?: 
         </aside>
 
         <main className="min-w-0 flex-1 overflow-hidden bg-muted/30">
+          {legacy && !bannerDismissed && (
+            <div className="relative mx-auto max-w-2xl px-4 pt-3">
+              <div className="flex items-start gap-3 rounded-lg border border-amber-200/60 bg-amber-50/80 p-3 text-sm text-amber-900 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-100">
+                <span className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                </span>
+                <div className="flex-1">
+                  <p className="leading-relaxed">
+                    Este post foi criado antes da edição avançada — os textos fazem parte da imagem e não podem ser alterados. Você pode adicionar novos textos e elementos por cima, ou recriar o post no Studio.
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addTextElement}>
+                      <Type className="mr-1 h-3.5 w-3.5" /> Adicionar texto
+                    </Button>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setBannerDismissed(true)}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
           <DesignCanvas />
         </main>
 

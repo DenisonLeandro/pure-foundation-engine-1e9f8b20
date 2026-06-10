@@ -94,7 +94,7 @@ export default function Gallery() {
       platforms: ["instagram"],
       schedule: { when: "now" },
     };
-    navigate("/studio", { state: { studioDoc: synth, creationId: creation.id } });
+    navigate("/studio", { state: { studioDoc: synth, creationId: creation.id, legacy: true } });
   }
 
   async function handleDownload(creation: Creation) {

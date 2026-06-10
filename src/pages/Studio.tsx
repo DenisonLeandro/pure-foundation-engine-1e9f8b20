@@ -16,6 +16,8 @@ interface NavState {
   studioDoc?: StudioDoc;
   /** Id of the existing creation being edited; re-export updates that row. */
   creationId?: string;
+  /** True when the doc was synthesized from a legacy gallery item (no saved doc). */
+  legacy?: boolean;
 }
 
 function buildInitial(nav: NavState | null): StudioDoc | undefined {
@@ -58,7 +60,7 @@ export default function Studio() {
   // assisted — full-bleed (cancela o padding do AppLayout)
   return (
     <div className="-m-4 sm:-m-6 lg:-m-8">
-      <StudioWorkspace initial={handoffDoc ?? navInitial} creationId={nav?.creationId} onBack={back} />
+      <StudioWorkspace initial={handoffDoc ?? navInitial} creationId={nav?.creationId} legacy={nav?.legacy} onBack={back} />
     </div>
   );
 }
