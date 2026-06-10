@@ -20,23 +20,6 @@ function safeParseConfig(raw: string | null): Partial<AppConfig> | null {
   }
 }
 
-interface AppState {
-  config: AppConfig;
-  accounts: SocialAccount[];
-  schedules: ScheduledPost[];
-  isConfigured: boolean;
-  onboardingCompleted: boolean;
-  configLoading: boolean;
-}
-
-interface AppContextType extends AppState {
-  setConfig: (config: AppConfig) => void;
-  setAccounts: (accounts: SocialAccount[]) => void;
-  setSchedules: (schedules: ScheduledPost[]) => void;
-  resetConfig: () => void;
-  completeOnboarding: (finalConfig?: AppConfig) => void;
-  saveConfigToDb: (config: AppConfig) => Promise<AppConfig>;
-}
 
 const DEFAULT_CONFIG: AppConfig = {
   postformeApiKey: "",
@@ -49,7 +32,7 @@ const DEFAULT_CONFIG: AppConfig = {
   firecrawlApiKey: "",
 };
 
-const AppContext = createContext<AppContextType | null>(null);
+
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [config, setConfigState] = useState<AppConfig>(() => {
@@ -302,8 +285,4 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useApp() {
-  const context = useContext(AppContext);
-  if (!context) throw new Error("useApp must be used within AppProvider");
-  return context;
 }
