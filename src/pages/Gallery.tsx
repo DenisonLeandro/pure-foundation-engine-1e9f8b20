@@ -9,6 +9,8 @@ import {
   Trash2,
   ImageOff,
   Loader2,
+  Pencil,
+  PenTool,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
 import { getCreations, deleteCreation, type Creation } from "@/lib/gallery";
+import type { StudioDoc } from "@/components/studio/workspace/types";
 
 // ─── Filter types ───────────────────────────────────────────────
 
@@ -72,6 +75,26 @@ export default function Gallery() {
 
   function handleUseInPost(creation: Creation) {
     navigate("/studio", { state: { mediaUrls: creation.urls, fromVisual: true } });
+  }
+
+  function handleEditInStudio(creation: Creation) {
+    if (creation.doc) {
+      navigate("/studio", { state: { studioDoc: creation.doc, creationId: creation.id } });
+      return;
+    }
+    // Legacy item: synthesize a minimal single-image doc so the user can add elements on top.
+    const firstUrl = creation.urls[0];
+    if (!firstUrl) return;
+    const synth: StudioDoc = {
+      format: "image",
+      brandId: null,
+      slides: [{ bg: "#0f172a", bgImage: firstUrl, els: [] }],
+      caption: creation.prompt || "",
+      hashtags: [],
+      platforms: ["instagram"],
+      schedule: { when: "now" },
+    };
+    navigate("/studio", { state: { studioDoc: synth, creationId: creation.id } });
   }
 
   async function handleDownload(creation: Creation) {
@@ -185,6 +208,7 @@ export default function Gallery() {
               onUseInPost={handleUseInPost}
               onDownload={handleDownload}
               onDelete={handleDeleteCreation}
+              onEditInStudio={handleEditInStudio}
             />
           ))}
         </div>
@@ -212,6 +236,7 @@ interface CreationCardProps {
   onUseInPost: (c: Creation) => void;
   onDownload: (c: Creation) => void;
   onDelete: (c: Creation) => void;
+  onEditInStudio: (c: Creation) => void;
 }
 
 function CreationCard({
@@ -220,6 +245,7 @@ function CreationCard({
   onUseInPost,
   onDownload,
   onDelete,
+  onEditInStudio,
 }: CreationCardProps) {
   const thumb = creation.thumbnailUrl ?? creation.urls[0] ?? "";
   const date = new Date(creation.createdAt).toLocaleDateString("pt-BR", {
@@ -279,6 +305,17 @@ function CreationCard({
           >
             <Send className="h-4 w-4" />
           </Button>
+          {(creation.doc || creation.type !== "video") && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+              title={creation.doc ? "Editar no Studio" : "Abrir no Studio"}
+              onClick={() => onEditInStudio(creation)}
+            >
+              {creation.doc ? <Pencil className="h-4 w-4" /> : <PenTool className="h-4 w-4" />}
+            </Button>
+          )}
           <Button
             size="icon"
             variant="ghost"

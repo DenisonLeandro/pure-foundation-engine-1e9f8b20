@@ -3,10 +3,10 @@ import { Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useBrands } from "@/hooks/use-brands";
 import { PublishPanel } from "@/components/studio/PublishPanel";
-import { saveVisualToGallery } from "@/lib/gallery";
+import { saveVisualToGallery, updateVisualInGallery } from "@/lib/gallery";
 import { useStudio } from "./StudioProvider";
 
-export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+export function PublishDrawer({ open, onOpenChange, creationId }: { open: boolean; onOpenChange: (v: boolean) => void; creationId?: string }) {
   const { doc, exportSlides } = useStudio();
   const { brands } = useBrands();
   const brand = brands.find((b) => b.id === doc.brandId) || null;
@@ -23,15 +23,20 @@ export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenCha
         const m = doc.format === "video" ? (doc.videoUrl ? [doc.videoUrl] : []) : await exportSlides();
         if (alive) {
           setMedia(m);
-          // saveVisualToGallery agora faz upload de data: URLs automaticamente
-          if (m.length) saveVisualToGallery({ urls: m, prompt: doc.caption, templateName: "Studio · Canvas" });
+          if (m.length) {
+            if (creationId) {
+              updateVisualInGallery(creationId, { urls: m, doc, prompt: doc.caption });
+            } else {
+              saveVisualToGallery({ urls: m, prompt: doc.caption, templateName: "Studio · Canvas", doc });
+            }
+          }
         }
       } finally {
         if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
-  }, [open, doc.format, doc.videoUrl, doc.caption, exportSlides]);
+  }, [open, doc, exportSlides, creationId]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

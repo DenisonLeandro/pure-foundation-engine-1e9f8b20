@@ -26,10 +26,10 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
   { value: "video", label: "Vídeo", icon: Film },
 ];
 
-export function StudioWorkspace({ initial, onBack }: { initial?: StudioDoc; onBack?: () => void }) {
+export function StudioWorkspace({ initial, creationId, onBack }: { initial?: StudioDoc; creationId?: string; onBack?: () => void }) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner onBack={onBack} />
+      <WorkspaceInner creationId={creationId} onBack={onBack} />
     </StudioProvider>
   );
 }
@@ -82,7 +82,7 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ onBack }: { onBack?: () => void }) {
+function WorkspaceInner({ creationId, onBack }: { creationId?: string; onBack?: () => void }) {
   const { brands, defaultBrand } = useBrands();
   const { doc, set, undo, redo, canUndo, canRedo } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
@@ -163,7 +163,7 @@ function WorkspaceInner({ onBack }: { onBack?: () => void }) {
       </div>
 
       <FlowBar onPublish={() => setPublishOpen(true)} />
-      <PublishDrawer open={publishOpen} onOpenChange={setPublishOpen} />
+      <PublishDrawer open={publishOpen} onOpenChange={setPublishOpen} creationId={creationId} />
     </div>
   );
 }
