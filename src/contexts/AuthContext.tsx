@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabaseConfigured) {
       // Supabase not configured — skip auth, allow access
+      console.info("[boot][AuthContext] backend não configurado; liberando auth");
       setLoading(false);
       return;
     }
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session: s } }) => {
+      console.info("[boot][AuthContext] getSession resolvido", { hasUser: !!s?.user });
       setSession(s);
       setUser(s?.user ?? null);
       finish();
@@ -49,7 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      console.info("[boot][AuthContext] auth event", { event, hasUser: !!s?.user });
       setSession(s);
       setUser(s?.user ?? null);
       finish();

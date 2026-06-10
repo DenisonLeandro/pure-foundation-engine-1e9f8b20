@@ -22,6 +22,10 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, errorInfo: { componentStack: string }) {
+    console.error("[ErrorBoundary] erro capturado:", error, errorInfo);
+  }
+
   handleReset = () => {
     this.setState({ hasError: false, error: null });
   };

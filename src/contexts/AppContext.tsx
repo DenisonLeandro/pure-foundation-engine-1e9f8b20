@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import type { AppConfig, SocialAccount, ScheduledPost } from "@/types";
 import { userStorage } from "@/lib/storage";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseConfigured } from "@/lib/supabase";
 import { getPfmUserKey, setPfmUserKey } from "@/lib/api";
 
 // Hard ceiling for the boot loader: even if Supabase hangs, the app must
@@ -57,8 +58,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [schedules, setSchedules] = useState<ScheduledPost[]>([]);
   const [configLoading, setConfigLoading] = useState(true);
-  const loadingRef = useRef<string | null>(null); // user id currently being loaded (dedupe)
-  const finishedRef = useRef(false);
+  const inFlightUsersRef = useRef<Set<string>>(new Set());
 
   // Post for Me é a integração core (publicação). Blotato é legado/inerte.
   const isConfigured = !!config.postformeApiKey;
@@ -66,50 +66,73 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Load config from DB on mount AND whenever auth state changes
   useEffect(() => {
+    if (!supabaseConfigured) {
+      console.info("[boot][AppContext] backend não configurado; liberando app sem config remota");
+      setConfigLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
-    const finishBoot = () => {
-      if (cancelled || finishedRef.current) return;
-      finishedRef.current = true;
+    const finishBoot = (reason: string) => {
+      if (cancelled) return;
+      console.info(`[boot][AppContext] boot finalizado (${reason})`);
       setConfigLoading(false);
+    };
+
+    const startConfigLoad = async (userId: string, reason: string, blockUi: boolean) => {
+      if (cancelled) return;
+      if (inFlightUsersRef.current.has(userId)) {
+        console.info(`[boot][AppContext] carga já em andamento (${reason})`, { userId });
+        return;
+      }
+      if (blockUi) setConfigLoading(true);
+      console.info(`[boot][AppContext] carregando config (${reason})`, { userId, blockUi });
+      await loadConfigFromDb(userId);
     };
 
     // Safety net: never let the boot loader stall forever.
     const safety = window.setTimeout(() => {
-      if (!finishedRef.current) {
-        console.warn(`[AppContext] boot timeout (${BOOT_TIMEOUT_MS}ms) — liberando UI`);
-        finishBoot();
-      }
+      console.warn(`[AppContext] boot timeout (${BOOT_TIMEOUT_MS}ms) — liberando UI`);
+      finishBoot("timeout");
     }, BOOT_TIMEOUT_MS);
 
     // Initial hydration from current session (if any)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (cancelled) return;
+      console.info("[boot][AppContext] getSession resolvido", { hasUser: !!session?.user });
       if (session?.user) {
-        loadConfigFromDb(session.user.id).finally(finishBoot);
+        void startConfigLoad(session.user.id, "getSession", true);
       } else {
-        finishBoot();
+        finishBoot("sem sessão");
       }
     }).catch((err) => {
       console.warn("[AppContext] getSession falhou:", err);
-      finishBoot();
+      finishBoot("erro getSession");
     });
 
 
     // React to login/logout/refresh so config is hydrated after auth completes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.info("[boot][AppContext] auth event", { event, hasUser: !!session?.user });
       if (event === "SIGNED_OUT") {
+        inFlightUsersRef.current.clear();
         setConfigState(DEFAULT_CONFIG);
         userStorage.remove("config");
         setPfmUserKey("");
-        finishedRef.current = true;
-        setConfigLoading(false);
+        finishBoot("signed out");
         return;
       }
-      // Avoid duplicate concurrent loads for the same user (getSession + INITIAL_SESSION race)
-      if (session?.user && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED")) {
-        if (loadingRef.current === session.user.id) return;
-        loadConfigFromDb(session.user.id).finally(finishBoot);
+
+      if (!session?.user) return;
+
+      if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+        void startConfigLoad(session.user.id, event, true);
+        return;
+      }
+
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        void startConfigLoad(session.user.id, event, false);
       }
     });
 
@@ -117,15 +140,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function loadConfigFromDb(userId?: string) {
+    let uid = userId;
+    let claimedInFlight = false;
+    let shouldSettleLoading = true;
+
     try {
-      let uid = userId;
       if (!uid) {
         const { data: { user } } = await supabase.auth.getUser();
         uid = user?.id;
       }
-      if (!uid) { return; }
-      if (loadingRef.current === uid) return; // dedupe in-flight
-      loadingRef.current = uid;
+      if (!uid) {
+        console.info("[boot][AppContext] nenhuma sessão ao buscar config");
+        return;
+      }
+      if (inFlightUsersRef.current.has(uid)) {
+        console.info("[boot][AppContext] carga duplicada ignorada", { userId: uid });
+        shouldSettleLoading = false;
+        return;
+      }
+      inFlightUsersRef.current.add(uid);
+      claimedInFlight = true;
 
 
       const { data } = await supabase
@@ -135,14 +169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (data) {
-        const localConfig = (() => {
-          try {
-            const saved = userStorage.get("config");
-            return saved ? JSON.parse(saved) as Partial<AppConfig> : {};
-          } catch {
-            return {};
-          }
-        })();
+        const localConfig = safeParseConfig(userStorage.get("config")) ?? {};
         const loaded: AppConfig = {
           blotatoApiKey: data.blotato_api_key || localConfig.blotatoApiKey || "",
           postformeApiKey: data.postforme_api_key || localConfig.postformeApiKey || (localConfig as { pfmApiKey?: string }).pfmApiKey || getPfmUserKey() || "",
@@ -162,8 +189,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       console.error("Failed to load config from DB:", err);
     } finally {
-      loadingRef.current = null;
-      setConfigLoading(false);
+      if (claimedInFlight && uid) {
+        inFlightUsersRef.current.delete(uid);
+      }
+      if (shouldSettleLoading) {
+        console.info("[boot][AppContext] configLoading=false", { userId: uid ?? null });
+        setConfigLoading(false);
+      }
     }
   }
 

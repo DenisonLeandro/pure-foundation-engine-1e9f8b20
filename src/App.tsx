@@ -40,11 +40,13 @@ const queryClient = new QueryClient({
 });
 
 function PageLoader() {
-  // Render a loader that, after a generous delay, also offers a "reload" escape hatch
-  // so the user never sees a permanently blank screen.
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-background text-foreground">
-      <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="text-center">
+        <p className="text-sm font-medium">Carregando...</p>
+        <p className="text-xs text-muted-foreground">Preparando sua área de trabalho.</p>
+      </div>
       <button
         onClick={() => window.location.reload()}
         className="text-xs text-muted-foreground hover:text-foreground underline opacity-0 animate-[fadeIn_1s_ease-in_6s_forwards]"
@@ -54,6 +56,16 @@ function PageLoader() {
       </button>
       <style>{`@keyframes fadeIn { to { opacity: 1; } }`}</style>
     </div>
+  );
+}
+
+function RoutePage({ children }: { children: React.ReactNode }) {
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<PageLoader />}>
+        {children}
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
@@ -125,31 +137,31 @@ const App = () => (
                     <Route path="/update-password" element={<UpdatePassword />} />
 
                     {/* Onboarding (authenticated) */}
-                    <Route path="/setup" element={<RequireSetupAccess><Setup /></RequireSetupAccess>} />
+                    <Route path="/setup" element={<RequireSetupAccess><RoutePage><Setup /></RoutePage></RequireSetupAccess>} />
 
                     {/* App routes (authenticated + onboarded + layout) */}
                     <Route element={<RequireAppAccess><AppLayout /></RequireAppAccess>}>
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/accounts" element={<Accounts />} />
-                      <Route path="/studio" element={<Studio />} />
+                      <Route path="/dashboard" element={<RoutePage><Dashboard /></RoutePage>} />
+                      <Route path="/accounts" element={<RoutePage><Accounts /></RoutePage>} />
+                      <Route path="/studio" element={<RoutePage><Studio /></RoutePage>} />
                       {/* Telas antigas aposentadas — redirecionam ao Studio unificado */}
                       <Route path="/create" element={<Navigate to="/studio" replace />} />
                       <Route path="/carousel" element={<Navigate to="/studio" replace />} />
                       <Route path="/visuals" element={<Navigate to="/studio" replace />} />
-                      <Route path="/gallery" element={<Gallery />} />
-                      <Route path="/analytics" element={<Analytics />} />
-                      <Route path="/lab" element={<Lab />} />
-                      <Route path="/schedule" element={<Schedule />} />
-                      <Route path="/sources" element={<Sources />} />
-                      <Route path="/brands" element={<Brands />} />
-                      <Route path="/insights" element={<Insights />} />
-                      <Route path="/autopilot" element={<Autopilot />} />
-                      <Route path="/admin" element={<Admin />} />
+                      <Route path="/gallery" element={<RoutePage><Gallery /></RoutePage>} />
+                      <Route path="/analytics" element={<RoutePage><Analytics /></RoutePage>} />
+                      <Route path="/lab" element={<RoutePage><Lab /></RoutePage>} />
+                      <Route path="/schedule" element={<RoutePage><Schedule /></RoutePage>} />
+                      <Route path="/sources" element={<RoutePage><Sources /></RoutePage>} />
+                      <Route path="/brands" element={<RoutePage><Brands /></RoutePage>} />
+                      <Route path="/insights" element={<RoutePage><Insights /></RoutePage>} />
+                      <Route path="/autopilot" element={<RoutePage><Autopilot /></RoutePage>} />
+                      <Route path="/admin" element={<RoutePage><Admin /></RoutePage>} />
                     </Route>
 
                     {/* Redirects */}
                     <Route path="/" element={<RootRedirect />} />
-                    <Route path="*" element={<NotFound />} />
+                    <Route path="*" element={<RoutePage><NotFound /></RoutePage>} />
                   </Routes>
                 </Suspense>
               </BrowserRouter>
