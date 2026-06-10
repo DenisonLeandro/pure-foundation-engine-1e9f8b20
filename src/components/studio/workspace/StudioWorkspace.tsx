@@ -82,7 +82,7 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ onBack }: { onBack?: () => void }) {
+function WorkspaceInner({ creationId, onBack }: { creationId?: string; onBack?: () => void }) {
   const { brands, defaultBrand } = useBrands();
   const { doc, set, undo, redo, canUndo, canRedo } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
