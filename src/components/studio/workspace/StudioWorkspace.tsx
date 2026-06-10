@@ -93,7 +93,7 @@ function WorkspaceInner({ creationId, legacy, onBack }: { creationId?: string; l
 
   const addTextElement = () => {
     addEl({
-      id: Math.random().toString(36).slice(2, 9),
+      id: uid(),
       type: "text",
       x: 40,
       y: 180,
