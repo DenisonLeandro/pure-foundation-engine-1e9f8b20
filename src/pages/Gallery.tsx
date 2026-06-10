@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
 import { getCreations, deleteCreation, type Creation } from "@/lib/gallery";
-import type { StudioDoc } from "@/components/studio/workspace/types";
+
 
 // ─── Filter types ───────────────────────────────────────────────
 
