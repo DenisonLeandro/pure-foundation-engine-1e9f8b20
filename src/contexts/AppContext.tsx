@@ -82,6 +82,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const startConfigLoad = async (userId: string, reason: string, blockUi: boolean) => {
       if (cancelled) return;
+      if (inFlightUsersRef.current.has(userId)) {
+        console.info(`[boot][AppContext] carga já em andamento (${reason})`, { userId });
+        return;
+      }
       if (blockUi) setConfigLoading(true);
       console.info(`[boot][AppContext] carregando config (${reason})`, { userId, blockUi });
       await loadConfigFromDb(userId);
