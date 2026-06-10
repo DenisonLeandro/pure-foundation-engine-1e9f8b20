@@ -78,23 +78,7 @@ export default function Gallery() {
   }
 
   function handleEditInStudio(creation: Creation) {
-    if (creation.doc) {
-      navigate("/studio", { state: { studioDoc: creation.doc, creationId: creation.id } });
-      return;
-    }
-    // Legacy item: synthesize a minimal single-image doc so the user can add elements on top.
-    const firstUrl = creation.urls[0];
-    if (!firstUrl) return;
-    const synth: StudioDoc = {
-      format: "image",
-      brandId: null,
-      slides: [{ bg: "#0f172a", bgImage: firstUrl, els: [] }],
-      caption: creation.prompt || "",
-      hashtags: [],
-      platforms: ["instagram"],
-      schedule: { when: "now" },
-    };
-    navigate("/studio", { state: { studioDoc: synth, creationId: creation.id, legacy: true } });
+    navigate(`/studio?edit=${encodeURIComponent(creation.id)}`);
   }
 
   async function handleDownload(creation: Creation) {
