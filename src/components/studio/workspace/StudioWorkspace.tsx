@@ -26,10 +26,10 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
   { value: "video", label: "Vídeo", icon: Film },
 ];
 
-export function StudioWorkspace({ initial, creationId, onBack }: { initial?: StudioDoc; creationId?: string; onBack?: () => void }) {
+export function StudioWorkspace({ initial, creationId, legacy, onBack }: { initial?: StudioDoc; creationId?: string; legacy?: boolean; onBack?: () => void }) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner creationId={creationId} onBack={onBack} />
+      <WorkspaceInner creationId={creationId} legacy={legacy} onBack={onBack} />
     </StudioProvider>
   );
 }
