@@ -84,7 +84,16 @@ export default function Dashboard() {
   // Banner de configurações pendentes (mostrado uma vez após onboarding com itens pulados)
   const [pendingDismissed, setPendingDismissed] = useState(false);
   const pendingRaw = userStorage.get("onboarding_pending");
-  const pendingConfig = pendingRaw ? JSON.parse(pendingRaw) : null;
+  const pendingConfig = (() => {
+    if (!pendingRaw) return null;
+    try {
+      return JSON.parse(pendingRaw);
+    } catch (error) {
+      console.warn("[Dashboard] onboarding_pending inválido; removendo cache corrompido", error);
+      userStorage.remove("onboarding_pending");
+      return null;
+    }
+  })();
   const hasPending = !!pendingConfig && !pendingDismissed;
 
   const pendingItems = pendingConfig
