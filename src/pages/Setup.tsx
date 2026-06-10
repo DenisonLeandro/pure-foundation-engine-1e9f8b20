@@ -57,6 +57,7 @@ export default function Setup() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
   const [connectOpen, setConnectOpen] = useState(false);
+  const [bootReady, setBootReady] = useState(false);
 
   // Keys (initialized from saved config)
   const [blotatoKey, setBlotatoKey]     = useState(config.blotatoApiKey || "");
