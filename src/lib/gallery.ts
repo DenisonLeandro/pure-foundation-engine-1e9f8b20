@@ -67,6 +67,7 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
       template_name: input.templateName || null,
       source_id: input.sourceId || null,
       published: input.published,
+      doc: (input.doc ?? null) as unknown as never,
     })
     .select()
     .single();
