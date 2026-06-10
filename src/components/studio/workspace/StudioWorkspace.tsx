@@ -163,7 +163,7 @@ function WorkspaceInner({ creationId, onBack }: { creationId?: string; onBack?: 
       </div>
 
       <FlowBar onPublish={() => setPublishOpen(true)} />
-      <PublishDrawer open={publishOpen} onOpenChange={setPublishOpen} />
+      <PublishDrawer open={publishOpen} onOpenChange={setPublishOpen} creationId={creationId} />
     </div>
   );
 }
