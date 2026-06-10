@@ -172,6 +172,28 @@ function WorkspaceInner({ creationId, legacy, onBack }: { creationId?: string; l
         </aside>
 
         <main className="min-w-0 flex-1 overflow-hidden bg-muted/30">
+          {legacy && !bannerDismissed && (
+            <div className="relative mx-auto max-w-2xl px-4 pt-3">
+              <div className="flex items-start gap-3 rounded-lg border border-amber-200/60 bg-amber-50/80 p-3 text-sm text-amber-900 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-100">
+                <span className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                </span>
+                <div className="flex-1">
+                  <p className="leading-relaxed">
+                    Este post foi criado antes da edição avançada — os textos fazem parte da imagem e não podem ser alterados. Você pode adicionar novos textos e elementos por cima, ou recriar o post no Studio.
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={addTextElement}>
+                      <Type className="mr-1 h-3.5 w-3.5" /> Adicionar texto
+                    </Button>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setBannerDismissed(true)}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
           <DesignCanvas />
         </main>
 
