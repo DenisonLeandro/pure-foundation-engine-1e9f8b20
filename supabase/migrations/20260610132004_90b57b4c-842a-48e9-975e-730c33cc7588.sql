@@ -1,0 +1,1 @@
+ALTER TABLE public.creations ADD COLUMN IF NOT EXISTS doc jsonb;
