@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft,
+  PanelLeft, Quote, ArrowLeft, X, Type,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
