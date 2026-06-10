@@ -354,6 +354,29 @@ export function Copilot() {
         </div>
       )}
 
+      {/* Ajuste livre por instrução */}
+      <div className="space-y-2 rounded-lg border border-border p-3">
+        <Label className="flex items-center gap-1.5 text-xs font-medium">
+          <MessageSquarePlus className="h-3.5 w-3.5 text-violet-500" /> Pedir ajuste à IA
+        </Label>
+        <Textarea
+          value={adjustInstr}
+          onChange={(e) => setAdjustInstr(e.target.value)}
+          rows={2}
+          placeholder="Ex.: deixe o título mais chamativo, foque em iniciantes..."
+          disabled={adjusting}
+        />
+        <Button
+          size="sm"
+          className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-500"
+          onClick={handleAdjust}
+          disabled={adjusting || !adjustInstr.trim()}
+        >
+          {adjusting ? <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Aplicando…</> : <><Sparkles className="mr-2 h-3.5 w-3.5" /> Aplicar ajuste</>}
+        </Button>
+      </div>
+
+
       {doc.format === "video" && (
         <p className="flex items-start gap-1.5 rounded-lg border border-border p-3 text-[11px] text-muted-foreground">
           <Film className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Vídeo via Higgsfield (requer credenciais em Configurações). A geração leva alguns minutos.
