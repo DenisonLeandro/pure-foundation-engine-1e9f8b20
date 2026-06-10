@@ -226,13 +226,45 @@ export function Copilot() {
   const handleAdjust = async () => {
     const instruction = adjustInstr.trim();
     if (!instruction) return;
+
+    const totalTextEls = doc.slides.reduce(
+      (acc, s) => acc + s.els.filter((el) => el.type === "text").length,
+      0,
+    );
+    if (totalTextEls === 0 && /\b(texto|t[ií]tulo|legenda|cor|color)\b/i.test(instruction)) {
+      toast.error("Este conteúdo não tem elementos de texto editáveis — adicione um texto no canvas primeiro.");
+      return;
+    }
+
     setAdjusting(true);
     try {
+      const isHex = (v: unknown): v is string => typeof v === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v);
+      const isBg = (v: unknown): v is string => typeof v === "string" && (isHex(v) || /^(linear-gradient|radial-gradient|rgb|rgba|hsl|hsla)\b/i.test(v));
+      const toNum = (v: unknown): number | undefined => {
+        const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+        return Number.isFinite(n) ? n : undefined;
+      };
+      const validAlign = (v: unknown): "left" | "center" | "right" | undefined =>
+        v === "left" || v === "center" || v === "right" ? v : undefined;
+
       const slidesPayload = doc.slides.map((s, i) => ({
         index: i,
+        bg: s.bg,
         texts: s.els
           .filter((el) => el.type === "text")
-          .map((el) => ({ id: el.id, text: (el as El & { text?: string }).text || "" })),
+          .map((el) => {
+            const t = el as El & { text?: string; color?: string; fontSize?: number; weight?: number; align?: string; x: number; y: number };
+            return {
+              id: el.id,
+              text: t.text || "",
+              color: t.color,
+              fontSize: t.fontSize,
+              weight: t.weight,
+              align: t.align,
+              x: t.x,
+              y: t.y,
+            };
+          }),
       }));
       const payload = {
         caption: doc.caption || "",
@@ -241,28 +273,55 @@ export function Copilot() {
         instruction,
       };
       const { json } = await aiAssist({
-        system: `Você receberá um JSON com o conteúdo atual de um post (caption, hashtags e textos dos slides com seus ids) e uma instrução de ajuste do usuário. Aplique APENAS a alteração pedida, mantendo todo o restante idêntico (mesmos ids, mesma quantidade de slides e de textos, mesma estrutura). ${brandTextHint(brand)} Responda APENAS com JSON válido no MESMO formato de entrada: {"caption": string, "hashtags": string[], "slides": [{"index": number, "texts": [{"id": string, "text": string}]}]}. Não inclua comentários nem markdown.`,
+        system: `Você receberá um JSON com o conteúdo atual de um post (caption, hashtags, e slides com bg e textos contendo id/text/color/fontSize/weight/align/x/y) e uma instrução de ajuste do usuário. Aplique APENAS a alteração pedida (pode alterar qualquer propriedade: texto, cor, fontSize, weight, align, posição x/y, ou bg do slide), mantendo todo o restante idêntico (mesmos ids, mesma quantidade de slides e textos, mesma estrutura). Cores devem ser retornadas em hex (#RRGGBB). ${brandTextHint(brand)} Responda APENAS com JSON válido no MESMO formato de entrada: {"caption": string, "hashtags": string[], "slides": [{"index": number, "bg": string, "texts": [{"id": string, "text": string, "color": string, "fontSize": number, "weight": number, "align": string, "x": number, "y": number}]}]}. Não inclua comentários nem markdown.`,
         prompt: JSON.stringify(payload),
         expectJson: true,
         temperature: 0.6,
       });
-      const result = json as { caption?: string; hashtags?: string[]; slides?: Array<{ index: number; texts: Array<{ id: string; text: string }> }> } | null;
+      type TextPatch = { id: string; text?: string; color?: string; fontSize?: number; weight?: number; align?: string; x?: number; y?: number };
+      const result = json as { caption?: string; hashtags?: string[]; slides?: Array<{ index: number; bg?: string; texts?: TextPatch[] }> } | null;
       if (!result || typeof result !== "object") throw new Error("A IA não retornou JSON válido.");
 
-      const textMap = new Map<string, string>();
-      (result.slides || []).forEach((s) => s.texts?.forEach((t) => { if (t.id) textMap.set(t.id, t.text); }));
-
-      const newSlides: Slide[] = doc.slides.map((s) => ({
-        ...s,
-        els: s.els.map((el) => (el.type === "text" && textMap.has(el.id) ? { ...el, text: textMap.get(el.id)! } : el)),
-      }));
-
-      replaceDoc({
-        ...doc,
-        slides: newSlides,
-        caption: typeof result.caption === "string" ? result.caption : doc.caption,
-        hashtags: Array.isArray(result.hashtags) ? result.hashtags : doc.hashtags,
+      const patchMap = new Map<string, TextPatch>();
+      const bgBySlideIdx = new Map<number, string>();
+      (result.slides || []).forEach((s) => {
+        if (typeof s.index === "number" && isBg(s.bg)) bgBySlideIdx.set(s.index, s.bg!);
+        s.texts?.forEach((t) => { if (t && typeof t.id === "string") patchMap.set(t.id, t); });
       });
+
+      let changed = false;
+      const newSlides: Slide[] = doc.slides.map((s, i) => {
+        const newBg = bgBySlideIdx.get(i);
+        const bg = newBg && newBg !== s.bg ? (changed = true, newBg) : s.bg;
+        const els = s.els.map((el) => {
+          if (el.type !== "text") return el;
+          const p = patchMap.get(el.id);
+          if (!p) return el;
+          const t = el as El & { text?: string; color?: string; fontSize?: number; weight?: number; align?: "left" | "center" | "right"; x: number; y: number };
+          const next: typeof t = { ...t };
+          if (typeof p.text === "string" && p.text !== t.text) { next.text = p.text; changed = true; }
+          if (isHex(p.color) && p.color !== t.color) { next.color = p.color; changed = true; }
+          const fs = toNum(p.fontSize); if (fs !== undefined && fs !== t.fontSize) { next.fontSize = fs; changed = true; }
+          const w = toNum(p.weight); if (w !== undefined && w !== t.weight) { next.weight = w; changed = true; }
+          const al = validAlign(p.align); if (al && al !== t.align) { next.align = al; changed = true; }
+          const x = toNum(p.x); if (x !== undefined && x !== t.x) { next.x = x; changed = true; }
+          const y = toNum(p.y); if (y !== undefined && y !== t.y) { next.y = y; changed = true; }
+          return next;
+        });
+        return { ...s, bg, els };
+      });
+
+      const newCaption = typeof result.caption === "string" ? result.caption : doc.caption;
+      const newHashtags = Array.isArray(result.hashtags) ? result.hashtags : doc.hashtags;
+      if (newCaption !== doc.caption) changed = true;
+      if (JSON.stringify(newHashtags) !== JSON.stringify(doc.hashtags)) changed = true;
+
+      if (!changed) {
+        toast.info("A IA não encontrou o que alterar — tente descrever o elemento de outra forma");
+        return;
+      }
+
+      replaceDoc({ ...doc, slides: newSlides, caption: newCaption, hashtags: newHashtags });
       setAdjustInstr("");
       toast.success("Ajuste aplicado");
     } catch (e) {
