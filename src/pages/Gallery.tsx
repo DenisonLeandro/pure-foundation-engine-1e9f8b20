@@ -9,6 +9,8 @@ import {
   Trash2,
   ImageOff,
   Loader2,
+  Pencil,
+  PenTool,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
 import { getCreations, deleteCreation, type Creation } from "@/lib/gallery";
+import type { StudioDoc } from "@/components/studio/workspace/types";
 
 // ─── Filter types ───────────────────────────────────────────────
 
