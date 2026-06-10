@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/contexts/AuthContext";
-import { useApp } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/use-app";
 
 export function ManagePreferencesView() {
   const { theme, setTheme } = useTheme();

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useApp } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/use-app";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { getPfmUserKey, getUser, validatePfmKey, validateApifyToken, validateHiggsFieldKey, validateFirecrawlKey, validatePexelsKey } from "@/lib/api";

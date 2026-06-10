@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useApp } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/use-app";
 import { usePfmAccounts, usePfmPosts } from "@/hooks/use-blotato";
 import { ALL_PLATFORMS, PLATFORMS } from "@/lib/platforms";
 import { useToast } from "@/hooks/use-toast";

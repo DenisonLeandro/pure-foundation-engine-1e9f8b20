@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { useApp } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/use-app";
 
 const Index = () => {
   const { isConfigured } = useApp();

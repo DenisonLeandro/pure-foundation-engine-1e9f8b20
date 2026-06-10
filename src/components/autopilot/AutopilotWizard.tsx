@@ -25,7 +25,7 @@ import { PLATFORMS } from "@/lib/platforms";
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
 import { usePfmAccounts } from "@/hooks/use-blotato";
 import { useSaveAutopilotConfig } from "@/hooks/use-autopilot";
-import { useApp } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/use-app";
 import type { AutopilotConfig, AutopilotVisualFormat, AutopilotRecurrence, Platform } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";

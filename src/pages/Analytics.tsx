@@ -35,7 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { useApp } from "@/contexts/AppContext";
+import { useApp } from "@/contexts/use-app";
 import { usePfmAccounts } from "@/hooks/use-blotato";
 import { supabase } from "@/integrations/supabase/client";
 import * as api from "@/lib/api";
