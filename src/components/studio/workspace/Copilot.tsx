@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Wand2, Lightbulb, Loader2, RefreshCw, Scissors, Smile, ImagePlus, Search, Film } from "lucide-react";
+import { Sparkles, Wand2, Lightbulb, Loader2, RefreshCw, Scissors, Smile, ImagePlus, Search, Film, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
