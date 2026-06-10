@@ -16,7 +16,7 @@ import { Copilot } from "./Copilot";
 import { AssetsRail } from "./AssetsRail";
 import { FlowBar } from "./FlowBar";
 import { PublishDrawer } from "./PublishDrawer";
-import type { StudioDoc, StudioFormat } from "./types";
+import { uid, type StudioDoc, type StudioFormat } from "./types";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
