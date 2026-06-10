@@ -223,6 +223,55 @@ export function Copilot() {
     } catch (e) { toast.error(e instanceof Error ? e.message : "Erro"); } finally { setRefining(null); }
   };
 
+  const handleAdjust = async () => {
+    const instruction = adjustInstr.trim();
+    if (!instruction) return;
+    setAdjusting(true);
+    try {
+      const slidesPayload = doc.slides.map((s, i) => ({
+        index: i,
+        texts: s.els
+          .filter((el) => el.type === "text")
+          .map((el) => ({ id: el.id, text: (el as El & { text?: string }).text || "" })),
+      }));
+      const payload = {
+        caption: doc.caption || "",
+        hashtags: doc.hashtags || [],
+        slides: slidesPayload,
+        instruction,
+      };
+      const { json } = await aiAssist({
+        system: `Você receberá um JSON com o conteúdo atual de um post (caption, hashtags e textos dos slides com seus ids) e uma instrução de ajuste do usuário. Aplique APENAS a alteração pedida, mantendo todo o restante idêntico (mesmos ids, mesma quantidade de slides e de textos, mesma estrutura). ${brandTextHint(brand)} Responda APENAS com JSON válido no MESMO formato de entrada: {"caption": string, "hashtags": string[], "slides": [{"index": number, "texts": [{"id": string, "text": string}]}]}. Não inclua comentários nem markdown.`,
+        prompt: JSON.stringify(payload),
+        expectJson: true,
+        temperature: 0.6,
+      });
+      const result = json as { caption?: string; hashtags?: string[]; slides?: Array<{ index: number; texts: Array<{ id: string; text: string }> }> } | null;
+      if (!result || typeof result !== "object") throw new Error("A IA não retornou JSON válido.");
+
+      const textMap = new Map<string, string>();
+      (result.slides || []).forEach((s) => s.texts?.forEach((t) => { if (t.id) textMap.set(t.id, t.text); }));
+
+      const newSlides: Slide[] = doc.slides.map((s) => ({
+        ...s,
+        els: s.els.map((el) => (el.type === "text" && textMap.has(el.id) ? { ...el, text: textMap.get(el.id)! } : el)),
+      }));
+
+      replaceDoc({
+        ...doc,
+        slides: newSlides,
+        caption: typeof result.caption === "string" ? result.caption : doc.caption,
+        hashtags: Array.isArray(result.hashtags) ? result.hashtags : doc.hashtags,
+      });
+      setAdjustInstr("");
+      toast.success("Ajuste aplicado");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao aplicar ajuste");
+    } finally {
+      setAdjusting(false);
+    }
+  };
+
   // ── render ──
   return (
     <div className="space-y-4">
