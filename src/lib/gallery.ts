@@ -3,6 +3,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import type { StudioDoc } from "@/components/studio/workspace/types";
 
 export interface Creation {
   id: string;
@@ -15,6 +16,7 @@ export interface Creation {
   sourceId?: string;
   published: boolean;
   createdAt: string;
+  doc?: StudioDoc | null;
 }
 
 // ─── Public API ─────────────────────────────────────────────────
