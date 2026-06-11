@@ -245,6 +245,7 @@ export async function saveVisualToGallery(opts: {
   prompt?: string;
   templateId?: string;
   templateName?: string;
+  designDoc?: EditableDesignDoc | null;
 }): Promise<Creation | null> {
   const validUrls = await persistUrls(opts.urls);
   if (validUrls.length === 0) return null;
@@ -260,6 +261,7 @@ export async function saveVisualToGallery(opts: {
     templateId: opts.templateId,
     templateName: opts.templateName,
     published: false,
+    designDoc: opts.designDoc ?? undefined,
   });
 }
 
