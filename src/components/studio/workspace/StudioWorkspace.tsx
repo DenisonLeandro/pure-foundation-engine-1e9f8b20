@@ -36,17 +36,26 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
   { value: "video", label: "Vídeo", icon: Film },
 ];
 
-export function StudioWorkspace({
-  initial, onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls,
-}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string; fallbackImageUrls?: string[] }) {
+interface WorkspaceProps {
+  initial?: StudioDoc;
+  onBack?: () => void;
+  editingCreationId?: string;
+  fallbackImageUrl?: string;
+  fallbackImageUrls?: string[];
+  /** Habilita autosave local do rascunho (chave por usuário/marca). */
+  draftUserId?: string;
+  /** Slide restaurado do rascunho local. */
+  initialSlide?: number;
+  /** Estilo visual restaurado do rascunho local. */
+  initialStylePreset?: StylePreset;
+  /** Chamado após descartar o rascunho (Studio reseta para a entrada). */
+  onDraftDiscarded?: () => void;
+}
+
+export function StudioWorkspace({ initial, ...rest }: WorkspaceProps) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner
-        onBack={onBack}
-        editingCreationId={editingCreationId}
-        fallbackImageUrl={fallbackImageUrl}
-        fallbackImageUrls={fallbackImageUrls}
-      />
+      <WorkspaceInner {...rest} />
     </StudioProvider>
   );
 }
