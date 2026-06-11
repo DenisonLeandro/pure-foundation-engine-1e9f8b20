@@ -77,6 +77,7 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
     return {
       ...base,
       slides: fallbacks.map((url) => ({ bg: base.slides[0].bg, bgImage: url, els: [] })),
+      caption: typeof nav.caption === "string" ? nav.caption : base.caption,
     };
   }
   // 3) Fluxo legado (deep-link de fonte/post).
