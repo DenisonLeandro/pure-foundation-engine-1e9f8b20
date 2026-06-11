@@ -95,7 +95,7 @@ function RightRailContent() {
 
 function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls }: { onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string; fallbackImageUrls?: string[] }) {
   const { brands, defaultBrand } = useBrands();
-  const { doc, set, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
+  const { doc, set, replaceDoc, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
   const [savingDesign, setSavingDesign] = useState(false);
 
