@@ -94,6 +94,7 @@ export default function Studio() {
 
   // Rascunho local recuperado (quando não veio nada via navigation state).
   const [draft, setDraft] = useState<StudioDraft | null>(null);
+  const [flowDraft, setFlowDraft] = useState<StudioFlowDraft | null>(null);
   const restoreTried = useRef(false);
 
   // Deep-link com estado abre direto no modo assistido (canvas) pré-preenchido.
@@ -105,6 +106,17 @@ export default function Studio() {
     if (restoreTried.current || navInitial || !userId) return;
     if (mode !== "entry") { restoreTried.current = true; return; }
     restoreTried.current = true;
+
+    // 1) Fluxo (mode "auto" do Criar com IA) tem prioridade sobre rascunho de editor.
+    const flow = loadStudioFlowDraft(userId);
+    if (flow?.mode === "auto") {
+      setFlowDraft(flow);
+      setMode("auto");
+      toast.message("Rascunho do Studio recuperado.");
+      return;
+    }
+
+    // 2) Rascunho do editor (assisted) com doc preservado.
     const d = loadLatestStudioDraft(userId);
     if (d) {
       setDraft(d);
@@ -125,9 +137,9 @@ export default function Studio() {
     ? (nav?.fallbackImageUrls ?? []).filter(isHttpUrl)
     : (draft?.fallbackImageUrls ?? []).filter(isHttpUrl);
 
-  const back = () => { setHandoffDoc(undefined); setMode("entry"); };
+  const back = () => { setHandoffDoc(undefined); setFlowDraft(null); setMode("entry"); };
   // Após descartar o rascunho, volta para a entrada com o Studio limpo.
-  const handleDraftDiscarded = () => { setDraft(null); setHandoffDoc(undefined); setMode("entry"); };
+  const handleDraftDiscarded = () => { setDraft(null); setFlowDraft(null); setHandoffDoc(undefined); setMode("entry"); };
 
   if (mode === "entry") {
     return <StudioEntry onPick={setMode} />;
@@ -138,6 +150,8 @@ export default function Studio() {
       <AutoStudio
         onBack={back}
         onEditInCanvas={(d) => { setHandoffDoc(d); setMode("assisted"); }}
+        initialForm={flowDraft?.autoForm}
+        initialDoc={flowDraft?.autoDoc}
       />
     );
   }
