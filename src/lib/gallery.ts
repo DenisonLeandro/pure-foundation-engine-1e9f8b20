@@ -207,7 +207,7 @@ export async function markAsPublishedByUrls(urls: string[]): Promise<void> {
 /**
  * Persiste URLs: data: URLs são upadas pro storage e viram http; blob: são descartadas.
  */
-async function persistUrls(urls: string[]): Promise<string[]> {
+export async function persistUrls(urls: string[]): Promise<string[]> {
   const out: string[] = [];
   for (const u of urls) {
     if (!u) continue;
