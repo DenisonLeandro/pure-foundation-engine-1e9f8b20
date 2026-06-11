@@ -239,10 +239,39 @@ export default function Gallery() {
               onDownload={handleDownload}
               onDelete={handleDeleteCreation}
               onEditDesign={handleEditDesign}
+              onEditCaption={handleEditCaption}
             />
           ))}
         </div>
       )}
+
+      {/* Caption edit dialog */}
+      <Dialog open={!!captionEditing} onOpenChange={(o) => { if (!o) setCaptionEditing(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar legenda</DialogTitle>
+            <DialogDescription>
+              A legenda será usada quando você publicar/agendar este post. A imagem não é alterada.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={captionDraft}
+            onChange={(e) => setCaptionDraft(e.target.value)}
+            rows={8}
+            placeholder="Escreva a legenda…"
+            className="resize-none"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCaptionEditing(null)} disabled={captionSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveCaption} disabled={captionSaving} className="bg-violet-600 hover:bg-violet-700">
+              {captionSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar legenda
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Media Preview Dialog */}
       {previewCreation && (
