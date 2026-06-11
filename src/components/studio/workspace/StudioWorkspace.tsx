@@ -21,6 +21,7 @@ import { DesignCanvas } from "./DesignCanvas";
 import { ElementInspector } from "./ElementInspector";
 import { Copilot } from "./Copilot";
 import { AssetsRail } from "./AssetsRail";
+import { CaptionPanel } from "./CaptionPanel";
 import { FlowBar } from "./FlowBar";
 import { PublishDrawer } from "./PublishDrawer";
 import type { StudioDoc, StudioFormat } from "./types";
