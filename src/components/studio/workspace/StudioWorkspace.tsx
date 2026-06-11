@@ -197,6 +197,24 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackI
               <div className="mt-4"><RightRailContent /></div>
             </SheetContent>
           </Sheet>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleFixReadability}
+            title="Corrigir legibilidade dos textos"
+            className="hidden h-9 sm:inline-flex"
+          >
+            <Eye className="mr-2 h-4 w-4" /> Corrigir legibilidade
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleFixReadability}
+            title="Corrigir legibilidade dos textos"
+            className="h-9 w-9 sm:hidden"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
           {editingCreationId && (
             <Button
               variant="outline"
