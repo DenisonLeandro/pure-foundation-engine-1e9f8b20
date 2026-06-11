@@ -296,6 +296,7 @@ interface CreationCardProps {
   onDownload: (c: Creation) => void;
   onDelete: (c: Creation) => void;
   onEditDesign: (c: Creation) => void;
+  onEditCaption: (c: Creation) => void;
 }
 
 function CreationCard({
@@ -305,6 +306,7 @@ function CreationCard({
   onDownload,
   onDelete,
   onEditDesign,
+  onEditCaption,
 }: CreationCardProps) {
   const thumb = creation.thumbnailUrl ?? creation.urls[0] ?? "";
   const date = new Date(creation.createdAt).toLocaleDateString("pt-BR", {
@@ -312,6 +314,7 @@ function CreationCard({
     month: "short",
     year: "numeric",
   });
+  const captionSnippet = (creation.caption || "").trim().split(/\n+/)[0] ?? "";
 
   return (
     <Card className="group overflow-hidden border-violet-200/40 transition-shadow hover:shadow-lg dark:border-violet-800/30">
