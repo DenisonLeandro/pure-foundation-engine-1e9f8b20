@@ -29,11 +29,11 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
 ];
 
 export function StudioWorkspace({
-  initial, onBack, editingCreationId,
-}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string }) {
+  initial, onBack, editingCreationId, fallbackImageUrl,
+}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string }) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner onBack={onBack} editingCreationId={editingCreationId} />
+      <WorkspaceInner onBack={onBack} editingCreationId={editingCreationId} fallbackImageUrl={fallbackImageUrl} />
     </StudioProvider>
   );
 }
