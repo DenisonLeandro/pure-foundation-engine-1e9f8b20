@@ -20,6 +20,7 @@ import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
 import { buildEditableEls } from "./editableEls";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
+import { ensureReadableTextLayers } from "./designReadability";
 
 const ART_STYLES: { value: string; label: string; hint: string }[] = [
   { value: "auto", label: "Auto (IA escolhe)", hint: "" },
@@ -377,7 +378,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       }
 
 
-      const finalDoc: StudioDoc = {
+      const rawDoc: StudioDoc = {
         ...base,
         slides,
         caption,
@@ -385,6 +386,8 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         hashtags: res.hashtags || [],
         platforms: brief.platforms as StudioDoc["platforms"],
       };
+      // Garante contraste/legibilidade respeitando paleta da marca
+      const finalDoc = ensureReadableTextLayers(rawDoc, { colors: brand?.colors });
       setDoc(finalDoc);
       toast.success("Criação pronta!");
       autoSave(finalDoc, composedUrls);

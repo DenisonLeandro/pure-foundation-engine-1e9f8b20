@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft, Save, Loader2,
+  PanelLeft, Quote, ArrowLeft, Save, Loader2, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import { FlowBar } from "./FlowBar";
 import { PublishDrawer } from "./PublishDrawer";
 import type { StudioDoc, StudioFormat } from "./types";
 import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
+import { ensureReadableTextLayers } from "./designReadability";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
@@ -94,26 +95,37 @@ function RightRailContent() {
 
 function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls }: { onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string; fallbackImageUrls?: string[] }) {
   const { brands, defaultBrand } = useBrands();
-  const { doc, set, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
+  const { doc, set, replaceDoc, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
   const [savingDesign, setSavingDesign] = useState(false);
+
+  const currentBrand = brands.find((b) => b.id === doc.brandId) || null;
+  const brandPalette = { colors: currentBrand?.colors };
+
+  const handleFixReadability = () => {
+    const fixed = ensureReadableTextLayers(doc, brandPalette);
+    replaceDoc(fixed);
+    toast.success("Legibilidade ajustada");
+  };
 
   const handleSaveDesign = async () => {
     if (!editingCreationId) return;
     setSavingDesign(true);
     try {
-      const urls = doc.format === "video"
-        ? (doc.videoUrl ? [doc.videoUrl] : [])
+      // Reaplica legibilidade antes de exportar (idempotente; mantém edições manuais consistentes)
+      const safeDoc = ensureReadableTextLayers(doc, brandPalette);
+      if (safeDoc !== doc) replaceDoc(safeDoc);
+      const urls = safeDoc.format === "video"
+        ? (safeDoc.videoUrl ? [safeDoc.videoUrl] : [])
         : await exportSlides();
       if (!urls.length) {
         toast.error("Nada para salvar");
         return;
       }
-      // Garante que o doc salvo preserve um fundo visual reabrindo corretamente
       const fallbackList = (fallbackImageUrls && fallbackImageUrls.length)
         ? fallbackImageUrls
         : (fallbackImageUrl ? [fallbackImageUrl] : []);
-      const docToPersist = ensureDocHasVisualFallbacks(doc, fallbackList);
+      const docToPersist = ensureDocHasVisualFallbacks(safeDoc, fallbackList);
       const updated = await updateCreation(editingCreationId, {
         urls,
         thumbnailUrl: urls[0],
@@ -185,6 +197,24 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackI
               <div className="mt-4"><RightRailContent /></div>
             </SheetContent>
           </Sheet>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleFixReadability}
+            title="Corrigir legibilidade dos textos"
+            className="hidden h-9 sm:inline-flex"
+          >
+            <Eye className="mr-2 h-4 w-4" /> Corrigir legibilidade
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleFixReadability}
+            title="Corrigir legibilidade dos textos"
+            className="h-9 w-9 sm:hidden"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
           {editingCreationId && (
             <Button
               variant="outline"
