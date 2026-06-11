@@ -212,7 +212,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       direction ? `Direção de arte adicional: ${direction}.` : "",
       `Arte vertical (1024x1536) de fundo para post sobre "${topic}" (objetivo: ${objective}).`,
       `CENA ESPECÍFICA deste slide (${idx + 1}/${total}) — siga à risca, não invente outra: ${sceneBrief}`,
-      `Composição editorial profissional, profundidade e atmosfera. Deixe ${cleanAreaPt[cleanArea]} (será sobreposto por texto).`,
+      `Composição editorial profissional, profundidade e atmosfera. Deixe ${cleanAreaPt[cleanArea]} com gradiente natural e suave (será sobreposto por texto editável).`,
+      `Evite tarjas, faixas chapadas, retângulos sólidos, blocos escuros ou caixas pesadas — use luz, sombra e desfoque naturais para criar respiro.`,
       `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras, números ou logotipos renderizados na imagem.`,
     ].filter(Boolean).join("\n\n");
 
