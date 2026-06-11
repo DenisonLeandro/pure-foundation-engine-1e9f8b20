@@ -3,8 +3,11 @@ import type { StudioDoc } from "./types";
 import type { StylePreset } from "./designAesthetics";
 
 // Rascunho local do Studio — sobrevive a troca de aba/rota.
-// Chave: studio:draft:v1:{userId}:{brandId|default}
+// Duas chaves:
+//   studio:draft:v1:{userId}:{brandId|default}  → rascunho do editor (assisted)
+//   studio:flow-draft:v1:{userId}               → estado do fluxo (mode + form do Criar com IA)
 const PREFIX = "studio:draft:v1:";
+const FLOW_PREFIX = "studio:flow-draft:v1:";
 
 export interface StudioDraft {
   doc: StudioDoc;
@@ -17,8 +20,34 @@ export interface StudioDraft {
 
 export type StudioDraftInput = Omit<StudioDraft, "updatedAt">;
 
+// ── Flow draft (estado do fluxo do Studio) ──────────────────────────────────
+
+export interface AutoFormDraft {
+  prompt: string;
+  artStyle: string;
+  artDirection: string;
+  imageSource: "pexels" | "ai";
+  layoutMode: string;
+  stylePreset: StylePreset;
+  selectedSourceIds: string[];
+  brandId: string | null;
+}
+
+export interface StudioFlowDraft {
+  version: 1;
+  mode: "auto" | "assisted";
+  autoForm?: AutoFormDraft;
+  /** Doc gerado em "Criar com IA" (mostra OutputScreen ao restaurar). */
+  autoDoc?: StudioDoc;
+  updatedAt: number;
+}
+
 function draftKey(userId: string, brandId?: string | null): string {
   return `${PREFIX}${userId}:${brandId || "default"}`;
+}
+
+function flowKey(userId: string): string {
+  return `${FLOW_PREFIX}${userId}`;
 }
 
 function isHttpUrl(s: unknown): s is string {
@@ -81,17 +110,58 @@ export function loadLatestStudioDraft(userId: string): StudioDraft | null {
   }
 }
 
-/** Remove todos os rascunhos locais do usuário. */
+/** Remove todos os rascunhos locais do usuário (editor + fluxo). */
 export function clearStudioDrafts(userId: string): void {
   try {
     const prefix = `${PREFIX}${userId}:`;
     const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith(prefix)) keys.push(k);
+      if (k && (k.startsWith(prefix) || k === flowKey(userId))) keys.push(k);
     }
     keys.forEach((k) => localStorage.removeItem(k));
   } catch {
     // ignore
   }
+}
+
+// ── Flow draft API ───────────────────────────────────────────────────────────
+
+function isValidFlowDraft(d: unknown): d is StudioFlowDraft {
+  if (!d || typeof d !== "object") return false;
+  const f = d as StudioFlowDraft;
+  return f.mode === "auto" || f.mode === "assisted";
+}
+
+export function saveStudioFlowDraft(userId: string, draft: Omit<StudioFlowDraft, "version" | "updatedAt">): void {
+  try {
+    const safeAutoDoc = draft.autoDoc
+      ? (sanitizeDesignDoc(draft.autoDoc) as unknown as StudioDoc | null) ?? undefined
+      : undefined;
+    const payload: StudioFlowDraft = {
+      version: 1,
+      mode: draft.mode,
+      autoForm: draft.autoForm,
+      autoDoc: safeAutoDoc,
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem(flowKey(userId), JSON.stringify(payload));
+  } catch {
+    // ignore
+  }
+}
+
+export function loadStudioFlowDraft(userId: string): StudioFlowDraft | null {
+  try {
+    const raw = localStorage.getItem(flowKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return isValidFlowDraft(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearStudioFlowDraft(userId: string): void {
+  try { localStorage.removeItem(flowKey(userId)); } catch { /* ignore */ }
 }

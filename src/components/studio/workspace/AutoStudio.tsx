@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   generateContent, generateOpenAiImage, searchStockImages, aiAssist,
   callHiggsfield, hfStatus, type HfGenerationResult,
@@ -22,6 +23,7 @@ import { buildEditableEls } from "./editableEls";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
+import { saveStudioFlowDraft, clearStudioFlowDraft, type AutoFormDraft } from "./studioDraft";
 
 const ART_STYLES: { value: string; label: string; hint: string }[] = [
   { value: "auto", label: "Auto (IA escolhe)", hint: "" },
@@ -65,26 +67,54 @@ interface Brief {
   platforms: string[];
 }
 
-export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: StudioDoc) => void; onBack: () => void }) {
+interface AutoStudioProps {
+  onEditInCanvas: (doc: StudioDoc) => void;
+  onBack: () => void;
+  initialForm?: AutoFormDraft;
+  initialDoc?: StudioDoc;
+}
+
+export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: AutoStudioProps) {
   const { brands, defaultBrand } = useBrands();
-  const [brandId, setBrandId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const userId = user?.id;
+  const [brandId, setBrandId] = useState<string | null>(initialForm?.brandId ?? null);
   useEffect(() => { if (!brandId && defaultBrand) setBrandId(defaultBrand.id); }, [defaultBrand, brandId]);
   const brand = (brands.find((b) => b.id === brandId) || defaultBrand || null) as BrandProfile | null;
 
-  const [prompt, setPrompt] = useState("");
-  const [artStyle, setArtStyle] = useState<string>("auto");
-  const [artDirection, setArtDirection] = useState("");
-  const [imageSource, setImageSource] = useState<"pexels" | "ai">("pexels");
-  const [layoutMode, setLayoutMode] = useState<string>("auto");
-  const [stylePreset, setStylePreset] = useState<StylePreset>("auto");
+  const [prompt, setPrompt] = useState(initialForm?.prompt ?? "");
+  const [artStyle, setArtStyle] = useState<string>(initialForm?.artStyle ?? "auto");
+  const [artDirection, setArtDirection] = useState(initialForm?.artDirection ?? "");
+  const [imageSource, setImageSource] = useState<"pexels" | "ai">(initialForm?.imageSource ?? "pexels");
+  const [layoutMode, setLayoutMode] = useState<string>(initialForm?.layoutMode ?? "auto");
+  const [stylePreset, setStylePreset] = useState<StylePreset>(initialForm?.stylePreset ?? "auto");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
-  const [doc, setDoc] = useState<StudioDoc | null>(null);
+  const [doc, setDoc] = useState<StudioDoc | null>(initialDoc ?? null);
   const [sources, setSources] = useState<SourceRow[]>([]);
-  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(initialForm?.selectedSourceIds ?? []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  // ── Persistência do fluxo (sobrevive a troca de aba/rota) ──
+  // Salva o estado do formulário do "Criar com IA" + doc gerado, com debounce.
+  useEffect(() => {
+    if (!userId) return;
+    const t = setTimeout(() => {
+      saveStudioFlowDraft(userId, {
+        mode: "auto",
+        autoForm: { prompt, artStyle, artDirection, imageSource, layoutMode, stylePreset, selectedSourceIds, brandId },
+        autoDoc: doc ?? undefined,
+      });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [userId, prompt, artStyle, artDirection, imageSource, layoutMode, stylePreset, selectedSourceIds, brandId, doc]);
+
+  const handleBack = () => {
+    if (userId) clearStudioFlowDraft(userId);
+    onBack();
+  };
 
   useEffect(() => {
     (async () => {
@@ -406,14 +436,30 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     <OutputScreen
       doc={doc}
       brand={brand}
-      onRestart={() => { setDoc(null); setPrompt(""); }}
+      onRestart={() => { setDoc(null); setPrompt(""); if (userId) clearStudioFlowDraft(userId); }}
       onEditInCanvas={onEditInCanvas}
     />
   ) : (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6 flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="mr-1.5 h-4 w-4" /> Modos</Button>
+        <Button variant="ghost" size="sm" onClick={handleBack}><ArrowLeft className="mr-1.5 h-4 w-4" /> Modos</Button>
         <h1 className="flex items-center gap-2 text-xl font-bold"><Wand2 className="h-5 w-5 text-violet-500" /> Criar com IA</h1>
+        {(prompt || initialForm) && userId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto text-xs text-muted-foreground hover:text-destructive"
+            disabled={generating}
+            onClick={() => {
+              clearStudioFlowDraft(userId);
+              setPrompt(""); setArtStyle("auto"); setArtDirection(""); setImageSource("pexels");
+              setLayoutMode("auto"); setStylePreset("auto"); setSelectedSourceIds([]); setDoc(null);
+              toast.message("Rascunho descartado.");
+            }}
+          >
+            Descartar rascunho
+          </Button>
+        )}
       </div>
 
       <div className="space-y-4">
