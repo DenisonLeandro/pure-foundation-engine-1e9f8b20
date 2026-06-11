@@ -67,7 +67,8 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
 
   // 1) Doc editável vindo da Galeria — prioridade máxima, com fallback visual por slide.
   if (nav.designDoc && typeof nav.designDoc === "object" && Array.isArray(nav.designDoc.slides)) {
-    return ensureDocHasVisualFallbacks(nav.designDoc, fallbacks);
+    const withFallbacks = ensureDocHasVisualFallbacks(nav.designDoc, fallbacks);
+    return typeof nav.caption === "string" ? { ...withFallbacks, caption: nav.caption } : withFallbacks;
   }
   // 2) Item antigo sem designDoc — construir doc inicial com cada imagem como fundo.
   if (fallbacks.length) {
