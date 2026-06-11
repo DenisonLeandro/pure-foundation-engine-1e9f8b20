@@ -20,6 +20,8 @@ interface NavState {
   creationId?: string;
   fallbackImageUrl?: string | null;
   fallbackImageUrls?: string[] | null;
+  /** Rota para a qual "Salvar e voltar" / "Voltar para Galeria" deve navegar. */
+  returnTo?: string;
 }
 
 function isHttpUrl(s: unknown): s is string {
