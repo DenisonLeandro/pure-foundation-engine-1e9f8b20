@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft, Save, Loader2, Eye, Trash2,
+  PanelLeft, Quote, ArrowLeft, Save, Loader2, Eye, Trash2, LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
-import { updateCreation, sanitizeDesignDoc } from "@/lib/gallery";
+import { updateCreation, sanitizeDesignDoc, saveVisualToGallery } from "@/lib/gallery";
 import { StudioProvider, useStudio } from "./StudioProvider";
 import { DesignCanvas } from "./DesignCanvas";
 import { ElementInspector } from "./ElementInspector";
@@ -50,6 +51,8 @@ interface WorkspaceProps {
   initialStylePreset?: StylePreset;
   /** Chamado após descartar o rascunho (Studio reseta para a entrada). */
   onDraftDiscarded?: () => void;
+  /** Rota para a qual o "Salvar e voltar" / "Voltar para Galeria" navega. */
+  returnTo?: string;
 }
 
 export function StudioWorkspace({ initial, ...rest }: WorkspaceProps) {
