@@ -4,6 +4,14 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
+export const DESIGN_DOC_SCHEMA_VERSION = 1;
+
+/** Editable design document. Kept loose to decouple from Studio internals. */
+export type EditableDesignDoc = {
+  schemaVersion: number;
+  [k: string]: unknown;
+};
+
 export interface Creation {
   id: string;
   type: "image" | "video" | "carousel";
@@ -15,6 +23,42 @@ export interface Creation {
   sourceId?: string;
   published: boolean;
   createdAt: string;
+  /** Optional editable design (StudioDoc + schemaVersion). null/absent for legacy items. */
+  designDoc?: EditableDesignDoc | null;
+}
+
+/**
+ * Sanitiza um StudioDoc-like para persistir como design_doc:
+ * - força schemaVersion
+ * - remove strings `data:` / `blob:` (sem base64 dentro do JSON; só http/https)
+ */
+export function sanitizeDesignDoc(input: unknown): EditableDesignDoc | null {
+  if (!input || typeof input !== "object") return null;
+  try {
+    const clone = JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
+    stripDataUrls(clone);
+    clone.schemaVersion = DESIGN_DOC_SCHEMA_VERSION;
+    return clone as EditableDesignDoc;
+  } catch {
+    return null;
+  }
+}
+
+function stripDataUrls(node: unknown): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) stripDataUrls(item);
+    return;
+  }
+  const obj = node as Record<string, unknown>;
+  for (const key of Object.keys(obj)) {
+    const v = obj[key];
+    if (typeof v === "string" && (v.startsWith("data:") || v.startsWith("blob:"))) {
+      delete obj[key];
+    } else if (v && typeof v === "object") {
+      stripDataUrls(v);
+    }
+  }
 }
 
 // ─── Public API ─────────────────────────────────────────────────
