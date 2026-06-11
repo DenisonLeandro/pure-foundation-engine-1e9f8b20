@@ -9,6 +9,7 @@ import {
   Trash2,
   ImageOff,
   Loader2,
+  Pencil,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,6 +73,23 @@ export default function Gallery() {
 
   function handleUseInPost(creation: Creation) {
     navigate("/studio", { state: { mediaUrls: creation.urls, fromVisual: true } });
+  }
+
+  function handleEditDesign(creation: Creation) {
+    if (creation.designDoc) {
+      navigate("/studio", { state: { designDoc: creation.designDoc, creationId: creation.id } });
+      return;
+    }
+    const fallback = creation.urls?.[0] || creation.thumbnailUrl;
+    if (!fallback) {
+      toast({ title: "Sem imagem para editar", variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Item gerado como imagem estática",
+      description: "Vamos abrir o editor usando esta imagem como fundo. Você pode adicionar textos e salvar como versão editável.",
+    });
+    navigate("/studio", { state: { fallbackImageUrl: fallback, creationId: creation.id } });
   }
 
   async function handleDownload(creation: Creation) {
@@ -185,6 +203,7 @@ export default function Gallery() {
               onUseInPost={handleUseInPost}
               onDownload={handleDownload}
               onDelete={handleDeleteCreation}
+              onEditDesign={handleEditDesign}
             />
           ))}
         </div>
@@ -212,6 +231,7 @@ interface CreationCardProps {
   onUseInPost: (c: Creation) => void;
   onDownload: (c: Creation) => void;
   onDelete: (c: Creation) => void;
+  onEditDesign: (c: Creation) => void;
 }
 
 function CreationCard({
@@ -220,6 +240,7 @@ function CreationCard({
   onUseInPost,
   onDownload,
   onDelete,
+  onEditDesign,
 }: CreationCardProps) {
   const thumb = creation.thumbnailUrl ?? creation.urls[0] ?? "";
   const date = new Date(creation.createdAt).toLocaleDateString("pt-BR", {
@@ -279,6 +300,17 @@ function CreationCard({
           >
             <Send className="h-4 w-4" />
           </Button>
+          {creation.type !== "video" && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+              title={creation.designDoc ? "Editar design" : "Editar design (criar versão editável)"}
+              onClick={() => onEditDesign(creation)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             size="icon"
             variant="ghost"

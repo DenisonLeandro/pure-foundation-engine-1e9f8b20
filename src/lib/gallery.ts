@@ -4,6 +4,14 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
+export const DESIGN_DOC_SCHEMA_VERSION = 1;
+
+/** Editable design document. Kept loose to decouple from Studio internals. */
+export type EditableDesignDoc = {
+  schemaVersion: number;
+  [k: string]: unknown;
+};
+
 export interface Creation {
   id: string;
   type: "image" | "video" | "carousel";
@@ -15,6 +23,42 @@ export interface Creation {
   sourceId?: string;
   published: boolean;
   createdAt: string;
+  /** Optional editable design (StudioDoc + schemaVersion). null/absent for legacy items. */
+  designDoc?: EditableDesignDoc | null;
+}
+
+/**
+ * Sanitiza um StudioDoc-like para persistir como design_doc:
+ * - força schemaVersion
+ * - remove strings `data:` / `blob:` (sem base64 dentro do JSON; só http/https)
+ */
+export function sanitizeDesignDoc(input: unknown): EditableDesignDoc | null {
+  if (!input || typeof input !== "object") return null;
+  try {
+    const clone = JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
+    stripDataUrls(clone);
+    clone.schemaVersion = DESIGN_DOC_SCHEMA_VERSION;
+    return clone as EditableDesignDoc;
+  } catch {
+    return null;
+  }
+}
+
+function stripDataUrls(node: unknown): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) stripDataUrls(item);
+    return;
+  }
+  const obj = node as Record<string, unknown>;
+  for (const key of Object.keys(obj)) {
+    const v = obj[key];
+    if (typeof v === "string" && (v.startsWith("data:") || v.startsWith("blob:"))) {
+      delete obj[key];
+    } else if (v && typeof v === "object") {
+      stripDataUrls(v);
+    }
+  }
 }
 
 // ─── Public API ─────────────────────────────────────────────────
@@ -53,19 +97,24 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
+  const payload: Record<string, unknown> = {
+    user_id: user.id,
+    type: input.type,
+    urls: input.urls,
+    thumbnail_url: input.thumbnailUrl || input.urls[0] || null,
+    prompt: input.prompt || null,
+    template_id: input.templateId || null,
+    template_name: input.templateName || null,
+    source_id: input.sourceId || null,
+    published: input.published,
+  };
+  if (input.designDoc !== undefined) {
+    payload.design_doc = input.designDoc ? sanitizeDesignDoc(input.designDoc) : null;
+  }
+
   const { data, error } = await supabase
     .from("creations")
-    .insert({
-      user_id: user.id,
-      type: input.type,
-      urls: input.urls,
-      thumbnail_url: input.thumbnailUrl || input.urls[0] || null,
-      prompt: input.prompt || null,
-      template_id: input.templateId || null,
-      template_name: input.templateName || null,
-      source_id: input.sourceId || null,
-      published: input.published,
-    })
+    .insert(payload as never)
     .select()
     .single();
 
@@ -83,10 +132,13 @@ export async function updateCreation(id: string, updates: Partial<Creation>): Pr
   if (updates.prompt !== undefined) payload.prompt = updates.prompt;
   if (updates.type) payload.type = updates.type;
   if (updates.thumbnailUrl !== undefined) payload.thumbnail_url = updates.thumbnailUrl;
+  if (updates.designDoc !== undefined) {
+    payload.design_doc = updates.designDoc ? sanitizeDesignDoc(updates.designDoc) : null;
+  }
 
   const { data, error } = await supabase
     .from("creations")
-    .update(payload)
+    .update(payload as never)
     .eq("id", id)
     .select()
     .single();
@@ -193,6 +245,7 @@ export async function saveVisualToGallery(opts: {
   prompt?: string;
   templateId?: string;
   templateName?: string;
+  designDoc?: EditableDesignDoc | null;
 }): Promise<Creation | null> {
   const validUrls = await persistUrls(opts.urls);
   if (validUrls.length === 0) return null;
@@ -208,6 +261,7 @@ export async function saveVisualToGallery(opts: {
     templateId: opts.templateId,
     templateName: opts.templateName,
     published: false,
+    designDoc: opts.designDoc ?? undefined,
   });
 }
 
@@ -241,5 +295,6 @@ function mapRow(row: any): Creation {
     sourceId: row.source_id || undefined,
     published: row.published ?? false,
     createdAt: row.created_at,
+    designDoc: (row.design_doc as EditableDesignDoc | null) ?? null,
   };
 }

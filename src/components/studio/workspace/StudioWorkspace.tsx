@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft,
+  PanelLeft, Quote, ArrowLeft, Save, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
+import { updateCreation, sanitizeDesignDoc } from "@/lib/gallery";
 import { StudioProvider, useStudio } from "./StudioProvider";
 import { DesignCanvas } from "./DesignCanvas";
 import { ElementInspector } from "./ElementInspector";
@@ -26,10 +28,12 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
   { value: "video", label: "Vídeo", icon: Film },
 ];
 
-export function StudioWorkspace({ initial, onBack }: { initial?: StudioDoc; onBack?: () => void }) {
+export function StudioWorkspace({
+  initial, onBack, editingCreationId,
+}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string }) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner onBack={onBack} />
+      <WorkspaceInner onBack={onBack} editingCreationId={editingCreationId} />
     </StudioProvider>
   );
 }
@@ -82,10 +86,39 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ onBack }: { onBack?: () => void }) {
+function WorkspaceInner({ onBack, editingCreationId }: { onBack?: () => void; editingCreationId?: string }) {
   const { brands, defaultBrand } = useBrands();
-  const { doc, set, undo, redo, canUndo, canRedo } = useStudio();
+  const { doc, set, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
+  const [savingDesign, setSavingDesign] = useState(false);
+
+  const handleSaveDesign = async () => {
+    if (!editingCreationId) return;
+    setSavingDesign(true);
+    try {
+      const urls = doc.format === "video"
+        ? (doc.videoUrl ? [doc.videoUrl] : [])
+        : await exportSlides();
+      if (!urls.length) {
+        toast.error("Nada para salvar");
+        return;
+      }
+      const updated = await updateCreation(editingCreationId, {
+        urls,
+        thumbnailUrl: urls[0],
+        designDoc: sanitizeDesignDoc(doc),
+      });
+      if (!updated) {
+        toast.error("Falha ao salvar alterações");
+        return;
+      }
+      toast.success("Design atualizado");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+    } finally {
+      setSavingDesign(false);
+    }
+  };
 
   useEffect(() => {
     if (!doc.brandId && defaultBrand) set({ brandId: defaultBrand.id }, false);
@@ -141,6 +174,17 @@ function WorkspaceInner({ onBack }: { onBack?: () => void }) {
               <div className="mt-4"><RightRailContent /></div>
             </SheetContent>
           </Sheet>
+          {editingCreationId && (
+            <Button
+              variant="outline"
+              onClick={handleSaveDesign}
+              disabled={savingDesign}
+              title="Salvar alterações nesta criação"
+            >
+              {savingDesign ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              <span className="hidden sm:inline">Salvar alterações</span>
+            </Button>
+          )}
           <Button className="ml-1 bg-gradient-to-r from-violet-600 to-fuchsia-500" onClick={() => setPublishOpen(true)}>
             <Send className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Postar / Agendar</span>
           </Button>

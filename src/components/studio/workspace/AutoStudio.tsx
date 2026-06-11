@@ -13,7 +13,7 @@ import {
 } from "@/lib/api";
 import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/brand";
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
-import { saveVisualToGallery } from "@/lib/gallery";
+import { saveVisualToGallery, sanitizeDesignDoc } from "@/lib/gallery";
 import { composeSlideWithText, SLIDE_TEMPLATES, preferredCleanArea, type SlideTemplate } from "@/lib/slide-compose";
 import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
@@ -109,7 +109,12 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       const urls = mediaOrDoc.videoUrl
         ? [mediaOrDoc.videoUrl]
         : mediaOrDoc.slides.map((s) => s.bgImage).filter(Boolean) as string[];
-      if (urls.length) await saveVisualToGallery({ urls, prompt: mediaOrDoc.caption || prompt.trim(), templateName: "Studio · Automático" });
+      if (urls.length) await saveVisualToGallery({
+        urls,
+        prompt: mediaOrDoc.caption || prompt.trim(),
+        templateName: "Studio · Automático",
+        designDoc: sanitizeDesignDoc(mediaOrDoc),
+      });
     } catch { /* best-effort */ }
   };
 
