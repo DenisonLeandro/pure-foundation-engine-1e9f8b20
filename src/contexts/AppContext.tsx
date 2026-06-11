@@ -154,6 +154,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (data) {
         const localConfig = safeParseConfig(userStorage.get("config")) ?? {};
+        // Never downgrade onboardingCompleted from true to false — once true,
+        // it must stay true regardless of what the DB returns.
+        const onboardingCompletedMerged =
+          data.onboarding_completed ||
+          localConfig.onboardingCompleted ||
+          config.onboardingCompleted ||
+          false;
         const loaded: AppConfig = {
           blotatoApiKey: data.blotato_api_key || localConfig.blotatoApiKey || "",
           postformeApiKey: data.postforme_api_key || localConfig.postformeApiKey || (localConfig as { pfmApiKey?: string }).pfmApiKey || getPfmUserKey() || "",
@@ -164,8 +171,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           higgsFieldApiSecret: data.higgsfield_api_secret || localConfig.higgsFieldApiSecret || undefined,
           brandName: data.brand_name || "Minha Empresa",
           brandLogo: data.brand_logo_url || undefined,
-          onboardingCompleted: data.onboarding_completed || config.onboardingCompleted || false,
+          onboardingCompleted: onboardingCompletedMerged,
         };
+        // Always apply the loaded config, even if the 8s boot timeout already
+        // released the UI — this fixes the race where keys appeared empty.
         setConfigState(loaded);
         userStorage.set("config", JSON.stringify(loaded));
         setPfmUserKey(loaded.postformeApiKey);
