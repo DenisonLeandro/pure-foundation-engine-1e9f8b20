@@ -174,6 +174,17 @@ function WorkspaceInner({ onBack, editingCreationId }: { onBack?: () => void; ed
               <div className="mt-4"><RightRailContent /></div>
             </SheetContent>
           </Sheet>
+          {editingCreationId && (
+            <Button
+              variant="outline"
+              onClick={handleSaveDesign}
+              disabled={savingDesign}
+              title="Salvar alterações nesta criação"
+            >
+              {savingDesign ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              <span className="hidden sm:inline">Salvar alterações</span>
+            </Button>
+          )}
           <Button className="ml-1 bg-gradient-to-r from-violet-600 to-fuchsia-500" onClick={() => setPublishOpen(true)}>
             <Send className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Postar / Agendar</span>
           </Button>
