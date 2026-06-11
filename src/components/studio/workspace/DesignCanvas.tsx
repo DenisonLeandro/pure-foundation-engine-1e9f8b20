@@ -119,16 +119,58 @@ export function DesignCanvas() {
     addEl(base);
   };
 
+  // ── Temas NÃO destrutivos ──
+  // Regras:
+  //   • NUNCA remover slide.bgImage (foto de fundo).
+  //   • NUNCA apagar elementos (textos, imagens, formas).
+  //   • Quando há bgImage: aplicar apenas overlay/ajuste de cor de texto.
+  //   • Quando não há bgImage: pode trocar a cor sólida/gradiente do bg.
+  // Overlay de tema usa um id prefixado para poder ser substituído/removido
+  // sem afetar shapes criados pelo usuário.
+  const THEME_OVERLAY_PREFIX = "__themeOverlay";
   const PRESETS = [
-    { name: "Clean", bg: "#ffffff", text: "#111111" },
-    { name: "Dark", bg: "#0b0b12", text: "#ffffff" },
-    { name: "Marca", bg: `linear-gradient(135deg, ${c1}, ${c2})`, text: accent },
+    { name: "Clean", theme: "clean" as const },
+    { name: "Dark", theme: "dark" as const },
+    { name: "Marca", theme: "marca" as const },
   ];
-  const applyPreset = (p: { bg: string; text: string }) =>
-    patchSlide(currentSlide, {
-      bg: p.bg, bgImage: undefined,
-      els: slide.els.map((e) => (e.type === "text" ? { ...e, color: p.text } : e)),
-    });
+
+  const applyTheme = (theme: "clean" | "dark" | "marca") => {
+    const hadBgImage = !!slide.bgImage;
+    // remove overlays de tema anteriores (mantém shapes do usuário intactas)
+    let els: El[] = slide.els.filter((e) => !e.id.startsWith(THEME_OVERLAY_PREFIX));
+    const patch: Partial<Slide> = {};
+
+    if (theme === "clean") {
+      if (!hadBgImage) {
+        patch.bg = "#ffffff";
+        els = els.map((e) => (e.type === "text" ? { ...e, color: "#111111" } : e));
+      }
+      // com bgImage: só limpamos overlays escuros — mantém imagem e textos.
+    } else if (theme === "dark") {
+      if (hadBgImage) {
+        const overlay: El = {
+          id: `${THEME_OVERLAY_PREFIX}_${uid()}`,
+          type: "shape",
+          x: 0, y: 0, w: CANVAS_W, h: CANVAS_H,
+          bg: "#000000", radius: 0, opacity: 0.35,
+        };
+        els = [overlay, ...els];
+        els = els.map((e) => (e.type === "text" ? { ...e, color: "#ffffff" } : e));
+      } else {
+        patch.bg = "#0b0b12";
+        els = els.map((e) => (e.type === "text" ? { ...e, color: "#ffffff" } : e));
+      }
+    } else {
+      // marca
+      if (!hadBgImage) {
+        patch.bg = `linear-gradient(135deg, ${c1}, ${c2})`;
+      }
+      els = els.map((e) => (e.type === "text" ? { ...e, color: accent } : e));
+    }
+
+    patch.els = els;
+    patchSlide(currentSlide, patch);
+  };
 
   // ── render ──
   if (isVideo) {
@@ -194,7 +236,7 @@ export function DesignCanvas() {
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         <span className="text-[11px] text-muted-foreground">Tema:</span>
         {PRESETS.map((p) => (
-          <Button key={p.name} variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(p)}>{p.name}</Button>
+          <Button key={p.name} variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyTheme(p.theme)}>{p.name}</Button>
         ))}
         <span className="mx-1 text-border">|</span>
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("text")}><Type className="mr-1 h-3.5 w-3.5" />Texto</Button>
