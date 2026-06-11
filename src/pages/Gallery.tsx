@@ -161,6 +161,25 @@ export default function Gallery() {
     handleDelete(creation.id);
   }
 
+  function handleEditCaption(creation: Creation) {
+    setCaptionEditing(creation);
+    setCaptionDraft(creation.caption ?? "");
+  }
+
+  async function handleSaveCaption() {
+    if (!captionEditing) return;
+    setCaptionSaving(true);
+    const updated = await updateCreation(captionEditing.id, { caption: captionDraft });
+    setCaptionSaving(false);
+    if (!updated) {
+      toast({ title: "Falha ao salvar legenda", variant: "destructive" });
+      return;
+    }
+    setCreations((prev) => prev.map((c) => (c.id === updated.id ? { ...c, caption: updated.caption } : c)));
+    setCaptionEditing(null);
+    toast({ title: "Legenda atualizada" });
+  }
+
   // ── Render ──────────────────────────────────────────────────
 
   return (
