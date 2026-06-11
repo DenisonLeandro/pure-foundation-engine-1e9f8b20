@@ -99,14 +99,24 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackI
   const { doc, set, replaceDoc, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
   const [savingDesign, setSavingDesign] = useState(false);
+  const [stylePreset, setStylePreset] = useState<StylePreset>("auto");
 
   const currentBrand = brands.find((b) => b.id === doc.brandId) || null;
   const brandPalette = { colors: currentBrand?.colors };
 
   const handleFixReadability = () => {
-    const fixed = ensureReadableTextLayers(doc, brandPalette);
-    replaceDoc(fixed);
+    const readable = ensureReadableTextLayers(doc, brandPalette);
+    const refined = refineDesignAesthetics(readable, brandPalette, stylePreset);
+    replaceDoc(refined);
     toast.success("Legibilidade ajustada");
+  };
+
+  const handleApplyStyle = (preset: StylePreset) => {
+    setStylePreset(preset);
+    const readable = ensureReadableTextLayers(doc, brandPalette);
+    const refined = refineDesignAesthetics(readable, brandPalette, preset);
+    replaceDoc(refined);
+    toast.success(`Estilo aplicado: ${STYLE_PRESETS.find((s) => s.value === preset)?.label}`);
   };
 
   const handleSaveDesign = async () => {
