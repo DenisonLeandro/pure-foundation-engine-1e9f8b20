@@ -86,7 +86,7 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ onBack, editingCreationId }: { onBack?: () => void; editingCreationId?: string }) {
+function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl }: { onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string }) {
   const { brands, defaultBrand } = useBrands();
   const { doc, set, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
@@ -103,10 +103,12 @@ function WorkspaceInner({ onBack, editingCreationId }: { onBack?: () => void; ed
         toast.error("Nada para salvar");
         return;
       }
+      // Garante que o doc salvo preserve um fundo visual reabrindo corretamente
+      const docToPersist = ensureDocHasVisualFallback(doc, fallbackImageUrl);
       const updated = await updateCreation(editingCreationId, {
         urls,
         thumbnailUrl: urls[0],
-        designDoc: sanitizeDesignDoc(doc),
+        designDoc: sanitizeDesignDoc(docToPersist),
       });
       if (!updated) {
         toast.error("Falha ao salvar alterações");
