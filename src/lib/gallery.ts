@@ -97,19 +97,24 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
+  const payload: Record<string, unknown> = {
+    user_id: user.id,
+    type: input.type,
+    urls: input.urls,
+    thumbnail_url: input.thumbnailUrl || input.urls[0] || null,
+    prompt: input.prompt || null,
+    template_id: input.templateId || null,
+    template_name: input.templateName || null,
+    source_id: input.sourceId || null,
+    published: input.published,
+  };
+  if (input.designDoc !== undefined) {
+    payload.design_doc = input.designDoc ? sanitizeDesignDoc(input.designDoc) : null;
+  }
+
   const { data, error } = await supabase
     .from("creations")
-    .insert({
-      user_id: user.id,
-      type: input.type,
-      urls: input.urls,
-      thumbnail_url: input.thumbnailUrl || input.urls[0] || null,
-      prompt: input.prompt || null,
-      template_id: input.templateId || null,
-      template_name: input.templateName || null,
-      source_id: input.sourceId || null,
-      published: input.published,
-    })
+    .insert(payload as never)
     .select()
     .single();
 
@@ -127,10 +132,13 @@ export async function updateCreation(id: string, updates: Partial<Creation>): Pr
   if (updates.prompt !== undefined) payload.prompt = updates.prompt;
   if (updates.type) payload.type = updates.type;
   if (updates.thumbnailUrl !== undefined) payload.thumbnail_url = updates.thumbnailUrl;
+  if (updates.designDoc !== undefined) {
+    payload.design_doc = updates.designDoc ? sanitizeDesignDoc(updates.designDoc) : null;
+  }
 
   const { data, error } = await supabase
     .from("creations")
-    .update(payload)
+    .update(payload as never)
     .eq("id", id)
     .select()
     .single();
