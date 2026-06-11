@@ -25,6 +25,8 @@ export interface Creation {
   createdAt: string;
   /** Optional editable design (StudioDoc + schemaVersion). null/absent for legacy items. */
   designDoc?: EditableDesignDoc | null;
+  /** Legenda do post para redes sociais (editável depois). */
+  caption?: string | null;
 }
 
 /**
