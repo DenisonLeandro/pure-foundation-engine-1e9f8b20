@@ -48,6 +48,21 @@ export function DesignCanvas() {
     return () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
   }, [patchEl]);
 
+  // ── delete selected element via keyboard ──
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== "Delete" && ev.key !== "Backspace") return;
+      const target = ev.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      if (selectedElId) {
+        ev.preventDefault();
+        delEl(selectedElId);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedElId, delEl]);
+
   const startDrag = (ev: React.MouseEvent, e: El) => {
     ev.stopPropagation();
     select(e.id);
