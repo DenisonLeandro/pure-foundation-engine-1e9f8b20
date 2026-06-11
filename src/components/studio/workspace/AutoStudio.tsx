@@ -67,26 +67,54 @@ interface Brief {
   platforms: string[];
 }
 
-export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: StudioDoc) => void; onBack: () => void }) {
+interface AutoStudioProps {
+  onEditInCanvas: (doc: StudioDoc) => void;
+  onBack: () => void;
+  initialForm?: AutoFormDraft;
+  initialDoc?: StudioDoc;
+}
+
+export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: AutoStudioProps) {
   const { brands, defaultBrand } = useBrands();
-  const [brandId, setBrandId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const userId = user?.id;
+  const [brandId, setBrandId] = useState<string | null>(initialForm?.brandId ?? null);
   useEffect(() => { if (!brandId && defaultBrand) setBrandId(defaultBrand.id); }, [defaultBrand, brandId]);
   const brand = (brands.find((b) => b.id === brandId) || defaultBrand || null) as BrandProfile | null;
 
-  const [prompt, setPrompt] = useState("");
-  const [artStyle, setArtStyle] = useState<string>("auto");
-  const [artDirection, setArtDirection] = useState("");
-  const [imageSource, setImageSource] = useState<"pexels" | "ai">("pexels");
-  const [layoutMode, setLayoutMode] = useState<string>("auto");
-  const [stylePreset, setStylePreset] = useState<StylePreset>("auto");
+  const [prompt, setPrompt] = useState(initialForm?.prompt ?? "");
+  const [artStyle, setArtStyle] = useState<string>(initialForm?.artStyle ?? "auto");
+  const [artDirection, setArtDirection] = useState(initialForm?.artDirection ?? "");
+  const [imageSource, setImageSource] = useState<"pexels" | "ai">(initialForm?.imageSource ?? "pexels");
+  const [layoutMode, setLayoutMode] = useState<string>(initialForm?.layoutMode ?? "auto");
+  const [stylePreset, setStylePreset] = useState<StylePreset>(initialForm?.stylePreset ?? "auto");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
-  const [doc, setDoc] = useState<StudioDoc | null>(null);
+  const [doc, setDoc] = useState<StudioDoc | null>(initialDoc ?? null);
   const [sources, setSources] = useState<SourceRow[]>([]);
-  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(initialForm?.selectedSourceIds ?? []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+
+  // ── Persistência do fluxo (sobrevive a troca de aba/rota) ──
+  // Salva o estado do formulário do "Criar com IA" + doc gerado, com debounce.
+  useEffect(() => {
+    if (!userId) return;
+    const t = setTimeout(() => {
+      saveStudioFlowDraft(userId, {
+        mode: "auto",
+        autoForm: { prompt, artStyle, artDirection, imageSource, layoutMode, stylePreset, selectedSourceIds, brandId },
+        autoDoc: doc ?? undefined,
+      });
+    }, 600);
+    return () => clearTimeout(t);
+  }, [userId, prompt, artStyle, artDirection, imageSource, layoutMode, stylePreset, selectedSourceIds, brandId, doc]);
+
+  const handleBack = () => {
+    if (userId) clearStudioFlowDraft(userId);
+    onBack();
+  };
 
   useEffect(() => {
     (async () => {
