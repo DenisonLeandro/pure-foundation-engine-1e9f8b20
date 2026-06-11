@@ -109,8 +109,18 @@ REGRAS IMPORTANTES:
 - NÃO inclua prefixos como "Instagram:" no texto dos posts
 - O carrossel deve ter 4-6 slides com frases impactantes e concisas
 - Keywords de busca de imagem devem ser em português brasileiro
-- Hashtags devem ser em português brasileiro
+- Hashtags devem ser em português brasileiro, no máximo 5 e relevantes (sem genéricas demais)
 - Responda APENAS com JSON válido, sem markdown, sem code blocks
+
+REGRAS DE LEGENDA (CRÍTICAS — evite o "tom genérico de IA"):
+- VARIE a abertura. NUNCA comece com "Você sabia?", "Fique atento!", "Salve este post", "Procure um advogado" ou "Entre em contato".
+- Use aberturas naturais: contexto, observação, pergunta sutil, micro-história, dado concreto.
+- Linguagem natural, profissional, clara. Sem sensacionalismo, sem clickbait, sem promessa de resultado.
+- Sem chamada comercial agressiva. Sem captação indevida.
+- No máximo 2 emojis pontuais por legenda (ou nenhum). Sem excesso de emojis.
+- Estrutura recomendada: abertura contextual → explicação curta → ponto prático → chamada leve para refletir/salvar/compartilhar (opcional).
+- Para tema JURÍDICO: caráter exclusivamente educativo. NÃO prometa direito ou ganho, NÃO diga "você tem direito" sem ressalva, NÃO induza contratação, NÃO faça captação. Mantenha tom informativo e responsável.
+- Cada legenda deve soar diferente das outras — evite frases-clichê repetidas entre posts.
 
 DIRETRIZES POR PLATAFORMA:
 ${platformInstructions}
