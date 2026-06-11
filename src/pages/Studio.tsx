@@ -5,7 +5,7 @@ import { StudioEntry } from "@/components/studio/workspace/StudioEntry";
 import { AutoStudio } from "@/components/studio/workspace/AutoStudio";
 import { StudioWorkspace } from "@/components/studio/workspace/StudioWorkspace";
 import { emptyDoc } from "@/components/studio/workspace/StudioProvider";
-import { loadLatestStudioDraft, type StudioDraft } from "@/components/studio/workspace/studioDraft";
+import { loadLatestStudioDraft, loadStudioFlowDraft, type StudioDraft, type StudioFlowDraft } from "@/components/studio/workspace/studioDraft";
 import { useAuth } from "@/contexts/AuthContext";
 import type { StudioDoc, Slide } from "@/components/studio/workspace/types";
 
