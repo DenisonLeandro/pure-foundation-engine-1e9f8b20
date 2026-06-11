@@ -109,7 +109,12 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       const urls = mediaOrDoc.videoUrl
         ? [mediaOrDoc.videoUrl]
         : mediaOrDoc.slides.map((s) => s.bgImage).filter(Boolean) as string[];
-      if (urls.length) await saveVisualToGallery({ urls, prompt: mediaOrDoc.caption || prompt.trim(), templateName: "Studio · Automático" });
+      if (urls.length) await saveVisualToGallery({
+        urls,
+        prompt: mediaOrDoc.caption || prompt.trim(),
+        templateName: "Studio · Automático",
+        designDoc: sanitizeDesignDoc(mediaOrDoc),
+      });
     } catch { /* best-effort */ }
   };
 
