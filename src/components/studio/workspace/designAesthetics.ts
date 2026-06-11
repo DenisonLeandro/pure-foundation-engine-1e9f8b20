@@ -115,56 +115,48 @@ function refineSlide(slide: Slide, preset: StylePreset, accent: string): Slide {
 }
 
 function restyleOverlay(e: El, preset: StylePreset, accent: string): El {
+  // Regra geral: NUNCA tarja chapada grande. Se o overlay for grande OU ocupar
+  // a largura inteira, convertemos em GRADIENTE vertical vindo da base/topo.
+  if (isLargeOverlay(e) || isFullWidth(e)) {
+    const fromBottom = e.y + e.h / 2 > CANVAS_H / 2;
+    const stretched = stretchToBand(e, fromBottom ? "bottom" : "top");
+    const dir = fromBottom ? "0deg" : "180deg";
+    const tint = preset === "modern" ? withAlpha(accent, 0.25) : "rgba(8,10,20,0.78)";
+    return {
+      ...stretched,
+      radius: 0,
+      opacity: 1,
+      // gradiente: transparente em cima → leve → escuro na base (e vice-versa)
+      bg: `linear-gradient(${dir}, rgba(8,10,20,0) 0%, rgba(8,10,20,0.18) 35%, rgba(8,10,20,0.55) 75%, ${tint} 100%)`,
+    };
+  }
+
+  // Overlays pequenos (cards de texto): SEMPRE arredondados, opacidade baixa.
   switch (preset) {
-    case "fullscreen": {
-      // mínimo possível: overlay quase invisível ajustado ao texto
-      return { ...e, radius: 14, opacity: 0.55, bg: e.bg };
-    }
-    case "minimal": {
-      return { ...e, radius: 18, opacity: 0.6, bg: e.bg };
-    }
-    case "translucent": {
+    case "fullscreen":
+      // mínima intervenção — card quase invisível
+      return { ...e, radius: 18, opacity: 1, bg: "rgba(10,15,30,0.22)" };
+    case "minimal":
+      return { ...e, radius: 20, opacity: 1, bg: "rgba(10,15,30,0.26)" };
+    case "translucent":
+      return { ...e, radius: 24, opacity: 1, bg: "rgba(15,20,35,0.32)" };
+    case "modern":
       return {
         ...e,
         radius: 22,
         opacity: 1,
-        bg: "rgba(15,20,35,0.42)",
+        bg: `linear-gradient(180deg, rgba(10,12,24,0.22) 0%, ${withAlpha(accent, 0.32)} 100%)`,
       };
-    }
-    case "modern": {
-      // gradiente vertical sutil com cor da marca por baixo
-      return {
-        ...e,
-        radius: 20,
-        opacity: 0.92,
-        bg: `linear-gradient(180deg, rgba(10,12,24,0.15) 0%, rgba(10,12,24,0.78) 70%, ${withAlpha(accent, 0.55)} 100%)`,
-      };
-    }
-    case "institutional": {
-      // overlay vira card sóbrio com radius médio
-      return { ...e, radius: 10, opacity: 0.9, bg: "rgba(8,12,24,0.72)" };
-    }
-    case "sidebar": {
-      // overlay menor; a barra lateral fica em buildAccents
-      return { ...e, radius: 14, opacity: 0.55, bg: e.bg };
-    }
+    case "institutional":
+      // card sóbrio mas não pesado
+      return { ...e, radius: 12, opacity: 1, bg: "rgba(8,12,24,0.42)" };
+    case "sidebar":
+      return { ...e, radius: 16, opacity: 1, bg: "rgba(10,15,30,0.28)" };
     case "editorial":
     case "auto":
-    default: {
-      // se for um bloco grande, vira banda em gradiente vinda da base
-      if (isLargeOverlay(e)) {
-        const stretched = stretchToBand(e, e.y > CANVAS_H / 2 ? "bottom" : "top");
-        const dir = e.y > CANVAS_H / 2 ? "180deg" : "0deg";
-        return {
-          ...stretched,
-          radius: 0,
-          opacity: 1,
-          bg: `linear-gradient(${dir}, rgba(8,10,20,0) 0%, rgba(8,10,20,0.55) 55%, rgba(8,10,20,0.88) 100%)`,
-        };
-      }
-      // overlay pequeno: card discreto, arredondado
-      return { ...e, radius: 16, opacity: 0.88, bg: "rgba(10,12,24,0.68)" };
-    }
+    default:
+      // card discreto editorial
+      return { ...e, radius: 18, opacity: 1, bg: "rgba(10,12,24,0.34)" };
   }
 }
 
