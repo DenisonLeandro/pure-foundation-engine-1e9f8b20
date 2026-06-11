@@ -262,6 +262,18 @@ export function DesignCanvas() {
       {/* canvas */}
       <div className="relative" style={{ width: CANVAS_W, height: CANVAS_H }}>
         {doc.slides.map((s, i) => renderSlide(s, i, exporting))}
+        {selectedElId && !exporting && (
+          <div className="absolute -bottom-9 left-0 right-0 flex justify-center">
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7 gap-1 rounded-full px-3 text-xs shadow-md"
+              onClick={() => { if (selectedElId) delEl(selectedElId); }}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Apagar
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* carousel nav */}
