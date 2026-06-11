@@ -236,7 +236,7 @@ export function DesignCanvas() {
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         <span className="text-[11px] text-muted-foreground">Tema:</span>
         {PRESETS.map((p) => (
-          <Button key={p.name} variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyPreset(p)}>{p.name}</Button>
+          <Button key={p.name} variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyTheme(p.theme)}>{p.name}</Button>
         ))}
         <span className="mx-1 text-border">|</span>
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("text")}><Type className="mr-1 h-3.5 w-3.5" />Texto</Button>
