@@ -106,6 +106,7 @@ function LeftRailContent({ brandName, brandHandle }: { brandName?: string; brand
 function RightRailContent() {
   return (
     <div className="flex flex-col gap-3">
+      <CaptionPanel />
       <Copilot />
       <ElementInspector />
     </div>
