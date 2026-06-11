@@ -113,6 +113,9 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
   if (input.designDoc !== undefined) {
     payload.design_doc = input.designDoc ? sanitizeDesignDoc(input.designDoc) : null;
   }
+  if (input.caption !== undefined) {
+    payload.caption = input.caption || null;
+  }
 
   const { data, error } = await supabase
     .from("creations")
