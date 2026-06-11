@@ -209,6 +209,14 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackI
               <div className="mt-4"><RightRailContent /></div>
             </SheetContent>
           </Sheet>
+          <Select value={stylePreset} onValueChange={(v) => handleApplyStyle(v as StylePreset)}>
+            <SelectTrigger className="hidden h-9 w-[170px] md:flex" title="Estilo visual">
+              <SelectValue placeholder="Estilo visual" />
+            </SelectTrigger>
+            <SelectContent>
+              {STYLE_PRESETS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button
             variant="ghost"
             size="sm"
