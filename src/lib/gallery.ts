@@ -140,6 +140,9 @@ export async function updateCreation(id: string, updates: Partial<Creation>): Pr
   if (updates.designDoc !== undefined) {
     payload.design_doc = updates.designDoc ? sanitizeDesignDoc(updates.designDoc) : null;
   }
+  if (updates.caption !== undefined) {
+    payload.caption = updates.caption || null;
+  }
 
   const { data, error } = await supabase
     .from("creations")
