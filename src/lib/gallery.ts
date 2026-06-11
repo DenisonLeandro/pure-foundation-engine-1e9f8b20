@@ -3,7 +3,6 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import type { StudioDoc } from "@/components/studio/workspace/types";
 
 export interface Creation {
   id: string;
@@ -16,7 +15,6 @@ export interface Creation {
   sourceId?: string;
   published: boolean;
   createdAt: string;
-  doc?: StudioDoc | null;
 }
 
 // ─── Public API ─────────────────────────────────────────────────
@@ -67,7 +65,6 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
       template_name: input.templateName || null,
       source_id: input.sourceId || null,
       published: input.published,
-      doc: (input.doc ?? null) as unknown as never,
     })
     .select()
     .single();
@@ -86,8 +83,6 @@ export async function updateCreation(id: string, updates: Partial<Creation>): Pr
   if (updates.prompt !== undefined) payload.prompt = updates.prompt;
   if (updates.type) payload.type = updates.type;
   if (updates.thumbnailUrl !== undefined) payload.thumbnail_url = updates.thumbnailUrl;
-  if (updates.templateName !== undefined) payload.template_name = updates.templateName;
-  if (updates.doc !== undefined) payload.doc = updates.doc;
 
   const { data, error } = await supabase
     .from("creations")
@@ -198,7 +193,6 @@ export async function saveVisualToGallery(opts: {
   prompt?: string;
   templateId?: string;
   templateName?: string;
-  doc?: StudioDoc | null;
 }): Promise<Creation | null> {
   const validUrls = await persistUrls(opts.urls);
   if (validUrls.length === 0) return null;
@@ -214,31 +208,6 @@ export async function saveVisualToGallery(opts: {
     templateId: opts.templateId,
     templateName: opts.templateName,
     published: false,
-    doc: opts.doc ? await persistDocAssets(opts.doc) : null,
-  });
-}
-
-/**
- * Re-export of an item that already exists in the gallery — updates the same row.
- * Resets `published` to false (edited version is a new draft).
- */
-export async function updateVisualInGallery(
-  id: string,
-  opts: { urls: string[]; doc?: StudioDoc | null; prompt?: string }
-): Promise<Creation | null> {
-  const validUrls = await persistUrls(opts.urls);
-  if (validUrls.length === 0) return null;
-
-  const isVideo = validUrls.some((u) => /\.(mp4|mov|webm)/i.test(u));
-  const isCarousel = validUrls.length > 1 && !isVideo;
-
-  return updateCreation(id, {
-    type: isVideo ? "video" : isCarousel ? "carousel" : "image",
-    urls: validUrls,
-    thumbnailUrl: validUrls[0],
-    published: false,
-    doc: opts.doc ? await persistDocAssets(opts.doc) : null,
-    ...(opts.prompt !== undefined ? { prompt: opts.prompt } : {}),
   });
 }
 
@@ -260,39 +229,6 @@ export async function saveUploadToGallery(urls: string[]): Promise<Creation | nu
 
 // ─── Internal helper ────────────────────────────────────────────
 
-/**
- * Replace any `data:` URLs inside a StudioDoc (slide backgrounds, image elements)
- * with persisted public URLs, so the saved jsonb stays small and shareable.
- */
-async function persistDocAssets(doc: StudioDoc): Promise<StudioDoc> {
-  const collect: string[] = [];
-  for (const s of doc.slides) {
-    if (s.bgImage?.startsWith("data:")) collect.push(s.bgImage);
-    for (const el of s.els) {
-      if (el.type === "image" && el.src?.startsWith("data:")) collect.push(el.src);
-    }
-  }
-  if (!collect.length) return doc;
-  const persisted = await persistUrls(collect);
-  // Map original data URL → persisted URL by index (persistUrls preserves order for data:).
-  const map = new Map<string, string>();
-  let pi = 0;
-  for (const orig of collect) {
-    const next = persisted[pi++];
-    if (next) map.set(orig, next);
-  }
-  return {
-    ...doc,
-    slides: doc.slides.map((s) => ({
-      ...s,
-      bgImage: s.bgImage && map.get(s.bgImage) ? map.get(s.bgImage) : s.bgImage,
-      els: s.els.map((el) =>
-        el.type === "image" && el.src && map.get(el.src) ? { ...el, src: map.get(el.src)! } : el
-      ),
-    })),
-  };
-}
-
 function mapRow(row: any): Creation {
   return {
     id: row.id,
@@ -305,6 +241,5 @@ function mapRow(row: any): Creation {
     sourceId: row.source_id || undefined,
     published: row.published ?? false,
     createdAt: row.created_at,
-    doc: (row.doc ?? null) as StudioDoc | null,
   };
 }

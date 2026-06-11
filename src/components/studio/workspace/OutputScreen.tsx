@@ -170,7 +170,7 @@ export function OutputScreen({
         toast.error("Não foi possível preparar a mídia");
         return;
       }
-      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático", doc });
+      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático" });
       if (!saved) {
         toast.error("Falha ao salvar na galeria");
         return;

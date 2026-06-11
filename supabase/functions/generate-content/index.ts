@@ -14,15 +14,15 @@ const corsHeaders = {
 };
 
 const PLATFORM_GUIDELINES: Record<string, string> = {
-  instagram: `Instagram: até 2200 chars. Use emojis, quebras de linha, 5-10 hashtags relevantes no final. Tom visual e inspirador. Finalize com CTA visual e convidativo (ex.: "Salve este post", "Marque alguém que precisa ver").`,
-  twitter: `Twitter/X: máximo 280 chars. Conciso, direto, hook forte. 1-2 hashtags. Tom conversacional. Finalize com CTA direto e conversacional (ex.: "Comente sua opinião", "Compartilhe se concorda").`,
-  facebook: `Facebook: até 500 chars ideal. Tom pessoal e engajador. Perguntas para gerar comentários. Finalize com CTA que incentive comentários (ex.: "Deixe sua opinião aqui", "Compartilhe com quem precisa").`,
-  linkedin: `LinkedIn: até 1300 chars ideal. Tom profissional. Storytelling com lições práticas. 3-5 hashtags. Finalize com CTA profissional que convide à discussão (ex.: "Compartilhe sua experiência nos comentários", "O que você faria diferente?").`,
-  tiktok: `TikTok: até 300 chars. Linguagem jovem e direta. Emojis. Hook forte. Finalize com CTA jovem e direto (ex.: "Me siga para mais dicas", "Comente se você faria assim").`,
-  pinterest: `Pinterest: até 500 chars. Descritivo e útil. Keywords para SEO. Finalize com CTA de salvamento (ex.: "Salve este pin para depois", "Guarde essa ideia").`,
-  threads: `Threads: até 500 chars. Tom casual e autêntico. Finalize com CTA casual e autêntico (ex.: "Conta aqui o que achou", "Compartilha com a galera").`,
-  bluesky: `Bluesky: até 300 chars. Tom casual e inteligente. Finalize com CTA casual e inteligente (ex.: "O que acha? Comenta aqui", "Reposte se faz sentido").`,
-  youtube: `YouTube (descrição): até 500 chars. SEO-friendly. Finalize com CTA de engajamento e inscrição (ex.: "Inscreva-se para mais conteúdo", "Deixe nos comentários sua dúvida").`,
+  instagram: `Instagram: até 2200 chars. Use emojis, quebras de linha, 5-10 hashtags relevantes no final. Tom visual e inspirador. Inclua CTA.`,
+  twitter: `Twitter/X: máximo 280 chars. Conciso, direto, hook forte. 1-2 hashtags. Tom conversacional.`,
+  facebook: `Facebook: até 500 chars ideal. Tom pessoal e engajador. Perguntas para gerar comentários.`,
+  linkedin: `LinkedIn: até 1300 chars ideal. Tom profissional. Storytelling com lições práticas. 3-5 hashtags.`,
+  tiktok: `TikTok: até 300 chars. Linguagem jovem e direta. Emojis. Hook forte.`,
+  pinterest: `Pinterest: até 500 chars. Descritivo e útil. Keywords para SEO.`,
+  threads: `Threads: até 500 chars. Tom casual e autêntico.`,
+  bluesky: `Bluesky: até 300 chars. Tom casual e inteligente.`,
+  youtube: `YouTube (descrição): até 500 chars. SEO-friendly. CTA para inscrição.`,
 };
 
 interface RequestBody {
@@ -107,9 +107,6 @@ REGRAS IMPORTANTES:
 - Tom: ${toneGuide}
 - Cada plataforma deve ter conteúdo DIFERENTE e OTIMIZADO
 - NÃO inclua prefixos como "Instagram:" no texto dos posts
-- O TEMA principal fornecido pelo usuário DEVE aparecer de forma clara e explícita no texto de CADA post — o leitor deve entender o assunto do post na primeira frase (hook). Nunca gere texto genérico que poderia servir para qualquer tema.
-- TODO post de TODA plataforma DEVE terminar com uma CHAMADA PARA AÇÃO (CTA) clara e específica, escrita como verbo de ação (ex.: "Comente aqui", "Salve este post", "Acesse o link da bio", "Compartilhe com alguém que precisa ver isso"). A CTA deve combinar com o objetivo e o tom da marca.
-- O último slide do carrossel DEVE conter uma CTA.
 - O carrossel deve ter 4-6 slides com frases impactantes e concisas
 - Keywords de busca de imagem devem ser em português brasileiro
 - Hashtags devem ser em português brasileiro
