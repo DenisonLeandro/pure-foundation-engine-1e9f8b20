@@ -171,6 +171,7 @@ export default function Studio() {
         initialSlide={navInitial ? undefined : draft?.currentSlide}
         initialStylePreset={navInitial ? undefined : draft?.stylePreset}
         onDraftDiscarded={handleDraftDiscarded}
+        returnTo={nav?.returnTo}
       />
     </div>
   );
