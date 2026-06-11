@@ -1,50 +1,69 @@
-# Plano: corrigir tela branca silenciosa após edições/HMR
+# Etapas 1–4: Design editável na Galeria (sem IA ainda)
 
-## Causa raiz confirmada
-- `src/contexts/AppContext.tsx` exporta no mesmo arquivo: o componente `AppProvider`, o objeto `AppContext` e o hook `useApp`. Essa mistura quebra o React Fast Refresh do Vite — em hot updates, o módulo é reavaliado e passam a existir **duas identidades** do mesmo `AppContext`. Componentes que consomem via `useApp()` veem um contexto diferente do que `AppProvider` está provendo, e o `useContext` retorna `null`, disparando `useApp must be used within AppProvider`.
-- `vite.config.ts` tem `server.hmr.overlay: false`, então essa exceção não aparece como overlay vermelho — o usuário enxerga apenas tela branca.
-- Reprodução confirmada no preview com reload completo: branco + 502 em um URL com timestamp HMR de `AuthContext.tsx`, sintoma típico de módulo invalidado por Fast Refresh.
+A migração `ALTER TABLE creations ADD COLUMN IF NOT EXISTS design_doc JSONB NULL` **já foi aplicada**. Resta o código abaixo. Chat IA fica para depois.
 
-## Mudanças (somente reorganização de arquivos + 1 linha de config)
+## O que vai mudar
 
-### 1. Dividir `src/contexts/AppContext.tsx` em 3 arquivos
-- **Novo** `src/contexts/app-context.ts` — apenas o `createContext` e os tipos (`AppContextType`, `AppState`).
-- **Novo** `src/contexts/use-app.ts` — apenas o hook `useApp` (importa o contexto de `app-context.ts`).
-- **Manter** `src/contexts/AppContext.tsx` — apenas o componente `AppProvider` (importa o contexto de `app-context.ts`). Toda a lógica de estado, boot, timeouts, `loadConfigFromDb`, `saveConfigToDb`, `inFlightUsersRef`, eventos de auth, etc. permanece **idêntica, byte a byte**, dentro do `AppProvider`.
+### 1. `src/lib/gallery.ts`
+- Novo tipo `EditableDesignDoc = { schemaVersion: number; ...StudioDoc }`
+- Constante `DESIGN_DOC_SCHEMA_VERSION = 1`
+- Função `sanitizeDesignDoc(input)`: clona, força `schemaVersion`, e remove qualquer string `data:` ou `blob:` (sem base64 no JSON)
+- `Creation.designDoc?: EditableDesignDoc | null`
+- `saveCreation` / `updateCreation` / `saveVisualToGallery` passam a aceitar `designDoc` opcional e gravar no campo `design_doc`
+- `mapRow` retorna `designDoc` quando presente
 
-### 2. Atualizar imports do `useApp` em todo o projeto
-- Trocar `import { useApp } from "@/contexts/AppContext"` por `import { useApp } from "@/contexts/use-app"` em todos os consumidores. Imports de `AppProvider` continuam vindo de `@/contexts/AppContext`.
+### 2. Studio passa a salvar o doc junto da imagem
+- `AutoStudio.autoSave` → inclui `designDoc: sanitizeDesignDoc(doc)` (best-effort, não bloqueia)
+- `PublishDrawer` (auto-save ao abrir) → idem
+- `OutputScreen` (caminho já existente de save) → idem
 
-### 3. Reativar o overlay de erro do Vite
-- Em `vite.config.ts`, remover `hmr.overlay: false` (ou setar `true`). Assim, qualquer erro futuro de render aparece como overlay vermelho em vez de tela branca silenciosa.
+Nada muda nos fluxos de publicação/agendamento — Post for Me e Blotato continuam recebendo só URLs de imagem.
 
-## Garantias (não muda)
-- Nenhuma alteração em: `AuthContext`, `App.tsx`, guardas de rota (`RequireAppAccess`/`RequireSetupAccess`/`GuestOnly`/`RootRedirect`), `src/integrations/supabase/client.ts`, edge functions, RLS, storage, ou qualquer feature.
-- Comportamento de boot, timeouts (8s), dedupe `inFlightUsersRef`, ordem dos eventos de auth, `setConfig`/`saveConfigToDb`/`completeOnboarding`/`resetConfig`: tudo permanece idêntico.
-- Sem mudanças em assinatura pública: `useApp()` continua retornando exatamente o mesmo objeto.
+### 3. `src/pages/Gallery.tsx` — botão "Editar design"
+- Novo botão `Pencil` no overlay do card (ao lado dos atuais — nenhum é removido)
+- Clique:
+  - Se `creation.designDoc` existe → `navigate("/studio", { state: { designDoc, creationId } })`
+  - Se não existe → `toast` "Este item foi gerado como imagem estática" + botão de ação "Criar versão editável" que navega com `{ fallbackImageUrl: creation.urls[0], creationId }`
 
-## Verificação
-1. Após as mudanças, abrir `/dashboard` no preview com reload completo e confirmar que renderiza.
-2. Fazer uma edição trivial em qualquer arquivo do projeto para forçar HMR e confirmar que não volta para tela branca nem dispara `useApp must be used within AppProvider`.
-3. Checar console: sem erros novos; warnings de React Router e `postMessage` permanecem (são pré-existentes e inofensivos).
+### 4. `src/pages/Studio.tsx` — aceitar o doc via nav state
+- Lê `designDoc`, `creationId`, `fallbackImageUrl` do `useLocation().state`
+- Se `designDoc` → abre direto no modo `assisted` com `initial = designDoc` (já suportado)
+- Se só `fallbackImageUrl` → cria doc vazio com a imagem como `bgImage` do primeiro slide
+- Passa `creationId` para o `StudioWorkspace`
 
-## Detalhes técnicos
-```text
-Antes:
-AppContext.tsx
-  ├─ export const AppContext = createContext(...)
-  ├─ export function AppProvider(...) { ... }   ← componente
-  └─ export function useApp() { ... }            ← hook
-=> Fast Refresh não consegue preservar o módulo
-   (mistura de exports de componente + não-componente)
-=> em hot update, novo módulo cria NOVO AppContext
-   AppProvider monta com Contexto B
-   useApp lê Contexto A (antigo)
-=> useContext === null => throw
+### 5. `StudioWorkspace.tsx` — botão "Salvar alterações"
+- Aceita prop `creationId?: string`
+- Quando presente, mostra botão "Salvar alterações" na top-bar (ao lado de Postar/Agendar)
+- Ação:
+  1. `urls = await exportSlides()` (reusa o exportador atual → PNG)
+  2. `await updateCreation(creationId, { urls, thumbnailUrl: urls[0], designDoc: sanitizeDesignDoc(doc) })`
+  3. Toast "Design atualizado"
+- Postar/Agendar continua igual
 
-Depois:
-app-context.ts    → só createContext + tipos       (estável p/ HMR)
-use-app.ts        → só hook useApp                 (estável p/ HMR)
-AppContext.tsx    → só AppProvider                 (Fast Refresh OK)
-=> Uma única identidade de contexto sobrevive a hot updates.
-```
+## Garantias de não-regressão
+- Itens antigos (`design_doc = null`) → exibem, baixam, publicam, agendam exatamente como hoje
+- Botões existentes da Galeria (Ver, Usar em Post, Baixar, Excluir) permanecem
+- Migração é não destrutiva (`ADD COLUMN IF NOT EXISTS`)
+- Sem `data:` / `blob:` URLs no JSON (regra obrigatória)
+- `schemaVersion: 1` em todo doc gravado → permite evoluir o editor sem quebrar leituras antigas
+- AppContext, AuthContext, rotas, edge functions: **intocados**
+- Chat IA de edição: **fora desta entrega**
+
+## Como vou testar depois de implementar
+1. Gerar post novo no Studio → conferir na Galeria que o card tem botão "Editar design"
+2. Clicar "Editar design" → Studio abre com o doc carregado, textos no lugar
+3. Mover um texto / mudar cor → clicar "Salvar alterações" → toast OK
+4. Voltar à Galeria → thumbnail atualizado
+5. Em um item antigo (sem designDoc) → botão mostra toast informativo + opção "Criar versão editável" usando a imagem como fundo
+6. Publicar/agendar um item normal → fluxo Post for Me/Blotato inalterado
+
+## Arquivos alterados
+- `src/lib/gallery.ts`
+- `src/pages/Gallery.tsx`
+- `src/pages/Studio.tsx`
+- `src/components/studio/workspace/StudioWorkspace.tsx`
+- `src/components/studio/workspace/AutoStudio.tsx`
+- `src/components/studio/workspace/PublishDrawer.tsx`
+- `src/components/studio/workspace/OutputScreen.tsx`
+
+Nenhum arquivo novo. Nenhuma edge function tocada.
