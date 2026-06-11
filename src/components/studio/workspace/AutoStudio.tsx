@@ -436,14 +436,30 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
     <OutputScreen
       doc={doc}
       brand={brand}
-      onRestart={() => { setDoc(null); setPrompt(""); }}
+      onRestart={() => { setDoc(null); setPrompt(""); if (userId) clearStudioFlowDraft(userId); }}
       onEditInCanvas={onEditInCanvas}
     />
   ) : (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-6 flex items-center gap-2">
-        <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="mr-1.5 h-4 w-4" /> Modos</Button>
+        <Button variant="ghost" size="sm" onClick={handleBack}><ArrowLeft className="mr-1.5 h-4 w-4" /> Modos</Button>
         <h1 className="flex items-center gap-2 text-xl font-bold"><Wand2 className="h-5 w-5 text-violet-500" /> Criar com IA</h1>
+        {(prompt || initialForm) && userId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto text-xs text-muted-foreground hover:text-destructive"
+            disabled={generating}
+            onClick={() => {
+              clearStudioFlowDraft(userId);
+              setPrompt(""); setArtStyle("auto"); setArtDirection(""); setImageSource("pexels");
+              setLayoutMode("auto"); setStylePreset("auto"); setSelectedSourceIds([]); setDoc(null);
+              toast.message("Rascunho descartado.");
+            }}
+          >
+            Descartar rascunho
+          </Button>
+        )}
       </div>
 
       <div className="space-y-4">
