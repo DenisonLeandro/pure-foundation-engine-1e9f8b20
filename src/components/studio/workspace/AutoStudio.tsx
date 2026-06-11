@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   generateContent, generateOpenAiImage, searchStockImages, aiAssist,
   callHiggsfield, hfStatus, type HfGenerationResult,
@@ -22,6 +23,7 @@ import { buildEditableEls } from "./editableEls";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
+import { saveStudioFlowDraft, clearStudioFlowDraft, type AutoFormDraft } from "./studioDraft";
 
 const ART_STYLES: { value: string; label: string; hint: string }[] = [
   { value: "auto", label: "Auto (IA escolhe)", hint: "" },
