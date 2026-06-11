@@ -66,8 +66,24 @@ export function DesignCanvas() {
       for (let i = 0; i < (slideRefs.current.length || 0); i++) {
         const node = slideRefs.current[i];
         if (!node) continue;
-        const canvas = await html2canvas(node, { useCORS: true, backgroundColor: null, scale: EXPORT_W / CANVAS_W, width: EXPORT_W, height: EXPORT_H });
-        urls.push(canvas.toDataURL("image/png"));
+        // IMPORTANTE: width/height aqui são em CSS px (tamanho do nó),
+        // não o tamanho de saída. O tamanho final do PNG = width*scale × height*scale.
+        // Antes passávamos EXPORT_W/EXPORT_H como width/height, o que fazia o
+        // html2canvas recortar uma área 1080×1350 CSS do nó (que tem só 360×450),
+        // gerando um PNG enorme com a arte pequena no canto superior esquerdo.
+        const canvas = await html2canvas(node, {
+          useCORS: true,
+          backgroundColor: null,
+          width: CANVAS_W,
+          height: CANVAS_H,
+          windowWidth: CANVAS_W,
+          windowHeight: CANVAS_H,
+          scale: EXPORT_W / CANVAS_W, // 3x → 1080×1350 final
+        });
+        // Validação: descarta export quebrado (canvas vazio / dimensão inesperada).
+        if (!canvas.width || !canvas.height) continue;
+        const url = canvas.toDataURL("image/png");
+        if (url && url.length > 100) urls.push(url);
       }
     } finally {
       setExporting(false);

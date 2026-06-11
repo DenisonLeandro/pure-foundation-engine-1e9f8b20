@@ -83,9 +83,13 @@ export function OutputScreen({
     if (!user) return [];
     const out: string[] = [];
     for (const url of media) {
+      // Validação: descarta URLs vazias/inválidas antes de enviar pro Post for Me.
+      if (!url || typeof url !== "string") continue;
+      if (url.startsWith("data:") && url.length < 200) continue;
       try {
         if (url.startsWith("data:")) {
           const blob = dataUrlToBlob(url);
+          if (!blob.size) continue;
           const path = `studio/${user.id}/pub_${crypto.randomUUID()}.png`;
           const { error } = await supabase.storage.from("media").upload(path, blob, { contentType: "image/png" });
           if (error) throw error;
@@ -196,12 +200,12 @@ export function OutputScreen({
           <Card>
             <CardContent className="p-3">
               {isVideo ? (
-                <video src={doc.videoUrl} controls className="w-full rounded-xl" />
+                <video src={doc.videoUrl} controls className="block h-full w-full rounded-xl object-cover" style={{ aspectRatio: "4 / 5" }} />
               ) : media.length === 1 ? (
-                <img src={media[0]} alt="Arte" className="w-full rounded-xl" />
+                <img src={media[0]} alt="Arte" className="block h-full w-full rounded-xl object-cover object-center" style={{ aspectRatio: "4 / 5", background: "#0b0b12" }} />
               ) : (
                 <div className="space-y-2">
-                  <img src={media[slideIdx] || media[0]} alt={`Slide ${slideIdx + 1}`} className="w-full rounded-xl" />
+                  <img src={media[slideIdx] || media[0]} alt={`Slide ${slideIdx + 1}`} className="block h-full w-full rounded-xl object-cover object-center" style={{ aspectRatio: "4 / 5", background: "#0b0b12" }} />
                   <div className="flex items-center justify-center gap-2">
                     <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => setSlideIdx(Math.max(0, slideIdx - 1))} disabled={slideIdx === 0}><ChevronLeft className="h-4 w-4" /></Button>
                     <span className="text-xs text-muted-foreground">{slideIdx + 1}/{media.length}</span>
@@ -211,7 +215,7 @@ export function OutputScreen({
                   <div className="flex gap-1.5 overflow-x-auto pb-1">
                     {media.map((m, i) => (
                       <button key={i} onClick={() => setSlideIdx(i)} className={`shrink-0 overflow-hidden rounded-lg border-2 ${i === slideIdx ? "border-violet-500" : "border-transparent"}`}>
-                        <img src={m} alt="" className="h-14 w-14 object-cover" />
+                        <img src={m} alt="" className="h-14 w-14 object-cover object-center" />
                       </button>
                     ))}
                   </div>

@@ -60,8 +60,8 @@ export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenCha
                   <div className={media.length > 1 ? "grid grid-cols-3 gap-2" : ""}>
                     {media.map((m, i) =>
                       /\.(mp4|mov|webm)/i.test(m) || m.startsWith("blob:")
-                        ? <video key={i} src={m} controls className="w-full rounded-lg border border-border" />
-                        : <img key={i} src={m} alt={`Mídia ${i + 1}`} className="w-full rounded-lg border border-border" />
+                        ? <video key={i} src={m} controls className="block h-full w-full rounded-lg border border-border object-cover" style={{ aspectRatio: "4 / 5" }} />
+                        : <img key={i} src={m} alt={`Mídia ${i + 1}`} loading="lazy" className="block h-full w-full rounded-lg border border-border object-cover object-center" style={{ aspectRatio: "4 / 5", background: "#0b0b12" }} />
                     )}
                   </div>
                 </div>
