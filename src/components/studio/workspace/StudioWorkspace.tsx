@@ -296,6 +296,27 @@ function WorkspaceInner({
           >
             <Eye className="h-4 w-4" />
           </Button>
+          {draftUserId && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Descartar rascunho">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Descartar rascunho</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza que deseja descartar este rascunho? O design atual será removido e o Studio voltará vazio.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDiscardDraft}>Descartar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           {editingCreationId && (
             <Button
               variant="outline"
