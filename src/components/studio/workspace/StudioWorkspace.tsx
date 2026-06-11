@@ -113,16 +113,32 @@ function RightRailContent() {
 
 function WorkspaceInner({
   onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls,
-  draftUserId, initialSlide, initialStylePreset, onDraftDiscarded,
+  draftUserId, initialSlide, initialStylePreset, onDraftDiscarded, returnTo,
 }: Omit<WorkspaceProps, "initial">) {
+  const navigate = useNavigate();
   const { brands, defaultBrand } = useBrands();
   const { doc, set, replaceDoc, undo, redo, canUndo, canRedo, exportSlides, currentSlide, setCurrentSlide } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
   const [savingDesign, setSavingDesign] = useState(false);
   const [stylePreset, setStylePreset] = useState<StylePreset>(initialStylePreset ?? "auto");
+  // creationId pode nascer aqui (após "Salvar na Galeria" de um design novo)
+  const [creationId, setCreationId] = useState<string | undefined>(editingCreationId);
+  useEffect(() => { setCreationId(editingCreationId); }, [editingCreationId]);
 
   const currentBrand = brands.find((b) => b.id === doc.brandId) || null;
   const brandPalette = { colors: currentBrand?.colors };
+  const galleryReturn = returnTo || "/gallery";
+
+  // ── Dirty tracking (alterações não salvas) ──────────────────────
+  const dirtyRef = useRef(false);
+  const skipFirstDirtyRef = useRef(true);
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (skipFirstDirtyRef.current) { skipFirstDirtyRef.current = false; return; }
+    dirtyRef.current = true;
+    forceTick((n) => n + 1);
+  }, [doc, currentSlide, stylePreset]);
+  const markClean = () => { dirtyRef.current = false; forceTick((n) => n + 1); };
 
   // ── Rascunho local (autosave) ──────────────────────────────────
   const discardedRef = useRef(false);
@@ -145,12 +161,12 @@ function WorkspaceInner({
     const fallbacks = (fallbackImageUrls && fallbackImageUrls.length)
       ? fallbackImageUrls
       : (fallbackImageUrl ? [fallbackImageUrl] : []);
-    draftPayloadRef.current = { doc, currentSlide, stylePreset, creationId: editingCreationId, fallbackImageUrls: fallbacks };
+    draftPayloadRef.current = { doc, currentSlide, stylePreset, creationId, fallbackImageUrls: fallbacks };
     const t = setTimeout(() => {
       if (!discardedRef.current && draftPayloadRef.current) saveStudioDraft(draftUserId, draftPayloadRef.current);
     }, 700);
     return () => clearTimeout(t);
-  }, [doc, currentSlide, stylePreset, draftUserId, editingCreationId, fallbackImageUrl, fallbackImageUrls]);
+  }, [doc, currentSlide, stylePreset, draftUserId, creationId, fallbackImageUrl, fallbackImageUrls]);
 
   // Flush no desmonte (troca de rota/aba interna) — garante que edições <700ms não se percam.
   useEffect(() => {
@@ -183,40 +199,94 @@ function WorkspaceInner({
     toast.success(`Estilo aplicado: ${STYLE_PRESETS.find((s) => s.value === preset)?.label}`);
   };
 
-  const handleSaveDesign = async () => {
-    if (!editingCreationId) return;
+  /** Compõe doc + exporta imagens. Retorna null se nada para salvar. */
+  const composeAndExport = async (): Promise<{ safeDoc: StudioDoc; urls: string[] } | null> => {
+    const readable = ensureReadableTextLayers(doc, brandPalette);
+    const safeDoc = refineDesignAesthetics(readable, brandPalette, stylePreset);
+    if (safeDoc !== doc) replaceDoc(safeDoc);
+    const urls = safeDoc.format === "video"
+      ? (safeDoc.videoUrl ? [safeDoc.videoUrl] : [])
+      : await exportSlides();
+    if (!urls.length) return null;
+    return { safeDoc, urls };
+  };
+
+  /** Salva alterações em criação existente. */
+  const handleSaveDesign = async (): Promise<boolean> => {
+    if (!creationId) return false;
     setSavingDesign(true);
     try {
-      // Reaplica legibilidade + estética antes de exportar (idempotente)
-      const readable = ensureReadableTextLayers(doc, brandPalette);
-      const safeDoc = refineDesignAesthetics(readable, brandPalette, stylePreset);
-      if (safeDoc !== doc) replaceDoc(safeDoc);
-      const urls = safeDoc.format === "video"
-        ? (safeDoc.videoUrl ? [safeDoc.videoUrl] : [])
-        : await exportSlides();
-      if (!urls.length) {
-        toast.error("Nada para salvar");
-        return;
-      }
+      const out = await composeAndExport();
+      if (!out) { toast.error("Nada para salvar"); return false; }
       const fallbackList = (fallbackImageUrls && fallbackImageUrls.length)
         ? fallbackImageUrls
         : (fallbackImageUrl ? [fallbackImageUrl] : []);
-      const docToPersist = ensureDocHasVisualFallbacks(safeDoc, fallbackList);
-      const updated = await updateCreation(editingCreationId, {
-        urls,
-        thumbnailUrl: urls[0],
+      const docToPersist = ensureDocHasVisualFallbacks(out.safeDoc, fallbackList);
+      const updated = await updateCreation(creationId, {
+        urls: out.urls,
+        thumbnailUrl: out.urls[0],
         designDoc: sanitizeDesignDoc(docToPersist),
       });
-      if (!updated) {
-        toast.error("Falha ao salvar alterações");
-        return;
-      }
+      if (!updated) { toast.error("Falha ao salvar alterações"); return false; }
       toast.success("Design atualizado");
+      markClean();
+      return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+      return false;
     } finally {
       setSavingDesign(false);
     }
+  };
+
+  /** Cria nova entrada na Galeria a partir do design atual. */
+  const handleSaveToGallery = async (): Promise<boolean> => {
+    if (creationId) return handleSaveDesign();
+    setSavingDesign(true);
+    try {
+      const out = await composeAndExport();
+      if (!out) { toast.error("Nada para salvar"); return false; }
+      const created = await saveVisualToGallery({
+        urls: out.urls,
+        prompt: out.safeDoc.caption || undefined,
+        templateName: "Studio",
+        designDoc: sanitizeDesignDoc(out.safeDoc),
+      });
+      if (!created?.id) { toast.error("Falha ao salvar na Galeria"); return false; }
+      setCreationId(created.id);
+      toast.success("Design salvo na Galeria");
+      markClean();
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+      return false;
+    } finally {
+      setSavingDesign(false);
+    }
+  };
+
+  const exitToGallery = () => {
+    if (draftUserId) { discardedRef.current = true; clearStudioDrafts(draftUserId); }
+    navigate(galleryReturn);
+  };
+
+  const handleSaveAndExit = async () => {
+    const ok = creationId ? await handleSaveDesign() : await handleSaveToGallery();
+    if (ok) exitToGallery();
+  };
+
+  // Diálogo "alterações não salvas" controlado por estado
+  const [confirmExitOpen, setConfirmExitOpen] = useState(false);
+  const exitTargetRef = useRef<"gallery" | "back">("gallery");
+  const requestExit = (target: "gallery" | "back") => {
+    exitTargetRef.current = target;
+    if (dirtyRef.current) { setConfirmExitOpen(true); return; }
+    doExit(target);
+  };
+  const doExit = (target: "gallery" | "back") => {
+    setConfirmExitOpen(false);
+    if (target === "gallery") exitToGallery();
+    else onBack?.();
   };
 
   useEffect(() => {
@@ -224,6 +294,7 @@ function WorkspaceInner({
   }, [defaultBrand, doc.brandId, set]);
 
   const brand = brands.find((b) => b.id === doc.brandId) || null;
+  const isDirty = dirtyRef.current;
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col md:h-screen">
