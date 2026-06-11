@@ -226,6 +226,7 @@ function WorkspaceInner({
         urls: out.urls,
         thumbnailUrl: out.urls[0],
         designDoc: sanitizeDesignDoc(docToPersist),
+        caption: out.safeDoc.caption ?? "",
       });
       if (!updated) { toast.error("Falha ao salvar alterações"); return false; }
       toast.success("Design atualizado");
