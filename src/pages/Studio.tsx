@@ -22,6 +22,8 @@ interface NavState {
   fallbackImageUrls?: string[] | null;
   /** Rota para a qual "Salvar e voltar" / "Voltar para Galeria" deve navegar. */
   returnTo?: string;
+  /** Legenda persistida na Galeria — sobrescreve doc.caption ao abrir. */
+  caption?: string | null;
 }
 
 function isHttpUrl(s: unknown): s is string {
