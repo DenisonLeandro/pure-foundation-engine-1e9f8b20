@@ -21,6 +21,7 @@ import { DesignCanvas } from "./DesignCanvas";
 import { ElementInspector } from "./ElementInspector";
 import { Copilot } from "./Copilot";
 import { AssetsRail } from "./AssetsRail";
+import { CaptionPanel } from "./CaptionPanel";
 import { FlowBar } from "./FlowBar";
 import { PublishDrawer } from "./PublishDrawer";
 import type { StudioDoc, StudioFormat } from "./types";
@@ -105,6 +106,7 @@ function LeftRailContent({ brandName, brandHandle }: { brandName?: string; brand
 function RightRailContent() {
   return (
     <div className="flex flex-col gap-3">
+      <CaptionPanel />
       <Copilot />
       <ElementInspector />
     </div>
@@ -224,6 +226,7 @@ function WorkspaceInner({
         urls: out.urls,
         thumbnailUrl: out.urls[0],
         designDoc: sanitizeDesignDoc(docToPersist),
+        caption: out.safeDoc.caption ?? "",
       });
       if (!updated) { toast.error("Falha ao salvar alterações"); return false; }
       toast.success("Design atualizado");
@@ -249,6 +252,7 @@ function WorkspaceInner({
         prompt: out.safeDoc.caption || undefined,
         templateName: "Studio",
         designDoc: sanitizeDesignDoc(out.safeDoc),
+        caption: out.safeDoc.caption ?? "",
       });
       if (!created?.id) { toast.error("Falha ao salvar na Galeria"); return false; }
       setCreationId(created.id);

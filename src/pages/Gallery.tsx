@@ -10,14 +10,19 @@ import {
   ImageOff,
   Loader2,
   Pencil,
+  MessageSquareText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
-import { getCreations, deleteCreation, type Creation } from "@/lib/gallery";
+import { getCreations, deleteCreation, updateCreation, type Creation } from "@/lib/gallery";
 
 // ─── Filter types ───────────────────────────────────────────────
 
@@ -41,6 +46,11 @@ export default function Gallery() {
   const [previewCreation, setPreviewCreation] = useState<Creation | null>(null);
   const [creations, setCreations] = useState<Creation[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Edição de legenda
+  const [captionEditing, setCaptionEditing] = useState<Creation | null>(null);
+  const [captionDraft, setCaptionDraft] = useState("");
+  const [captionSaving, setCaptionSaving] = useState(false);
 
   const loadCreations = useCallback(async () => {
     setLoading(true);
@@ -72,7 +82,13 @@ export default function Gallery() {
   }
 
   function handleUseInPost(creation: Creation) {
-    navigate("/studio", { state: { mediaUrls: creation.urls, fromVisual: true } });
+    navigate("/studio", {
+      state: {
+        mediaUrls: creation.urls,
+        fromVisual: true,
+        caption: creation.caption ?? null,
+      },
+    });
   }
 
   function handleEditDesign(creation: Creation) {
@@ -94,6 +110,7 @@ export default function Gallery() {
         creationId: creation.id,
         fallbackImageUrl: fallback,
         fallbackImageUrls: urls,
+        caption: creation.caption ?? null,
       },
     });
   }
@@ -149,6 +166,25 @@ export default function Gallery() {
 
   function handleDeleteCreation(creation: Creation) {
     handleDelete(creation.id);
+  }
+
+  function handleEditCaption(creation: Creation) {
+    setCaptionEditing(creation);
+    setCaptionDraft(creation.caption ?? "");
+  }
+
+  async function handleSaveCaption() {
+    if (!captionEditing) return;
+    setCaptionSaving(true);
+    const updated = await updateCreation(captionEditing.id, { caption: captionDraft });
+    setCaptionSaving(false);
+    if (!updated) {
+      toast({ title: "Falha ao salvar legenda", variant: "destructive" });
+      return;
+    }
+    setCreations((prev) => prev.map((c) => (c.id === updated.id ? { ...c, caption: updated.caption } : c)));
+    setCaptionEditing(null);
+    toast({ title: "Legenda atualizada" });
   }
 
   // ── Render ──────────────────────────────────────────────────
@@ -210,10 +246,39 @@ export default function Gallery() {
               onDownload={handleDownload}
               onDelete={handleDeleteCreation}
               onEditDesign={handleEditDesign}
+              onEditCaption={handleEditCaption}
             />
           ))}
         </div>
       )}
+
+      {/* Caption edit dialog */}
+      <Dialog open={!!captionEditing} onOpenChange={(o) => { if (!o) setCaptionEditing(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar legenda</DialogTitle>
+            <DialogDescription>
+              A legenda será usada quando você publicar/agendar este post. A imagem não é alterada.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={captionDraft}
+            onChange={(e) => setCaptionDraft(e.target.value)}
+            rows={8}
+            placeholder="Escreva a legenda…"
+            className="resize-none"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCaptionEditing(null)} disabled={captionSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveCaption} disabled={captionSaving} className="bg-violet-600 hover:bg-violet-700">
+              {captionSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar legenda
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Media Preview Dialog */}
       {previewCreation && (
@@ -238,6 +303,7 @@ interface CreationCardProps {
   onDownload: (c: Creation) => void;
   onDelete: (c: Creation) => void;
   onEditDesign: (c: Creation) => void;
+  onEditCaption: (c: Creation) => void;
 }
 
 function CreationCard({
@@ -247,6 +313,7 @@ function CreationCard({
   onDownload,
   onDelete,
   onEditDesign,
+  onEditCaption,
 }: CreationCardProps) {
   const thumb = creation.thumbnailUrl ?? creation.urls[0] ?? "";
   const date = new Date(creation.createdAt).toLocaleDateString("pt-BR", {
@@ -254,6 +321,7 @@ function CreationCard({
     month: "short",
     year: "numeric",
   });
+  const captionSnippet = (creation.caption || "").trim().split(/\n+/)[0] ?? "";
 
   return (
     <Card className="group overflow-hidden border-violet-200/40 transition-shadow hover:shadow-lg dark:border-violet-800/30">
@@ -321,6 +389,15 @@ function CreationCard({
             size="icon"
             variant="ghost"
             className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+            title="Editar legenda"
+            onClick={() => onEditCaption(creation)}
+          >
+            <MessageSquareText className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
             title="Baixar"
             onClick={() => onDownload(creation)}
           >
@@ -343,6 +420,11 @@ function CreationCard({
         <p className="truncate text-sm font-medium">
           {creation.templateName ?? "Sem nome"}
         </p>
+        {captionSnippet && (
+          <p className="line-clamp-2 text-[11px] text-muted-foreground/90 italic">
+            {captionSnippet}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">{date}</p>
         <div>
           {creation.published ? (

@@ -29,6 +29,7 @@ export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenCha
             prompt: doc.caption,
             templateName: "Studio · Canvas",
             designDoc: sanitizeDesignDoc(doc),
+            caption: doc.caption ?? "",
           });
         }
       } finally {

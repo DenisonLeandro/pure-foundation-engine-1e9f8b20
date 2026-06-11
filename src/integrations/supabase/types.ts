@@ -346,6 +346,7 @@ export type Database = {
       }
       creations: {
         Row: {
+          caption: string | null
           created_at: string
           design_doc: Json | null
           doc: Json | null
@@ -362,6 +363,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          caption?: string | null
           created_at?: string
           design_doc?: Json | null
           doc?: Json | null
@@ -378,6 +380,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          caption?: string | null
           created_at?: string
           design_doc?: Json | null
           doc?: Json | null

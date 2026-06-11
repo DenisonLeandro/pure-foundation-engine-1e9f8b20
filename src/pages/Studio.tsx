@@ -22,6 +22,8 @@ interface NavState {
   fallbackImageUrls?: string[] | null;
   /** Rota para a qual "Salvar e voltar" / "Voltar para Galeria" deve navegar. */
   returnTo?: string;
+  /** Legenda persistida na Galeria — sobrescreve doc.caption ao abrir. */
+  caption?: string | null;
 }
 
 function isHttpUrl(s: unknown): s is string {
@@ -65,7 +67,8 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
 
   // 1) Doc editável vindo da Galeria — prioridade máxima, com fallback visual por slide.
   if (nav.designDoc && typeof nav.designDoc === "object" && Array.isArray(nav.designDoc.slides)) {
-    return ensureDocHasVisualFallbacks(nav.designDoc, fallbacks);
+    const withFallbacks = ensureDocHasVisualFallbacks(nav.designDoc, fallbacks);
+    return typeof nav.caption === "string" ? { ...withFallbacks, caption: nav.caption } : withFallbacks;
   }
   // 2) Item antigo sem designDoc — construir doc inicial com cada imagem como fundo.
   if (fallbacks.length) {
@@ -74,6 +77,7 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
     return {
       ...base,
       slides: fallbacks.map((url) => ({ bg: base.slides[0].bg, bgImage: url, els: [] })),
+      caption: typeof nav.caption === "string" ? nav.caption : base.caption,
     };
   }
   // 3) Fluxo legado (deep-link de fonte/post).
@@ -82,7 +86,7 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
   const base = emptyDoc("post", null);
   return {
     ...base,
-    caption: nav.sourceContent || nav.prompt || "",
+    caption: (typeof nav.caption === "string" && nav.caption) || nav.sourceContent || nav.prompt || "",
     slides: nav.mediaUrls?.length ? [{ bg: base.slides[0].bg, bgImage: nav.mediaUrls[0], els: [] }] : base.slides,
     schedule: nav.scheduleAt ? { when: "schedule", at: nav.scheduleAt } : { when: "now" },
   };

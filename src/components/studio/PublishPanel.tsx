@@ -59,10 +59,23 @@ export function PublishPanel({
     setGenCap(true);
     try {
       const { text } = await aiAssist({
-        system: `Você é redator de redes sociais. Escreva uma legenda envolvente em português brasileiro, com gancho, 1 CTA e 3-6 hashtags relevantes no final. ${brandTextHint(brand)} Responda APENAS com a legenda.`,
-        prompt: topic, temperature: 0.8,
+        system: [
+          "Você é redator sênior de redes sociais em português brasileiro.",
+          "Escreva uma legenda envolvente, clara e natural.",
+          "REGRAS OBRIGATÓRIAS:",
+          "- NÃO comece com 'Você sabia?', 'Fique atento!', 'Salve este post' ou 'Procure um advogado'.",
+          "- Varie a abertura (contexto, observação, pergunta).",
+          "- Tom informativo, responsável, sem sensacionalismo ou promessa de resultado.",
+          "- Sem captação comercial agressiva.",
+          "- No máximo 2 emojis pontuais. No máximo 5 hashtags relevantes no final.",
+          "- Para tema jurídico: educativo, sem prometer direito, sem induzir contratação.",
+          "Estrutura: abertura contextual → explicação curta → ponto prático → chamada leve para refletir/salvar/compartilhar.",
+          brandTextHint(brand),
+          "Responda APENAS com a legenda final.",
+        ].join("\n"),
+        prompt: topic, temperature: 0.85,
       });
-      if (text) { setCaption(text); toast.success("Legenda gerada pela IA"); }
+      if (text) { setCaption(text.trim()); toast.success("Legenda gerada pela IA"); }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar legenda");
     } finally { setGenCap(false); }
@@ -95,6 +108,10 @@ export function PublishPanel({
   const publish = async () => {
     if (!selected.length) { toast.error("Selecione ao menos uma conta."); return; }
     if (when === "schedule" && !scheduledAt) { toast.error("Defina data e hora do agendamento."); return; }
+    if (!caption.trim()) {
+      const ok = typeof window !== "undefined" && window.confirm("Este post está sem legenda. Deseja continuar?");
+      if (!ok) return;
+    }
     setPublishing(true);
     setDone(false);
     try {

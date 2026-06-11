@@ -25,6 +25,8 @@ export interface Creation {
   createdAt: string;
   /** Optional editable design (StudioDoc + schemaVersion). null/absent for legacy items. */
   designDoc?: EditableDesignDoc | null;
+  /** Legenda do post para redes sociais (editável depois). */
+  caption?: string | null;
 }
 
 /**
@@ -111,6 +113,9 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
   if (input.designDoc !== undefined) {
     payload.design_doc = input.designDoc ? sanitizeDesignDoc(input.designDoc) : null;
   }
+  if (input.caption !== undefined) {
+    payload.caption = input.caption || null;
+  }
 
   const { data, error } = await supabase
     .from("creations")
@@ -134,6 +139,9 @@ export async function updateCreation(id: string, updates: Partial<Creation>): Pr
   if (updates.thumbnailUrl !== undefined) payload.thumbnail_url = updates.thumbnailUrl;
   if (updates.designDoc !== undefined) {
     payload.design_doc = updates.designDoc ? sanitizeDesignDoc(updates.designDoc) : null;
+  }
+  if (updates.caption !== undefined) {
+    payload.caption = updates.caption || null;
   }
 
   const { data, error } = await supabase
@@ -246,6 +254,7 @@ export async function saveVisualToGallery(opts: {
   templateId?: string;
   templateName?: string;
   designDoc?: EditableDesignDoc | null;
+  caption?: string | null;
 }): Promise<Creation | null> {
   const validUrls = await persistUrls(opts.urls);
   if (validUrls.length === 0) return null;
@@ -262,6 +271,7 @@ export async function saveVisualToGallery(opts: {
     templateName: opts.templateName,
     published: false,
     designDoc: opts.designDoc ?? undefined,
+    caption: opts.caption ?? undefined,
   });
 }
 
@@ -296,5 +306,6 @@ function mapRow(row: any): Creation {
     published: row.published ?? false,
     createdAt: row.created_at,
     designDoc: (row.design_doc as EditableDesignDoc | null) ?? null,
+    caption: (row.caption as string | null) ?? null,
   };
 }
