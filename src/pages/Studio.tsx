@@ -16,6 +16,7 @@ interface NavState {
   designDoc?: StudioDoc;
   creationId?: string;
   fallbackImageUrl?: string | null;
+  fallbackImageUrls?: string[] | null;
 }
 
 function isHttpUrl(s: unknown): s is string {
@@ -28,28 +29,46 @@ function slideHasVisual(s?: Slide): boolean {
   return (s.els || []).some((e) => e.type === "image" && isHttpUrl(e.src));
 }
 
-export function ensureDocHasVisualFallback(doc: StudioDoc, fallbackImageUrl?: string | null): StudioDoc {
-  if (!isHttpUrl(fallbackImageUrl)) return doc;
-  const slides = [...(doc.slides ?? [])];
-  if (!slides.length) slides.push({ bg: "#0b0b0f", els: [] });
-  if (!slideHasVisual(slides[0])) {
-    slides[0] = { ...slides[0], bgImage: fallbackImageUrl };
+/** Aplica fallback de imagem por slide (índice). Não duplica se o slide já tiver visual. */
+export function ensureDocHasVisualFallbacks(doc: StudioDoc, fallbackImageUrls?: (string | null | undefined)[] | null): StudioDoc {
+  const fallbacks = (fallbackImageUrls ?? []).filter(isHttpUrl);
+  if (!fallbacks.length) return doc;
+  const slides: Slide[] = [...(doc.slides ?? [])];
+
+  // 1) Preenche slides existentes que não têm visual.
+  for (let i = 0; i < slides.length; i++) {
+    if (!slideHasVisual(slides[i]) && fallbacks[i]) {
+      slides[i] = { ...slides[i], bgImage: fallbacks[i] };
+    }
+  }
+  // 2) Cria slides extras se o fallback tiver mais imagens do que o doc.
+  for (let i = slides.length; i < fallbacks.length; i++) {
+    slides.push({ bg: "#0b0b0f", bgImage: fallbacks[i], els: [] });
   }
   return { ...doc, slides };
 }
 
+/** Compat: aceita uma única URL (post único). */
+export function ensureDocHasVisualFallback(doc: StudioDoc, fallbackImageUrl?: string | null): StudioDoc {
+  return ensureDocHasVisualFallbacks(doc, fallbackImageUrl ? [fallbackImageUrl] : null);
+}
+
 function buildInitial(nav: NavState | null): StudioDoc | undefined {
   if (!nav) return undefined;
-  // 1) Doc editável vindo da Galeria — prioridade máxima, com fallback visual.
+  const fallbacks: string[] = (nav.fallbackImageUrls ?? []).filter(isHttpUrl);
+  if (!fallbacks.length && isHttpUrl(nav.fallbackImageUrl)) fallbacks.push(nav.fallbackImageUrl);
+
+  // 1) Doc editável vindo da Galeria — prioridade máxima, com fallback visual por slide.
   if (nav.designDoc && typeof nav.designDoc === "object" && Array.isArray(nav.designDoc.slides)) {
-    return ensureDocHasVisualFallback(nav.designDoc, nav.fallbackImageUrl);
+    return ensureDocHasVisualFallbacks(nav.designDoc, fallbacks);
   }
-  // 2) Item antigo sem designDoc — construir doc inicial usando a imagem como fundo.
-  if (nav.fallbackImageUrl) {
-    const base = emptyDoc("post", null);
+  // 2) Item antigo sem designDoc — construir doc inicial com cada imagem como fundo.
+  if (fallbacks.length) {
+    const isCarousel = fallbacks.length > 1;
+    const base = emptyDoc(isCarousel ? "carousel" : "post", null);
     return {
       ...base,
-      slides: [{ bg: base.slides[0].bg, bgImage: nav.fallbackImageUrl, els: [] }],
+      slides: fallbacks.map((url) => ({ bg: base.slides[0].bg, bgImage: url, els: [] })),
     };
   }
   // 3) Fluxo legado (deep-link de fonte/post).
