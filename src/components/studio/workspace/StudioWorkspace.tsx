@@ -357,24 +357,6 @@ function WorkspaceInner({
               {STYLE_PRESETS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleFixReadability}
-            title="Corrigir legibilidade dos textos"
-            className="hidden h-9 sm:inline-flex"
-          >
-            <Eye className="mr-2 h-4 w-4" /> Corrigir legibilidade
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleFixReadability}
-            title="Corrigir legibilidade dos textos"
-            className="h-9 w-9 sm:hidden"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
           {draftUserId && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -400,31 +382,11 @@ function WorkspaceInner({
             variant="outline"
             onClick={creationId ? handleSaveDesign : handleSaveToGallery}
             disabled={savingDesign}
-            title={creationId ? "Salvar alterações nesta criação" : "Salvar este design na Galeria"}
+            title="Salvar"
           >
             {savingDesign ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            <span className="hidden sm:inline">{creationId ? "Salvar alterações" : "Salvar na Galeria"}</span>
+            <span className="hidden sm:inline">Salvar</span>
           </Button>
-          <Button
-            variant="secondary"
-            onClick={handleSaveAndExit}
-            disabled={savingDesign}
-            title="Salvar e voltar para a Galeria"
-            className="hidden md:inline-flex"
-          >
-            <LogOut className="mr-2 h-4 w-4" /> Salvar e voltar
-          </Button>
-          {creationId && (
-            <Button
-              variant="ghost"
-              onClick={() => requestExit("gallery")}
-              disabled={savingDesign}
-              title="Voltar para a Galeria"
-              className="hidden lg:inline-flex"
-            >
-              Voltar para Galeria
-            </Button>
-          )}
           <Button className="ml-1 bg-gradient-to-r from-violet-600 to-fuchsia-500" onClick={() => setPublishOpen(true)}>
             <Send className="mr-2 h-4 w-4" /> <span className="hidden sm:inline">Postar / Agendar</span>
           </Button>
