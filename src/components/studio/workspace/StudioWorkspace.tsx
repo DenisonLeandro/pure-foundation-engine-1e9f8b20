@@ -30,11 +30,16 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
 ];
 
 export function StudioWorkspace({
-  initial, onBack, editingCreationId, fallbackImageUrl,
-}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string }) {
+  initial, onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls,
+}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string; fallbackImageUrls?: string[] }) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner onBack={onBack} editingCreationId={editingCreationId} fallbackImageUrl={fallbackImageUrl} />
+      <WorkspaceInner
+        onBack={onBack}
+        editingCreationId={editingCreationId}
+        fallbackImageUrl={fallbackImageUrl}
+        fallbackImageUrls={fallbackImageUrls}
+      />
     </StudioProvider>
   );
 }
