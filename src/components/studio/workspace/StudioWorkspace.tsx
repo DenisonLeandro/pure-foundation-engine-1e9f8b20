@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft,
+  PanelLeft, Quote, ArrowLeft, Save, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
+import { updateCreation, sanitizeDesignDoc } from "@/lib/gallery";
 import { StudioProvider, useStudio } from "./StudioProvider";
 import { DesignCanvas } from "./DesignCanvas";
 import { ElementInspector } from "./ElementInspector";
@@ -26,10 +28,12 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
   { value: "video", label: "Vídeo", icon: Film },
 ];
 
-export function StudioWorkspace({ initial, onBack }: { initial?: StudioDoc; onBack?: () => void }) {
+export function StudioWorkspace({
+  initial, onBack, editingCreationId,
+}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string }) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner onBack={onBack} />
+      <WorkspaceInner onBack={onBack} editingCreationId={editingCreationId} />
     </StudioProvider>
   );
 }
