@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft, Save, Loader2, Eye, Trash2, LogOut,
+  PanelLeft, Quote, ArrowLeft, Save, Loader2, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
