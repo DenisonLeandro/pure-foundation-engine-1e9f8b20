@@ -99,22 +99,33 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackI
   const [publishOpen, setPublishOpen] = useState(false);
   const [savingDesign, setSavingDesign] = useState(false);
 
+  const currentBrand = brands.find((b) => b.id === doc.brandId) || null;
+  const brandPalette = { colors: currentBrand?.colors };
+
+  const handleFixReadability = () => {
+    const fixed = ensureReadableTextLayers(doc, brandPalette);
+    replaceDoc(fixed);
+    toast.success("Legibilidade ajustada");
+  };
+
   const handleSaveDesign = async () => {
     if (!editingCreationId) return;
     setSavingDesign(true);
     try {
-      const urls = doc.format === "video"
-        ? (doc.videoUrl ? [doc.videoUrl] : [])
+      // Reaplica legibilidade antes de exportar (idempotente; mantém edições manuais consistentes)
+      const safeDoc = ensureReadableTextLayers(doc, brandPalette);
+      if (safeDoc !== doc) replaceDoc(safeDoc);
+      const urls = safeDoc.format === "video"
+        ? (safeDoc.videoUrl ? [safeDoc.videoUrl] : [])
         : await exportSlides();
       if (!urls.length) {
         toast.error("Nada para salvar");
         return;
       }
-      // Garante que o doc salvo preserve um fundo visual reabrindo corretamente
       const fallbackList = (fallbackImageUrls && fallbackImageUrls.length)
         ? fallbackImageUrls
         : (fallbackImageUrl ? [fallbackImageUrl] : []);
-      const docToPersist = ensureDocHasVisualFallbacks(doc, fallbackList);
+      const docToPersist = ensureDocHasVisualFallbacks(safeDoc, fallbackList);
       const updated = await updateCreation(editingCreationId, {
         urls,
         thumbnailUrl: urls[0],
