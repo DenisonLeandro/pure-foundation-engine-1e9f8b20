@@ -83,9 +83,13 @@ export function OutputScreen({
     if (!user) return [];
     const out: string[] = [];
     for (const url of media) {
+      // Validação: descarta URLs vazias/inválidas antes de enviar pro Post for Me.
+      if (!url || typeof url !== "string") continue;
+      if (url.startsWith("data:") && url.length < 200) continue;
       try {
         if (url.startsWith("data:")) {
           const blob = dataUrlToBlob(url);
+          if (!blob.size) continue;
           const path = `studio/${user.id}/pub_${crypto.randomUUID()}.png`;
           const { error } = await supabase.storage.from("media").upload(path, blob, { contentType: "image/png" });
           if (error) throw error;
