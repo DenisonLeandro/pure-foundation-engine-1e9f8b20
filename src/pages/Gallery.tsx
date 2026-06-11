@@ -104,6 +104,7 @@ export default function Gallery() {
         creationId: creation.id,
         fallbackImageUrl: fallback,
         fallbackImageUrls: urls,
+        caption: creation.caption ?? null,
       },
     });
   }
