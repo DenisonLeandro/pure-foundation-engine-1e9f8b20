@@ -117,6 +117,7 @@ export default function Studio() {
         onBack={back}
         editingCreationId={editingCreationId}
         fallbackImageUrl={fallbackImageUrl}
+        fallbackImageUrls={fallbackImageUrls}
       />
     </div>
   );
