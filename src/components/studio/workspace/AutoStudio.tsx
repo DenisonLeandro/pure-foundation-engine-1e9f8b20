@@ -317,6 +317,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       };
 
       let slides: Slide[];
+      const composedUrls: string[] = [];
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
         if (!specs.length) throw new Error("A IA não retornou slides.");
@@ -326,8 +327,24 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         for (let i = 0; i < specs.length; i++) {
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
           const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
-          const img = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, pickTemplate(i));
-          slides.push({ bg: grad, bgImage: img, els: [] });
+          const tpl = pickTemplate(i);
+          const { cleanBg, composed } = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, tpl);
+          // Persiste o fundo limpo (sobe data: URLs pro storage) pra ele sobreviver no design_doc.
+          const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
+          slides.push({
+            bg: grad,
+            bgImage: persistedClean || composed,
+            els: buildEditableEls({
+              heading: specs[i].heading,
+              body: specs[i].body,
+              brandHandle: brand?.handle,
+              brandColor: brand?.colors?.[0],
+              index: i,
+              total: specs.length,
+              template: tpl,
+            }),
+          });
+          if (composed) composedUrls.push(composed);
         }
       } else {
         setProgress("Gerando a arte…");
@@ -342,8 +359,21 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
           ? (layoutMode as SlideTemplate)
           : (["bottom", "side-bar", "kicker", "center-card"] as SlideTemplate[])[Math.floor(Math.random() * 4)];
         const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
-        const img = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
-        slides = [{ bg: grad, bgImage: img, els: [] }];
+        const { cleanBg, composed } = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
+        const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
+        slides = [{
+          bg: grad,
+          bgImage: persistedClean || composed,
+          els: buildEditableEls({
+            heading: head,
+            brandHandle: brand?.handle,
+            brandColor: brand?.colors?.[0],
+            index: 0,
+            total: 1,
+            template: soloTemplate,
+          }),
+        }];
+        if (composed) composedUrls.push(composed);
       }
 
 
@@ -357,7 +387,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       };
       setDoc(finalDoc);
       toast.success("Criação pronta!");
-      autoSave(finalDoc);
+      autoSave(finalDoc, composedUrls);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar");
     } finally {
