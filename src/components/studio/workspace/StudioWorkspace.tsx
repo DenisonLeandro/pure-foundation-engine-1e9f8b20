@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft, Save, Loader2,
+  PanelLeft, Quote, ArrowLeft, Save, Loader2, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import { FlowBar } from "./FlowBar";
 import { PublishDrawer } from "./PublishDrawer";
 import type { StudioDoc, StudioFormat } from "./types";
 import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
+import { ensureReadableTextLayers } from "./designReadability";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
