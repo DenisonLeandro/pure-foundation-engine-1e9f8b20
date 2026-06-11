@@ -19,6 +19,7 @@ import { AssetsRail } from "./AssetsRail";
 import { FlowBar } from "./FlowBar";
 import { PublishDrawer } from "./PublishDrawer";
 import type { StudioDoc, StudioFormat } from "./types";
+import { ensureDocHasVisualFallback } from "@/pages/Studio";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
@@ -29,11 +30,11 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
 ];
 
 export function StudioWorkspace({
-  initial, onBack, editingCreationId,
-}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string }) {
+  initial, onBack, editingCreationId, fallbackImageUrl,
+}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string }) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner onBack={onBack} editingCreationId={editingCreationId} />
+      <WorkspaceInner onBack={onBack} editingCreationId={editingCreationId} fallbackImageUrl={fallbackImageUrl} />
     </StudioProvider>
   );
 }
@@ -86,7 +87,7 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ onBack, editingCreationId }: { onBack?: () => void; editingCreationId?: string }) {
+function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl }: { onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string }) {
   const { brands, defaultBrand } = useBrands();
   const { doc, set, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
@@ -103,10 +104,12 @@ function WorkspaceInner({ onBack, editingCreationId }: { onBack?: () => void; ed
         toast.error("Nada para salvar");
         return;
       }
+      // Garante que o doc salvo preserve um fundo visual reabrindo corretamente
+      const docToPersist = ensureDocHasVisualFallback(doc, fallbackImageUrl);
       const updated = await updateCreation(editingCreationId, {
         urls,
         thumbnailUrl: urls[0],
-        designDoc: sanitizeDesignDoc(doc),
+        designDoc: sanitizeDesignDoc(docToPersist),
       });
       if (!updated) {
         toast.error("Falha ao salvar alterações");

@@ -4,7 +4,7 @@ import { StudioEntry } from "@/components/studio/workspace/StudioEntry";
 import { AutoStudio } from "@/components/studio/workspace/AutoStudio";
 import { StudioWorkspace } from "@/components/studio/workspace/StudioWorkspace";
 import { emptyDoc } from "@/components/studio/workspace/StudioProvider";
-import type { StudioDoc } from "@/components/studio/workspace/types";
+import type { StudioDoc, Slide } from "@/components/studio/workspace/types";
 
 interface NavState {
   sourceContent?: string;
@@ -15,14 +15,34 @@ interface NavState {
   // Edição vinda da Galeria:
   designDoc?: StudioDoc;
   creationId?: string;
-  fallbackImageUrl?: string;
+  fallbackImageUrl?: string | null;
+}
+
+function isHttpUrl(s: unknown): s is string {
+  return typeof s === "string" && /^https?:\/\//i.test(s);
+}
+
+function slideHasVisual(s?: Slide): boolean {
+  if (!s) return false;
+  if (isHttpUrl(s.bgImage)) return true;
+  return (s.els || []).some((e) => e.type === "image" && isHttpUrl(e.src));
+}
+
+export function ensureDocHasVisualFallback(doc: StudioDoc, fallbackImageUrl?: string | null): StudioDoc {
+  if (!isHttpUrl(fallbackImageUrl)) return doc;
+  const slides = [...(doc.slides ?? [])];
+  if (!slides.length) slides.push({ bg: "#0b0b0f", els: [] });
+  if (!slideHasVisual(slides[0])) {
+    slides[0] = { ...slides[0], bgImage: fallbackImageUrl };
+  }
+  return { ...doc, slides };
 }
 
 function buildInitial(nav: NavState | null): StudioDoc | undefined {
   if (!nav) return undefined;
-  // 1) Doc editável vindo da Galeria — prioridade máxima.
+  // 1) Doc editável vindo da Galeria — prioridade máxima, com fallback visual.
   if (nav.designDoc && typeof nav.designDoc === "object" && Array.isArray(nav.designDoc.slides)) {
-    return nav.designDoc;
+    return ensureDocHasVisualFallback(nav.designDoc, nav.fallbackImageUrl);
   }
   // 2) Item antigo sem designDoc — construir doc inicial usando a imagem como fundo.
   if (nav.fallbackImageUrl) {
@@ -48,6 +68,7 @@ export default function Studio() {
   const nav = (useLocation().state as NavState | null) || null;
   const navInitial = useMemo(() => buildInitial(nav), [nav]);
   const editingCreationId = nav?.creationId;
+  const fallbackImageUrl = nav?.fallbackImageUrl ?? undefined;
 
   // Deep-link com estado abre direto no modo assistido (canvas) pré-preenchido.
   const [mode, setMode] = useState<"entry" | "auto" | "assisted">(navInitial ? "assisted" : "entry");
@@ -75,6 +96,7 @@ export default function Studio() {
         initial={handoffDoc ?? navInitial}
         onBack={back}
         editingCreationId={editingCreationId}
+        fallbackImageUrl={fallbackImageUrl}
       />
     </div>
   );
