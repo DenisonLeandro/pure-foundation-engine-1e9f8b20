@@ -20,7 +20,7 @@ export { dataUrlToBlob };
 export function DesignCanvas() {
   const {
     doc, slide, currentSlide, selectedElId, set, setSlides, patchSlide, patchEl,
-    addEl, pushHistory, select, setCurrentSlide, registerExporter,
+    addEl, delEl, pushHistory, select, setCurrentSlide, registerExporter,
   } = useStudio();
   const { brands } = useBrands();
   const brand = brands.find((b) => b.id === doc.brandId) || null;
