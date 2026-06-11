@@ -21,6 +21,7 @@ import { emptyDoc } from "./StudioProvider";
 import { buildEditableEls } from "./editableEls";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
+import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
 
 const ART_STYLES: { value: string; label: string; hint: string }[] = [
   { value: "auto", label: "Auto (IA escolhe)", hint: "" },
