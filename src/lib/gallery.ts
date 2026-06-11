@@ -306,5 +306,6 @@ function mapRow(row: any): Creation {
     published: row.published ?? false,
     createdAt: row.created_at,
     designDoc: (row.design_doc as EditableDesignDoc | null) ?? null,
+    caption: (row.caption as string | null) ?? null,
   };
 }
