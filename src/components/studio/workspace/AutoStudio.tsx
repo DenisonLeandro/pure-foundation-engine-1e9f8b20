@@ -104,12 +104,16 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const c2 = brand?.colors?.[1] || "#d946ef";
   const grad = `linear-gradient(135deg, ${c1}, ${c2})`;
 
-  // Auto-save na galeria. saveVisualToGallery agora faz upload de data: URLs automaticamente.
-  const autoSave = async (mediaOrDoc: StudioDoc) => {
+  // Auto-save na galeria. As `urls` finais já vêm compostas (com texto rasterizado)
+  // para preservar publicação/agendamento exatamente como antes. O `design_doc`
+  // guarda o fundo limpo + camadas de texto editáveis.
+  const autoSave = async (mediaOrDoc: StudioDoc, composedUrls?: string[]) => {
     try {
       const urls = mediaOrDoc.videoUrl
         ? [mediaOrDoc.videoUrl]
-        : mediaOrDoc.slides.map((s) => s.bgImage).filter(Boolean) as string[];
+        : (composedUrls && composedUrls.length
+            ? composedUrls
+            : (mediaOrDoc.slides.map((s) => s.bgImage).filter(Boolean) as string[]));
       if (urls.length) await saveVisualToGallery({
         urls,
         prompt: mediaOrDoc.caption || prompt.trim(),
