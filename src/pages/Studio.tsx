@@ -88,6 +88,7 @@ export default function Studio() {
   const navInitial = useMemo(() => buildInitial(nav), [nav]);
   const editingCreationId = nav?.creationId;
   const fallbackImageUrl = nav?.fallbackImageUrl ?? undefined;
+  const fallbackImageUrls = (nav?.fallbackImageUrls ?? []).filter(isHttpUrl);
 
   // Deep-link com estado abre direto no modo assistido (canvas) pré-preenchido.
   const [mode, setMode] = useState<"entry" | "auto" | "assisted">(navInitial ? "assisted" : "entry");
