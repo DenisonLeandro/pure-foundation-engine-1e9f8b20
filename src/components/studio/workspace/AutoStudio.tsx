@@ -485,6 +485,18 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Estilo visual</label>
+            <Select value={stylePreset} onValueChange={(v) => setStylePreset(v as StylePreset)} disabled={generating}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STYLE_PRESETS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {STYLE_PRESETS.find((s) => s.value === stylePreset)?.hint}
+            </p>
+          </div>
           <p className="text-[11px] text-muted-foreground">Em "Variado", cada slide do carrossel ganha uma composição diferente — não saem todos iguais.</p>
         </div>
 
