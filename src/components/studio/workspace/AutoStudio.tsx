@@ -161,7 +161,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     topic: string, objective: string, heading: string, body: string,
     idx: number, total: number, sceneBrief: string, styleHint: string, direction: string,
     template: SlideTemplate,
-  ): Promise<string | undefined> => {
+  ): Promise<{ cleanBg?: string; composed?: string }> => {
     // Pedimos APENAS o cenário visual — NUNCA texto/letras/logos. Os modelos de
     // imagem erram a grafia em pt-BR ("trabaio" no lugar de "trabalho"), então
     // o texto real é desenhado depois via canvas com fonte do navegador.
@@ -185,10 +185,10 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
 
     const { images } = await generateOpenAiImage({ prompt: artPrompt, size: "1024x1536", quality: "high", n: 1 });
     const bg = images?.[0];
-    if (!bg) return undefined;
+    if (!bg) return {};
 
     try {
-      return await composeSlideWithText({
+      const composed = await composeSlideWithText({
         bgUrl: bg,
         heading,
         body,
@@ -198,8 +198,9 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         total,
         template,
       });
+      return { cleanBg: bg, composed };
     } catch {
-      return bg;
+      return { cleanBg: bg, composed: bg };
     }
   };
 
