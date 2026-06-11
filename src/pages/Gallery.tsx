@@ -203,6 +203,7 @@ export default function Gallery() {
               onUseInPost={handleUseInPost}
               onDownload={handleDownload}
               onDelete={handleDeleteCreation}
+              onEditDesign={handleEditDesign}
             />
           ))}
         </div>
