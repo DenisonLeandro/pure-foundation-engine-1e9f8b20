@@ -108,6 +108,10 @@ export function PublishPanel({
   const publish = async () => {
     if (!selected.length) { toast.error("Selecione ao menos uma conta."); return; }
     if (when === "schedule" && !scheduledAt) { toast.error("Defina data e hora do agendamento."); return; }
+    if (!caption.trim()) {
+      const ok = typeof window !== "undefined" && window.confirm("Este post está sem legenda. Deseja continuar?");
+      if (!ok) return;
+    }
     setPublishing(true);
     setDone(false);
     try {
