@@ -47,6 +47,11 @@ export default function Gallery() {
   const [creations, setCreations] = useState<Creation[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Edição de legenda
+  const [captionEditing, setCaptionEditing] = useState<Creation | null>(null);
+  const [captionDraft, setCaptionDraft] = useState("");
+  const [captionSaving, setCaptionSaving] = useState(false);
+
   const loadCreations = useCallback(async () => {
     setLoading(true);
     const data = await getCreations();
