@@ -389,7 +389,9 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         platforms: brief.platforms as StudioDoc["platforms"],
       };
       // Garante contraste/legibilidade respeitando paleta da marca
-      const finalDoc = ensureReadableTextLayers(rawDoc, { colors: brand?.colors });
+      const readableDoc = ensureReadableTextLayers(rawDoc, { colors: brand?.colors });
+      // Refina estética: arredonda overlays, troca blocos duros por gradientes/acentos
+      const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, stylePreset);
       setDoc(finalDoc);
       toast.success("Criação pronta!");
       autoSave(finalDoc, composedUrls);
