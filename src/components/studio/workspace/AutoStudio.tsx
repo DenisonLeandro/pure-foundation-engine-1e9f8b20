@@ -21,6 +21,7 @@ import { emptyDoc } from "./StudioProvider";
 import { buildEditableEls } from "./editableEls";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
+import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
 
 const ART_STYLES: { value: string; label: string; hint: string }[] = [
   { value: "auto", label: "Auto (IA escolhe)", hint: "" },
@@ -75,6 +76,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const [artDirection, setArtDirection] = useState("");
   const [imageSource, setImageSource] = useState<"pexels" | "ai">("pexels");
   const [layoutMode, setLayoutMode] = useState<string>("auto");
+  const [stylePreset, setStylePreset] = useState<StylePreset>("auto");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(null);
@@ -387,7 +389,9 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         platforms: brief.platforms as StudioDoc["platforms"],
       };
       // Garante contraste/legibilidade respeitando paleta da marca
-      const finalDoc = ensureReadableTextLayers(rawDoc, { colors: brand?.colors });
+      const readableDoc = ensureReadableTextLayers(rawDoc, { colors: brand?.colors });
+      // Refina estética: arredonda overlays, troca blocos duros por gradientes/acentos
+      const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, stylePreset);
       setDoc(finalDoc);
       toast.success("Criação pronta!");
       autoSave(finalDoc, composedUrls);
@@ -480,6 +484,18 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
                 <SelectItem value="quote">Sempre citação</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Estilo visual</label>
+            <Select value={stylePreset} onValueChange={(v) => setStylePreset(v as StylePreset)} disabled={generating}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STYLE_PRESETS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {STYLE_PRESETS.find((s) => s.value === stylePreset)?.hint}
+            </p>
           </div>
           <p className="text-[11px] text-muted-foreground">Em "Variado", cada slide do carrossel ganha uma composição diferente — não saem todos iguais.</p>
         </div>

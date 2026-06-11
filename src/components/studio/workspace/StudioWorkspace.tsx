@@ -21,6 +21,7 @@ import { PublishDrawer } from "./PublishDrawer";
 import type { StudioDoc, StudioFormat } from "./types";
 import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
 import { ensureReadableTextLayers } from "./designReadability";
+import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
@@ -98,22 +99,33 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackI
   const { doc, set, replaceDoc, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
   const [savingDesign, setSavingDesign] = useState(false);
+  const [stylePreset, setStylePreset] = useState<StylePreset>("auto");
 
   const currentBrand = brands.find((b) => b.id === doc.brandId) || null;
   const brandPalette = { colors: currentBrand?.colors };
 
   const handleFixReadability = () => {
-    const fixed = ensureReadableTextLayers(doc, brandPalette);
-    replaceDoc(fixed);
+    const readable = ensureReadableTextLayers(doc, brandPalette);
+    const refined = refineDesignAesthetics(readable, brandPalette, stylePreset);
+    replaceDoc(refined);
     toast.success("Legibilidade ajustada");
+  };
+
+  const handleApplyStyle = (preset: StylePreset) => {
+    setStylePreset(preset);
+    const readable = ensureReadableTextLayers(doc, brandPalette);
+    const refined = refineDesignAesthetics(readable, brandPalette, preset);
+    replaceDoc(refined);
+    toast.success(`Estilo aplicado: ${STYLE_PRESETS.find((s) => s.value === preset)?.label}`);
   };
 
   const handleSaveDesign = async () => {
     if (!editingCreationId) return;
     setSavingDesign(true);
     try {
-      // Reaplica legibilidade antes de exportar (idempotente; mantém edições manuais consistentes)
-      const safeDoc = ensureReadableTextLayers(doc, brandPalette);
+      // Reaplica legibilidade + estética antes de exportar (idempotente)
+      const readable = ensureReadableTextLayers(doc, brandPalette);
+      const safeDoc = refineDesignAesthetics(readable, brandPalette, stylePreset);
       if (safeDoc !== doc) replaceDoc(safeDoc);
       const urls = safeDoc.format === "video"
         ? (safeDoc.videoUrl ? [safeDoc.videoUrl] : [])
@@ -197,6 +209,14 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackI
               <div className="mt-4"><RightRailContent /></div>
             </SheetContent>
           </Sheet>
+          <Select value={stylePreset} onValueChange={(v) => handleApplyStyle(v as StylePreset)}>
+            <SelectTrigger className="hidden h-9 w-[170px] md:flex" title="Estilo visual">
+              <SelectValue placeholder="Estilo visual" />
+            </SelectTrigger>
+            <SelectContent>
+              {STYLE_PRESETS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button
             variant="ghost"
             size="sm"
