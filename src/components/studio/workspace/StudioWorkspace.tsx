@@ -19,7 +19,7 @@ import { AssetsRail } from "./AssetsRail";
 import { FlowBar } from "./FlowBar";
 import { PublishDrawer } from "./PublishDrawer";
 import type { StudioDoc, StudioFormat } from "./types";
-import { ensureDocHasVisualFallback } from "@/pages/Studio";
+import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
@@ -30,11 +30,16 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
 ];
 
 export function StudioWorkspace({
-  initial, onBack, editingCreationId, fallbackImageUrl,
-}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string }) {
+  initial, onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls,
+}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string; fallbackImageUrls?: string[] }) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner onBack={onBack} editingCreationId={editingCreationId} fallbackImageUrl={fallbackImageUrl} />
+      <WorkspaceInner
+        onBack={onBack}
+        editingCreationId={editingCreationId}
+        fallbackImageUrl={fallbackImageUrl}
+        fallbackImageUrls={fallbackImageUrls}
+      />
     </StudioProvider>
   );
 }
@@ -87,7 +92,7 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl }: { onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string }) {
+function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls }: { onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string; fallbackImageUrls?: string[] }) {
   const { brands, defaultBrand } = useBrands();
   const { doc, set, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
@@ -105,7 +110,10 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl }: { onBac
         return;
       }
       // Garante que o doc salvo preserve um fundo visual reabrindo corretamente
-      const docToPersist = ensureDocHasVisualFallback(doc, fallbackImageUrl);
+      const fallbackList = (fallbackImageUrls && fallbackImageUrls.length)
+        ? fallbackImageUrls
+        : (fallbackImageUrl ? [fallbackImageUrl] : []);
+      const docToPersist = ensureDocHasVisualFallbacks(doc, fallbackList);
       const updated = await updateCreation(editingCreationId, {
         urls,
         thumbnailUrl: urls[0],

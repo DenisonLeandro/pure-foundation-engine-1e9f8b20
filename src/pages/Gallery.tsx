@@ -76,7 +76,8 @@ export default function Gallery() {
   }
 
   function handleEditDesign(creation: Creation) {
-    const fallback = creation.urls?.[0] ?? creation.thumbnailUrl ?? null;
+    const urls = creation.urls ?? [];
+    const fallback = urls[0] ?? creation.thumbnailUrl ?? null;
     if (!creation.designDoc && !fallback) {
       toast({ title: "Sem imagem para editar", variant: "destructive" });
       return;
@@ -92,6 +93,7 @@ export default function Gallery() {
         designDoc: creation.designDoc ?? null,
         creationId: creation.id,
         fallbackImageUrl: fallback,
+        fallbackImageUrls: urls,
       },
     });
   }

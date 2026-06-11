@@ -13,11 +13,12 @@ import {
 } from "@/lib/api";
 import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/brand";
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
-import { saveVisualToGallery, sanitizeDesignDoc } from "@/lib/gallery";
+import { saveVisualToGallery, sanitizeDesignDoc, persistUrls } from "@/lib/gallery";
 import { composeSlideWithText, SLIDE_TEMPLATES, preferredCleanArea, type SlideTemplate } from "@/lib/slide-compose";
 import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
+import { buildEditableEls } from "./editableEls";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 
 const ART_STYLES: { value: string; label: string; hint: string }[] = [
@@ -103,12 +104,16 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
   const c2 = brand?.colors?.[1] || "#d946ef";
   const grad = `linear-gradient(135deg, ${c1}, ${c2})`;
 
-  // Auto-save na galeria. saveVisualToGallery agora faz upload de data: URLs automaticamente.
-  const autoSave = async (mediaOrDoc: StudioDoc) => {
+  // Auto-save na galeria. As `urls` finais já vêm compostas (com texto rasterizado)
+  // para preservar publicação/agendamento exatamente como antes. O `design_doc`
+  // guarda o fundo limpo + camadas de texto editáveis.
+  const autoSave = async (mediaOrDoc: StudioDoc, composedUrls?: string[]) => {
     try {
       const urls = mediaOrDoc.videoUrl
         ? [mediaOrDoc.videoUrl]
-        : mediaOrDoc.slides.map((s) => s.bgImage).filter(Boolean) as string[];
+        : (composedUrls && composedUrls.length
+            ? composedUrls
+            : (mediaOrDoc.slides.map((s) => s.bgImage).filter(Boolean) as string[]));
       if (urls.length) await saveVisualToGallery({
         urls,
         prompt: mediaOrDoc.caption || prompt.trim(),
@@ -156,7 +161,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     topic: string, objective: string, heading: string, body: string,
     idx: number, total: number, sceneBrief: string, styleHint: string, direction: string,
     template: SlideTemplate,
-  ): Promise<string | undefined> => {
+  ): Promise<{ cleanBg?: string; composed?: string }> => {
     // Pedimos APENAS o cenário visual — NUNCA texto/letras/logos. Os modelos de
     // imagem erram a grafia em pt-BR ("trabaio" no lugar de "trabalho"), então
     // o texto real é desenhado depois via canvas com fonte do navegador.
@@ -180,10 +185,10 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
 
     const { images } = await generateOpenAiImage({ prompt: artPrompt, size: "1024x1536", quality: "high", n: 1 });
     const bg = images?.[0];
-    if (!bg) return undefined;
+    if (!bg) return {};
 
     try {
-      return await composeSlideWithText({
+      const composed = await composeSlideWithText({
         bgUrl: bg,
         heading,
         body,
@@ -193,8 +198,9 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         total,
         template,
       });
+      return { cleanBg: bg, composed };
     } catch {
-      return bg;
+      return { cleanBg: bg, composed: bg };
     }
   };
 
@@ -217,7 +223,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     topic: string, objective: string, heading: string, body: string,
     idx: number, total: number, sceneBrief: string, _styleHint: string, _direction: string,
     template: SlideTemplate,
-  ): Promise<string | undefined> => {
+  ): Promise<{ cleanBg?: string; composed?: string }> => {
     let bg: string | undefined;
     try {
       const query = await pickStockQuery(topic, heading, sceneBrief);
@@ -229,12 +235,12 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       if (images?.length) bg = images[idx % images.length].url;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao buscar foto no Pexels");
-      return undefined;
+      return {};
     }
-    if (!bg) return undefined;
+    if (!bg) return {};
 
     try {
-      return await composeSlideWithText({
+      const composed = await composeSlideWithText({
         bgUrl: bg,
         heading,
         body,
@@ -244,8 +250,9 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         total,
         template,
       });
+      return { cleanBg: bg, composed };
     } catch {
-      return bg;
+      return { cleanBg: bg, composed: bg };
     }
   };
 
@@ -310,6 +317,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       };
 
       let slides: Slide[];
+      const composedUrls: string[] = [];
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
         if (!specs.length) throw new Error("A IA não retornou slides.");
@@ -319,8 +327,24 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         for (let i = 0; i < specs.length; i++) {
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
           const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
-          const img = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, pickTemplate(i));
-          slides.push({ bg: grad, bgImage: img, els: [] });
+          const tpl = pickTemplate(i);
+          const { cleanBg, composed } = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, tpl);
+          // Persiste o fundo limpo (sobe data: URLs pro storage) pra ele sobreviver no design_doc.
+          const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
+          slides.push({
+            bg: grad,
+            bgImage: persistedClean || composed,
+            els: buildEditableEls({
+              heading: specs[i].heading,
+              body: specs[i].body,
+              brandHandle: brand?.handle,
+              brandColor: brand?.colors?.[0],
+              index: i,
+              total: specs.length,
+              template: tpl,
+            }),
+          });
+          if (composed) composedUrls.push(composed);
         }
       } else {
         setProgress("Gerando a arte…");
@@ -335,8 +359,21 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
           ? (layoutMode as SlideTemplate)
           : (["bottom", "side-bar", "kicker", "center-card"] as SlideTemplate[])[Math.floor(Math.random() * 4)];
         const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
-        const img = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
-        slides = [{ bg: grad, bgImage: img, els: [] }];
+        const { cleanBg, composed } = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
+        const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
+        slides = [{
+          bg: grad,
+          bgImage: persistedClean || composed,
+          els: buildEditableEls({
+            heading: head,
+            brandHandle: brand?.handle,
+            brandColor: brand?.colors?.[0],
+            index: 0,
+            total: 1,
+            template: soloTemplate,
+          }),
+        }];
+        if (composed) composedUrls.push(composed);
       }
 
 
@@ -350,7 +387,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       };
       setDoc(finalDoc);
       toast.success("Criação pronta!");
-      autoSave(finalDoc);
+      autoSave(finalDoc, composedUrls);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar");
     } finally {
