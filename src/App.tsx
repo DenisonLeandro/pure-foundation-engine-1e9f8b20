@@ -82,23 +82,23 @@ function RequireSetupAccess({ children }: { children: React.ReactNode }) {
 
 function RequireAppAccess({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthEnabled } = useAuth();
-  const { onboardingCompleted, configLoading } = useApp();
+  const { configLoading } = useApp();
 
   if (loading || configLoading) return <PageLoader />;
   if (!isAuthEnabled) return <>{children}</>;
   if (!user) return <Navigate to="/login" replace />;
-  if (!onboardingCompleted) return <Navigate to="/setup" replace />;
+  
   return <>{children}</>;
 }
 // Redirect to dashboard if already authenticated
 function GuestOnly({ children }: { children: React.ReactNode }) {
   const { user, loading, isAuthEnabled } = useAuth();
-  const { onboardingCompleted, configLoading } = useApp();
+  const { configLoading } = useApp();
 
   if (loading || (isAuthEnabled && user && configLoading)) return <PageLoader />;
   // If auth not configured, show the page (login will work when configured)
   if (!isAuthEnabled) return <>{children}</>;
-  if (user) return <Navigate to={onboardingCompleted ? "/dashboard" : "/setup"} replace />;
+  if (user) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -110,13 +110,13 @@ function ThemeBoot({ children }: { children: React.ReactNode }) {
 // Decide pra onde mandar quando o usuário abre a raiz "/"
 function RootRedirect() {
   const { user, loading, isAuthEnabled } = useAuth();
-  const { onboardingCompleted, configLoading } = useApp();
+  const { configLoading } = useApp();
 
   if (loading) return <PageLoader />;
   if (!isAuthEnabled) return <Navigate to="/dashboard" replace />;
   if (!user) return <Navigate to="/login" replace />;
   if (configLoading) return <PageLoader />;
-  return <Navigate to={onboardingCompleted ? "/dashboard" : "/setup"} replace />;
+  return <Navigate to="/dashboard" replace />;
 }
 
 const App = () => (
