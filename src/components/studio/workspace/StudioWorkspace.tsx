@@ -92,7 +92,7 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl }: { onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string }) {
+function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls }: { onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string; fallbackImageUrls?: string[] }) {
   const { brands, defaultBrand } = useBrands();
   const { doc, set, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
@@ -110,7 +110,10 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl }: { onBac
         return;
       }
       // Garante que o doc salvo preserve um fundo visual reabrindo corretamente
-      const docToPersist = ensureDocHasVisualFallback(doc, fallbackImageUrl);
+      const fallbackList = (fallbackImageUrls && fallbackImageUrls.length)
+        ? fallbackImageUrls
+        : (fallbackImageUrl ? [fallbackImageUrl] : []);
+      const docToPersist = ensureDocHasVisualFallbacks(doc, fallbackList);
       const updated = await updateCreation(editingCreationId, {
         urls,
         thumbnailUrl: urls[0],
