@@ -164,22 +164,24 @@ export function ensureReadableTextLayers(doc: StudioDoc, brand: BrandPalette = {
       }
 
       // Sem cor de fundo conhecida (imagem) OU paleta não resolve:
-      // adiciona overlay seguro atrás do texto e força cor segura.
-      // Decide overlay claro vs escuro: prefere escuro (texto branco fica natural).
+      // adiciona overlay SUTIL atrás do texto e força cor segura.
+      // Opacidades baixas (≤ 0.42) + radius generoso para evitar "tarja quadrada".
       const preferDarkOverlay = decideOverlayTone(currentColor);
-      const overlayBg = preferDarkOverlay ? "rgba(10,15,30,0.55)" : "rgba(255,255,255,0.78)";
+      const overlayBg = preferDarkOverlay ? "rgba(10,15,30,0.38)" : "rgba(255,255,255,0.55)";
       const safeText = preferDarkOverlay ? SAFE_LIGHT : SAFE_DARK;
 
-      const pad = 10;
+      const padX = 14;
+      const padY = 8;
       newEls.push({
         id: AUTO_BG_PREFIX + uid(),
         type: "shape",
-        x: Math.max(0, el.x - pad),
-        y: Math.max(0, el.y - pad / 2),
-        w: el.w + pad * 2,
-        h: el.h + pad,
+        x: Math.max(0, el.x - padX),
+        y: Math.max(0, el.y - padY),
+        w: el.w + padX * 2,
+        h: el.h + padY * 2,
         bg: overlayBg,
         opacity: 1,
+        radius: 18,
       });
       newEls.push({ ...el, color: safeText });
     }
