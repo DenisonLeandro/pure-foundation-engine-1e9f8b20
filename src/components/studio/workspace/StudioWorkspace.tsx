@@ -301,7 +301,15 @@ function WorkspaceInner({
       {/* Top bar */}
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3 sm:px-4">
         {onBack && (
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onBack} title="Trocar modo"><ArrowLeft className="h-4 w-4" /></Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={() => requestExit("back")}
+            title={creationId ? "Voltar" : "Trocar modo"}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
         )}
         {/* mobile: abrir rail de ferramentas */}
         <Sheet>
