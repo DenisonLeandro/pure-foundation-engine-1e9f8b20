@@ -31,9 +31,21 @@ function isValidDraft(d: unknown): d is StudioDraft {
   return !!doc && typeof doc === "object" && Array.isArray(doc.slides) && doc.slides.length > 0;
 }
 
+/** Doc "intocado" (em branco padrão) não vira rascunho — evita restaurar Studio vazio com toast. */
+function isPristineDoc(doc: StudioDoc): boolean {
+  if (doc.caption) return false;
+  if ((doc.slides?.length ?? 0) !== 1) return false;
+  const s = doc.slides[0];
+  if (s.bgImage) return false;
+  const els = s.els ?? [];
+  if (els.length === 0) return true;
+  return els.length === 1 && els[0].type === "text" && els[0].text === "Toque para editar";
+}
+
 /** Salva o rascunho local. Remove data:/blob: via sanitizeDesignDoc (nunca persiste base64). */
 export function saveStudioDraft(userId: string, input: StudioDraftInput): void {
   try {
+    if (!input.creationId && isPristineDoc(input.doc)) return;
     const safeDoc = sanitizeDesignDoc(input.doc) as unknown as StudioDoc | null;
     if (!safeDoc || !Array.isArray(safeDoc.slides) || !safeDoc.slides.length) return;
     const payload: StudioDraft = {
