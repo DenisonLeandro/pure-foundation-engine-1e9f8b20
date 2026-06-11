@@ -223,7 +223,7 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
     topic: string, objective: string, heading: string, body: string,
     idx: number, total: number, sceneBrief: string, _styleHint: string, _direction: string,
     template: SlideTemplate,
-  ): Promise<string | undefined> => {
+  ): Promise<{ cleanBg?: string; composed?: string }> => {
     let bg: string | undefined;
     try {
       const query = await pickStockQuery(topic, heading, sceneBrief);
@@ -235,12 +235,12 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
       if (images?.length) bg = images[idx % images.length].url;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao buscar foto no Pexels");
-      return undefined;
+      return {};
     }
-    if (!bg) return undefined;
+    if (!bg) return {};
 
     try {
-      return await composeSlideWithText({
+      const composed = await composeSlideWithText({
         bgUrl: bg,
         heading,
         body,
@@ -250,8 +250,9 @@ export function AutoStudio({ onEditInCanvas, onBack }: { onEditInCanvas: (doc: S
         total,
         template,
       });
+      return { cleanBg: bg, composed };
     } catch {
-      return bg;
+      return { cleanBg: bg, composed: bg };
     }
   };
 
