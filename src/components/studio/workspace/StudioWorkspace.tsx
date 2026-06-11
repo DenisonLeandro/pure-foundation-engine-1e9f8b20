@@ -252,6 +252,7 @@ function WorkspaceInner({
         prompt: out.safeDoc.caption || undefined,
         templateName: "Studio",
         designDoc: sanitizeDesignDoc(out.safeDoc),
+        caption: out.safeDoc.caption ?? "",
       });
       if (!created?.id) { toast.error("Falha ao salvar na Galeria"); return false; }
       setCreationId(created.id);
