@@ -20,7 +20,7 @@ export { dataUrlToBlob };
 export function DesignCanvas() {
   const {
     doc, slide, currentSlide, selectedElId, set, setSlides, patchSlide, patchEl,
-    addEl, pushHistory, select, setCurrentSlide, registerExporter,
+    addEl, delEl, pushHistory, select, setCurrentSlide, registerExporter,
   } = useStudio();
   const { brands } = useBrands();
   const brand = brands.find((b) => b.id === doc.brandId) || null;
@@ -47,6 +47,21 @@ export function DesignCanvas() {
     window.addEventListener("mouseup", up);
     return () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
   }, [patchEl]);
+
+  // ── delete selected element via keyboard ──
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== "Delete" && ev.key !== "Backspace") return;
+      const target = ev.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      if (selectedElId) {
+        ev.preventDefault();
+        delEl(selectedElId);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedElId, delEl]);
 
   const startDrag = (ev: React.MouseEvent, e: El) => {
     ev.stopPropagation();
@@ -247,6 +262,18 @@ export function DesignCanvas() {
       {/* canvas */}
       <div className="relative" style={{ width: CANVAS_W, height: CANVAS_H }}>
         {doc.slides.map((s, i) => renderSlide(s, i, exporting))}
+        {selectedElId && !exporting && (
+          <div className="absolute -bottom-9 left-0 right-0 flex justify-center">
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-7 gap-1 rounded-full px-3 text-xs shadow-md"
+              onClick={() => { if (selectedElId) delEl(selectedElId); }}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Apagar
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* carousel nav */}
