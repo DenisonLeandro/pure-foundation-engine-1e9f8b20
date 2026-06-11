@@ -295,5 +295,6 @@ function mapRow(row: any): Creation {
     sourceId: row.source_id || undefined,
     published: row.published ?? false,
     createdAt: row.created_at,
+    designDoc: (row.design_doc as EditableDesignDoc | null) ?? null,
   };
 }
