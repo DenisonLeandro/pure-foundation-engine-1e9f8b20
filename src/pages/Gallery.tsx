@@ -82,7 +82,13 @@ export default function Gallery() {
   }
 
   function handleUseInPost(creation: Creation) {
-    navigate("/studio", { state: { mediaUrls: creation.urls, fromVisual: true } });
+    navigate("/studio", {
+      state: {
+        mediaUrls: creation.urls,
+        fromVisual: true,
+        caption: creation.caption ?? null,
+      },
+    });
   }
 
   function handleEditDesign(creation: Creation) {
