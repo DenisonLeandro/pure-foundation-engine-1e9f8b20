@@ -21,6 +21,7 @@ import { PublishDrawer } from "./PublishDrawer";
 import type { StudioDoc, StudioFormat } from "./types";
 import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
 import { ensureReadableTextLayers } from "./designReadability";
+import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
