@@ -413,6 +413,11 @@ function CreationCard({
         <p className="truncate text-sm font-medium">
           {creation.templateName ?? "Sem nome"}
         </p>
+        {captionSnippet && (
+          <p className="line-clamp-2 text-[11px] text-muted-foreground/90 italic">
+            {captionSnippet}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">{date}</p>
         <div>
           {creation.published ? (
