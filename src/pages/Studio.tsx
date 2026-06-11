@@ -86,7 +86,7 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
   const base = emptyDoc("post", null);
   return {
     ...base,
-    caption: nav.sourceContent || nav.prompt || "",
+    caption: (typeof nav.caption === "string" && nav.caption) || nav.sourceContent || nav.prompt || "",
     slides: nav.mediaUrls?.length ? [{ bg: base.slides[0].bg, bgImage: nav.mediaUrls[0], els: [] }] : base.slides,
     schedule: nav.scheduleAt ? { when: "schedule", at: nav.scheduleAt } : { when: "now" },
   };
