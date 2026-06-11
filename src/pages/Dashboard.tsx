@@ -76,10 +76,12 @@ function platformIcon(platform: string): React.ReactNode {
 // ─── Component ──────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const { accounts, config } = useApp();
+  const { accounts, config, configLoading } = useApp();
   const scheduledPostsQuery = usePfmPosts({ status: "scheduled", limit: 50 });
   const pfmAccountsQuery = usePfmAccounts();
   const { toast } = useToast();
+  const [apisBannerDismissed, setApisBannerDismissed] = useState(false);
+  const showApisBanner = !configLoading && !config.postformeApiKey && !apisBannerDismissed;
 
   // Banner de configurações pendentes (mostrado uma vez após onboarding com itens pulados)
   const [pendingDismissed, setPendingDismissed] = useState(false);
@@ -265,6 +267,31 @@ export default function Dashboard() {
           Visão geral da sua automação de redes sociais
         </p>
       </div>
+
+      {/* Banner: APIs não conectadas (informacional) */}
+      {showApisBanner && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 flex gap-3 items-start">
+          <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-2">
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Suas APIs ainda não estão conectadas. Conecte em Configurações para publicar conteúdo.
+            </p>
+            <Button asChild size="sm" variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10">
+              <Link to="/setup">
+                <Settings className="h-3.5 w-3.5 mr-1.5" />
+                Abrir Configurações
+              </Link>
+            </Button>
+          </div>
+          <button
+            onClick={() => setApisBannerDismissed(true)}
+            className="text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Banner: configurações pendentes do onboarding */}
       {hasPending && pendingItems.length > 0 && (
