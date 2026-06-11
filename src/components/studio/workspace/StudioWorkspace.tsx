@@ -1,12 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft, Save, Loader2, Eye,
+  PanelLeft, Quote, ArrowLeft, Save, Loader2, Eye, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
@@ -22,6 +26,7 @@ import type { StudioDoc, StudioFormat } from "./types";
 import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
+import { saveStudioDraft, clearStudioDrafts, type StudioDraftInput } from "./studioDraft";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
@@ -31,17 +36,26 @@ const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] 
   { value: "video", label: "Vídeo", icon: Film },
 ];
 
-export function StudioWorkspace({
-  initial, onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls,
-}: { initial?: StudioDoc; onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string; fallbackImageUrls?: string[] }) {
+interface WorkspaceProps {
+  initial?: StudioDoc;
+  onBack?: () => void;
+  editingCreationId?: string;
+  fallbackImageUrl?: string;
+  fallbackImageUrls?: string[];
+  /** Habilita autosave local do rascunho (chave por usuário/marca). */
+  draftUserId?: string;
+  /** Slide restaurado do rascunho local. */
+  initialSlide?: number;
+  /** Estilo visual restaurado do rascunho local. */
+  initialStylePreset?: StylePreset;
+  /** Chamado após descartar o rascunho (Studio reseta para a entrada). */
+  onDraftDiscarded?: () => void;
+}
+
+export function StudioWorkspace({ initial, ...rest }: WorkspaceProps) {
   return (
     <StudioProvider initial={initial}>
-      <WorkspaceInner
-        onBack={onBack}
-        editingCreationId={editingCreationId}
-        fallbackImageUrl={fallbackImageUrl}
-        fallbackImageUrls={fallbackImageUrls}
-      />
+      <WorkspaceInner {...rest} />
     </StudioProvider>
   );
 }
@@ -94,15 +108,62 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls }: { onBack?: () => void; editingCreationId?: string; fallbackImageUrl?: string; fallbackImageUrls?: string[] }) {
+function WorkspaceInner({
+  onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls,
+  draftUserId, initialSlide, initialStylePreset, onDraftDiscarded,
+}: Omit<WorkspaceProps, "initial">) {
   const { brands, defaultBrand } = useBrands();
-  const { doc, set, replaceDoc, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
+  const { doc, set, replaceDoc, undo, redo, canUndo, canRedo, exportSlides, currentSlide, setCurrentSlide } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
   const [savingDesign, setSavingDesign] = useState(false);
-  const [stylePreset, setStylePreset] = useState<StylePreset>("auto");
+  const [stylePreset, setStylePreset] = useState<StylePreset>(initialStylePreset ?? "auto");
 
   const currentBrand = brands.find((b) => b.id === doc.brandId) || null;
   const brandPalette = { colors: currentBrand?.colors };
+
+  // ── Rascunho local (autosave) ──────────────────────────────────
+  const discardedRef = useRef(false);
+  const draftPayloadRef = useRef<StudioDraftInput | null>(null);
+
+  // Restaura o slide ativo do rascunho — uma única vez, na montagem.
+  const slideRestoredRef = useRef(false);
+  useEffect(() => {
+    if (slideRestoredRef.current) return;
+    slideRestoredRef.current = true;
+    if (typeof initialSlide === "number" && initialSlide > 0 && initialSlide < doc.slides.length) {
+      setCurrentSlide(initialSlide);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autosave com debounce (700ms) sempre que doc/slide/estilo mudarem.
+  useEffect(() => {
+    if (!draftUserId || discardedRef.current) return;
+    const fallbacks = (fallbackImageUrls && fallbackImageUrls.length)
+      ? fallbackImageUrls
+      : (fallbackImageUrl ? [fallbackImageUrl] : []);
+    draftPayloadRef.current = { doc, currentSlide, stylePreset, creationId: editingCreationId, fallbackImageUrls: fallbacks };
+    const t = setTimeout(() => {
+      if (!discardedRef.current && draftPayloadRef.current) saveStudioDraft(draftUserId, draftPayloadRef.current);
+    }, 700);
+    return () => clearTimeout(t);
+  }, [doc, currentSlide, stylePreset, draftUserId, editingCreationId, fallbackImageUrl, fallbackImageUrls]);
+
+  // Flush no desmonte (troca de rota/aba interna) — garante que edições <700ms não se percam.
+  useEffect(() => {
+    return () => {
+      if (draftUserId && !discardedRef.current && draftPayloadRef.current) {
+        saveStudioDraft(draftUserId, draftPayloadRef.current);
+      }
+    };
+  }, [draftUserId]);
+
+  const handleDiscardDraft = () => {
+    discardedRef.current = true;
+    if (draftUserId) clearStudioDrafts(draftUserId);
+    toast.success("Rascunho descartado");
+    onDraftDiscarded?.();
+  };
 
   const handleFixReadability = () => {
     const readable = ensureReadableTextLayers(doc, brandPalette);
@@ -235,6 +296,27 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackI
           >
             <Eye className="h-4 w-4" />
           </Button>
+          {draftUserId && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground" title="Descartar rascunho">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Descartar rascunho</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Tem certeza que deseja descartar este rascunho? O design atual será removido e o Studio voltará vazio.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDiscardDraft}>Descartar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           {editingCreationId && (
             <Button
               variant="outline"

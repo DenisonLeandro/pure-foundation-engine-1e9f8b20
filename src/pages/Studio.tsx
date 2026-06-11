@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { toast } from "sonner";
 import { StudioEntry } from "@/components/studio/workspace/StudioEntry";
 import { AutoStudio } from "@/components/studio/workspace/AutoStudio";
 import { StudioWorkspace } from "@/components/studio/workspace/StudioWorkspace";
 import { emptyDoc } from "@/components/studio/workspace/StudioProvider";
+import { loadLatestStudioDraft, type StudioDraft } from "@/components/studio/workspace/studioDraft";
+import { useAuth } from "@/contexts/AuthContext";
 import type { StudioDoc, Slide } from "@/components/studio/workspace/types";
 
 interface NavState {
@@ -85,16 +88,46 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
 
 export default function Studio() {
   const nav = (useLocation().state as NavState | null) || null;
+  const { user } = useAuth();
+  const userId = user?.id;
   const navInitial = useMemo(() => buildInitial(nav), [nav]);
-  const editingCreationId = nav?.creationId;
-  const fallbackImageUrl = nav?.fallbackImageUrl ?? undefined;
-  const fallbackImageUrls = (nav?.fallbackImageUrls ?? []).filter(isHttpUrl);
+
+  // Rascunho local recuperado (quando não veio nada via navigation state).
+  const [draft, setDraft] = useState<StudioDraft | null>(null);
+  const restoreTried = useRef(false);
 
   // Deep-link com estado abre direto no modo assistido (canvas) pré-preenchido.
   const [mode, setMode] = useState<"entry" | "auto" | "assisted">(navInitial ? "assisted" : "entry");
   const [handoffDoc, setHandoffDoc] = useState<StudioDoc | undefined>(undefined);
 
+  // Restaura rascunho local ao abrir o Studio sem state — uma única vez, antes de o canvas montar.
+  useEffect(() => {
+    if (restoreTried.current || navInitial || !userId) return;
+    if (mode !== "entry") { restoreTried.current = true; return; }
+    restoreTried.current = true;
+    const d = loadLatestStudioDraft(userId);
+    if (d) {
+      setDraft(d);
+      setMode("assisted");
+      toast.message("Rascunho recuperado automaticamente.");
+    }
+  }, [userId, navInitial, mode]);
+
+  const draftInitial = useMemo(
+    () => (draft ? ensureDocHasVisualFallbacks(draft.doc, draft.fallbackImageUrls) : undefined),
+    [draft]
+  );
+
+  // Prioridade: navigation state > rascunho local.
+  const editingCreationId = nav?.creationId ?? (navInitial ? undefined : draft?.creationId);
+  const fallbackImageUrl = nav?.fallbackImageUrl ?? undefined;
+  const fallbackImageUrls = navInitial
+    ? (nav?.fallbackImageUrls ?? []).filter(isHttpUrl)
+    : (draft?.fallbackImageUrls ?? []).filter(isHttpUrl);
+
   const back = () => { setHandoffDoc(undefined); setMode("entry"); };
+  // Após descartar o rascunho, volta para a entrada com o Studio limpo.
+  const handleDraftDiscarded = () => { setDraft(null); setHandoffDoc(undefined); setMode("entry"); };
 
   if (mode === "entry") {
     return <StudioEntry onPick={setMode} />;
@@ -113,11 +146,15 @@ export default function Studio() {
   return (
     <div className="-m-4 sm:-m-6 lg:-m-8">
       <StudioWorkspace
-        initial={handoffDoc ?? navInitial}
+        initial={handoffDoc ?? navInitial ?? draftInitial}
         onBack={back}
         editingCreationId={editingCreationId}
         fallbackImageUrl={fallbackImageUrl}
         fallbackImageUrls={fallbackImageUrls}
+        draftUserId={userId}
+        initialSlide={navInitial ? undefined : draft?.currentSlide}
+        initialStylePreset={navInitial ? undefined : draft?.stylePreset}
+        onDraftDiscarded={handleDraftDiscarded}
       />
     </div>
   );
