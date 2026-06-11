@@ -75,6 +75,23 @@ export default function Gallery() {
     navigate("/studio", { state: { mediaUrls: creation.urls, fromVisual: true } });
   }
 
+  function handleEditDesign(creation: Creation) {
+    if (creation.designDoc) {
+      navigate("/studio", { state: { designDoc: creation.designDoc, creationId: creation.id } });
+      return;
+    }
+    const fallback = creation.urls?.[0] || creation.thumbnailUrl;
+    if (!fallback) {
+      toast({ title: "Sem imagem para editar", variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Item gerado como imagem estática",
+      description: "Vamos abrir o editor usando esta imagem como fundo. Você pode adicionar textos e salvar como versão editável.",
+    });
+    navigate("/studio", { state: { fallbackImageUrl: fallback, creationId: creation.id } });
+  }
+
   async function handleDownload(creation: Creation) {
     const urls = creation.urls?.length ? creation.urls : (creation.thumbnailUrl ? [creation.thumbnailUrl] : []);
     if (!urls.length) { toast({ title: "Nada para baixar" }); return; }
