@@ -86,10 +86,39 @@ function RightRailContent() {
   );
 }
 
-function WorkspaceInner({ onBack }: { onBack?: () => void }) {
+function WorkspaceInner({ onBack, editingCreationId }: { onBack?: () => void; editingCreationId?: string }) {
   const { brands, defaultBrand } = useBrands();
-  const { doc, set, undo, redo, canUndo, canRedo } = useStudio();
+  const { doc, set, undo, redo, canUndo, canRedo, exportSlides } = useStudio();
   const [publishOpen, setPublishOpen] = useState(false);
+  const [savingDesign, setSavingDesign] = useState(false);
+
+  const handleSaveDesign = async () => {
+    if (!editingCreationId) return;
+    setSavingDesign(true);
+    try {
+      const urls = doc.format === "video"
+        ? (doc.videoUrl ? [doc.videoUrl] : [])
+        : await exportSlides();
+      if (!urls.length) {
+        toast.error("Nada para salvar");
+        return;
+      }
+      const updated = await updateCreation(editingCreationId, {
+        urls,
+        thumbnailUrl: urls[0],
+        designDoc: sanitizeDesignDoc(doc),
+      });
+      if (!updated) {
+        toast.error("Falha ao salvar alterações");
+        return;
+      }
+      toast.success("Design atualizado");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar");
+    } finally {
+      setSavingDesign(false);
+    }
+  };
 
   useEffect(() => {
     if (!doc.brandId && defaultBrand) set({ brandId: defaultBrand.id }, false);
