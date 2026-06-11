@@ -199,11 +199,9 @@ function WorkspaceInner({
     toast.success(`Estilo aplicado: ${STYLE_PRESETS.find((s) => s.value === preset)?.label}`);
   };
 
-  /** Compõe doc + exporta imagens. Retorna null se nada para salvar. */
+  /** Exporta as imagens do doc atual sem modificar nada. */
   const composeAndExport = async (): Promise<{ safeDoc: StudioDoc; urls: string[] } | null> => {
-    const readable = ensureReadableTextLayers(doc, brandPalette);
-    const safeDoc = refineDesignAesthetics(readable, brandPalette, stylePreset);
-    if (safeDoc !== doc) replaceDoc(safeDoc);
+    const safeDoc = doc;
     const urls = safeDoc.format === "video"
       ? (safeDoc.videoUrl ? [safeDoc.videoUrl] : [])
       : await exportSlides();
