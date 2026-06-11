@@ -57,10 +57,15 @@ function pickAccent(palette: BrandPalette): string {
   return colors[0];
 }
 
-/** Heurística: o overlay é "grande" se cobre >55% da área do canvas. */
+/** Heurística: o overlay é "grande" se cobre >45% da área do canvas. */
 function isLargeOverlay(el: El): boolean {
   const area = (el.w * el.h) / (CANVAS_W * CANVAS_H);
-  return area > 0.55;
+  return area > 0.45;
+}
+
+/** Overlay cobre quase a largura inteira (vira tarja). */
+function isFullWidth(el: El): boolean {
+  return el.w / CANVAS_W > 0.85;
 }
 
 /** Estende um overlay para até as bordas (banda de rodapé/topo). */
