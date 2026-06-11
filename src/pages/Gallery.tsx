@@ -300,6 +300,17 @@ function CreationCard({
           >
             <Send className="h-4 w-4" />
           </Button>
+          {creation.type !== "video" && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+              title={creation.designDoc ? "Editar design" : "Editar design (criar versão editável)"}
+              onClick={() => onEditDesign(creation)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             size="icon"
             variant="ghost"
