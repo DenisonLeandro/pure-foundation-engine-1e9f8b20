@@ -382,6 +382,15 @@ function CreationCard({
             size="icon"
             variant="ghost"
             className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+            title="Editar legenda"
+            onClick={() => onEditCaption(creation)}
+          >
+            <MessageSquareText className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
             title="Baixar"
             onClick={() => onDownload(creation)}
           >
