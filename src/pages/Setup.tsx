@@ -27,15 +27,8 @@ export default function Setup() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
-  const hasAnySavedConfig = !!(
-    config.blotatoApiKey ||
-    config.postformeApiKey ||
-    config.apifyApiToken ||
-    config.firecrawlApiKey ||
-    config.higgsFieldApiId ||
-    config.higgsFieldApiSecret
-  );
-  const isManageMode = searchParams.get("manage") === "1" && (onboardingCompleted || hasAnySavedConfig);
+  const isWizardMode = searchParams.get("wizard") === "1";
+  const isManageMode = !isWizardMode;
 
   // Reset demo: se ?reset=1 na URL, limpa tudo
   useEffect(() => {
@@ -45,12 +38,6 @@ export default function Setup() {
       window.history.replaceState({}, "", "/setup");
     }
   }, []);
-
-  useEffect(() => {
-    if (!configLoading && onboardingCompleted && !isManageMode && searchParams.get("reset") !== "1") {
-      navigate("/setup?manage=1", { replace: true });
-    }
-  }, [configLoading, onboardingCompleted, isManageMode, navigate, searchParams]);
 
   useEffect(() => {
     if (configLoading) return;
@@ -310,7 +297,7 @@ export default function Setup() {
           const updated = {
             ...config,
             ...partial,
-            onboardingCompleted: config.onboardingCompleted || onboardingCompleted,
+            onboardingCompleted: true,
           };
           const savedConfig = await saveConfigToDb(updated);
           setConfig(savedConfig);

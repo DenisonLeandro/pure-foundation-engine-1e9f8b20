@@ -48,14 +48,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { config } = useApp();
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const hasAnySavedConfig = !!(
-    config.onboardingCompleted ||
-    config.postformeApiKey ||
-    config.apifyApiToken ||
-    config.firecrawlApiKey ||
-    config.higgsFieldApiId ||
-    config.higgsFieldApiSecret
-  );
 
   return (
     <div className="flex h-full flex-col">
@@ -136,10 +128,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           {theme === "dark" ? "Modo Claro" : "Modo Escuro"}
         </Button>
-        <NavLink
-          to={hasAnySavedConfig ? "/setup?manage=1" : "/setup"}
-          onClick={onNavigate}
-        >
+        <NavLink to="/setup" onClick={onNavigate}>
           <div
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
