@@ -20,6 +20,8 @@ interface NavState {
   creationId?: string;
   fallbackImageUrl?: string | null;
   fallbackImageUrls?: string[] | null;
+  /** Rota para a qual "Salvar e voltar" / "Voltar para Galeria" deve navegar. */
+  returnTo?: string;
 }
 
 function isHttpUrl(s: unknown): s is string {
@@ -169,6 +171,7 @@ export default function Studio() {
         initialSlide={navInitial ? undefined : draft?.currentSlide}
         initialStylePreset={navInitial ? undefined : draft?.stylePreset}
         onDraftDiscarded={handleDraftDiscarded}
+        returnTo={nav?.returnTo}
       />
     </div>
   );
