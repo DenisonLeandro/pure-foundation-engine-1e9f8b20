@@ -399,15 +399,33 @@ function WorkspaceInner({
               </AlertDialogContent>
             </AlertDialog>
           )}
-          {editingCreationId && (
+          <Button
+            variant="outline"
+            onClick={creationId ? handleSaveDesign : handleSaveToGallery}
+            disabled={savingDesign}
+            title={creationId ? "Salvar alterações nesta criação" : "Salvar este design na Galeria"}
+          >
+            {savingDesign ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            <span className="hidden sm:inline">{creationId ? "Salvar alterações" : "Salvar na Galeria"}</span>
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleSaveAndExit}
+            disabled={savingDesign}
+            title="Salvar e voltar para a Galeria"
+            className="hidden md:inline-flex"
+          >
+            <LogOut className="mr-2 h-4 w-4" /> Salvar e voltar
+          </Button>
+          {creationId && (
             <Button
-              variant="outline"
-              onClick={handleSaveDesign}
+              variant="ghost"
+              onClick={() => requestExit("gallery")}
               disabled={savingDesign}
-              title="Salvar alterações nesta criação"
+              title="Voltar para a Galeria"
+              className="hidden lg:inline-flex"
             >
-              {savingDesign ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              <span className="hidden sm:inline">Salvar alterações</span>
+              Voltar para Galeria
             </Button>
           )}
           <Button className="ml-1 bg-gradient-to-r from-violet-600 to-fuchsia-500" onClick={() => setPublishOpen(true)}>
@@ -415,6 +433,36 @@ function WorkspaceInner({
           </Button>
         </div>
       </header>
+
+      {/* Confirmação ao sair com alterações não salvas */}
+      <AlertDialog open={confirmExitOpen} onOpenChange={setConfirmExitOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterações não salvas</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você tem alterações não salvas. Deseja salvar antes de sair?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row">
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button
+              variant="ghost"
+              onClick={() => doExit(exitTargetRef.current)}
+            >
+              Sair sem salvar
+            </Button>
+            <AlertDialogAction
+              onClick={async () => {
+                const ok = creationId ? await handleSaveDesign() : await handleSaveToGallery();
+                if (ok) doExit(exitTargetRef.current);
+                else setConfirmExitOpen(false);
+              }}
+            >
+              Salvar e sair
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Middle */}
       <div className="flex min-h-0 flex-1">
