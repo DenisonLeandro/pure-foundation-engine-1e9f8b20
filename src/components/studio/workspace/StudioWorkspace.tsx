@@ -123,8 +123,9 @@ function WorkspaceInner({ onBack, editingCreationId, fallbackImageUrl, fallbackI
     if (!editingCreationId) return;
     setSavingDesign(true);
     try {
-      // Reaplica legibilidade antes de exportar (idempotente; mantém edições manuais consistentes)
-      const safeDoc = ensureReadableTextLayers(doc, brandPalette);
+      // Reaplica legibilidade + estética antes de exportar (idempotente)
+      const readable = ensureReadableTextLayers(doc, brandPalette);
+      const safeDoc = refineDesignAesthetics(readable, brandPalette, stylePreset);
       if (safeDoc !== doc) replaceDoc(safeDoc);
       const urls = safeDoc.format === "video"
         ? (safeDoc.videoUrl ? [safeDoc.videoUrl] : [])
