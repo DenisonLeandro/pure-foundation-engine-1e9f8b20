@@ -10,14 +10,19 @@ import {
   ImageOff,
   Loader2,
   Pencil,
+  MessageSquareText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
-import { getCreations, deleteCreation, type Creation } from "@/lib/gallery";
+import { getCreations, deleteCreation, updateCreation, type Creation } from "@/lib/gallery";
 
 // ─── Filter types ───────────────────────────────────────────────
 
