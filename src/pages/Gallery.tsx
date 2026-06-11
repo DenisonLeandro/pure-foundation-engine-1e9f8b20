@@ -9,6 +9,7 @@ import {
   Trash2,
   ImageOff,
   Loader2,
+  Pencil,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
