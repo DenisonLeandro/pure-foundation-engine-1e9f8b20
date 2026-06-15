@@ -105,11 +105,10 @@ function ThemeBoot({ children }: { children: React.ReactNode }) {
 
 // Decide pra onde mandar quando o usuário abre a raiz "/"
 function RootRedirect() {
-  const { user, loading, isAuthEnabled } = useAuth();
+  const { user, loading } = useAuth();
   const { configLoading } = useApp();
 
   if (loading) return <PageLoader />;
-  if (!isAuthEnabled) return <Navigate to="/dashboard" replace />;
   if (!user) return <Navigate to="/login" replace />;
   if (configLoading) return <PageLoader />;
   return <Navigate to="/dashboard" replace />;
