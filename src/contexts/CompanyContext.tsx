@@ -93,6 +93,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setPfmActiveCompany(activeCompanyId);
     setBlotatoActiveCompany(activeCompanyId);
+    setFirecrawlActiveCompany(activeCompanyId);
   }, [activeCompanyId]);
 
 
