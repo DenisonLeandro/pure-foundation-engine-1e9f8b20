@@ -9,13 +9,18 @@ import { userStorage } from "@/lib/storage";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppConfig } from "@/types";
 
+// Public fallbacks — mirrored from src/integrations/supabase/client.ts.
+// These are safe to ship in the frontend bundle (publishable identity).
+// Garantem que páginas como Contas/Agenda não quebrem se o build publicado
+// não receber VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY.
+const FALLBACK_SUPABASE_URL = "https://pgimbjfdxwefahxmpdpc.supabase.co";
+const FALLBACK_SUPABASE_PUBLISHABLE_KEY =
+  "sb_publishable_iJUl_R_VWamc4p2eC2XAWw_3Li5jJ0t";
+
 export function getSupabaseUrl(): string {
-  const url = (import.meta as any).env?.VITE_SUPABASE_URL ?? "";
-  if (!url) {
-    throw new Error(
-      "VITE_SUPABASE_URL não configurada. Configure nas variáveis de ambiente do Lovable."
-    );
-  }
+  const url =
+    ((import.meta as any).env?.VITE_SUPABASE_URL as string | undefined) ||
+    FALLBACK_SUPABASE_URL;
   return url;
 }
 
@@ -29,9 +34,9 @@ export function getSavedConfig(): Partial<AppConfig> {
 
 export function getAnonKey(): string {
   return (
-    (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ??
-    (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ??
-    ""
+    ((import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
+    ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined) ||
+    FALLBACK_SUPABASE_PUBLISHABLE_KEY
   );
 }
 
