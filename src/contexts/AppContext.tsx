@@ -280,37 +280,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!activeCompanyId) throw new Error("Selecione uma empresa antes de salvar chaves.");
     if (!canEditCompanyKeys) throw new Error("Apenas Dono ou Admin podem alterar as APIs da empresa.");
 
-    // Monta um row apenas com as colunas presentes no patch (preserva as demais).
-    const row: Record<string, string | null> = {};
+    // Monta um JSON apenas com as colunas presentes no patch (preserva as demais no servidor).
+    const payload: Record<string, string | null> = {};
     let hasAny = false;
     (Object.keys(patch) as Array<keyof IntegrationKeyPatch>).forEach((field) => {
       const value = patch[field];
       if (value === undefined) return;
       const column = KEY_COLUMN_MAP[field];
       if (!column) return;
-      // string vazia é tratada como remover; null também remove.
-      row[column] = typeof value === "string" && value.trim() ? value.trim() : null;
+      // string vazia é tratada como remover; null também remove. Apenas o campo enviado é tocado.
+      payload[column] = typeof value === "string" && value.trim() ? value.trim() : null;
       hasAny = true;
     });
     if (!hasAny) return;
 
-    const { data: existing } = await supabase
-      .from("company_configs" as never)
-      .select("id")
-      .eq("company_id", activeCompanyId)
-      .maybeSingle();
-
-    if (existing) {
-      const { error } = await supabase
-        .from("company_configs" as never)
-        .update(row as never)
-        .eq("company_id", activeCompanyId);
-      if (error) throw error;
-    } else {
-      const insertRow = { company_id: activeCompanyId, ...row };
-      const { error } = await supabase.from("company_configs" as never).insert(insertRow as never);
-      if (error) throw error;
-    }
+    const { error } = await supabase.rpc(
+      "update_company_integration_keys" as never,
+      { _company_id: activeCompanyId, _patch: payload } as never,
+    );
+    if (error) throw error;
 
     // Recarrega status booleano e atualiza o config em memória.
     const integrations = await loadIntegrationsStatus(activeCompanyId);
