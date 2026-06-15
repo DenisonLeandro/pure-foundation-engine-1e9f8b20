@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface BrandProfile {
   id: string;
+  company_id?: string;
   name: string;
   description: string;
   tone: string;

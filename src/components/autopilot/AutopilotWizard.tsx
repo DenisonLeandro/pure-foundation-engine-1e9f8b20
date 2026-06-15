@@ -120,13 +120,13 @@ export function AutopilotWizard({ existingConfig, onSaved, onCancel }: Props) {
   // Load brands
   const [brands, setBrands] = useState<BrandOption[]>([]);
   useEffect(() => {
-    if (!user) return;
+    if (!activeCompanyId) { setBrands([]); return; }
     supabase
       .from("brand_profiles")
       .select("id, name")
-      .eq("user_id", user.id)
+      .eq("company_id", activeCompanyId)
       .then(({ data }) => setBrands(data || []));
-  }, [user]);
+  }, [activeCompanyId]);
 
   function addTopic() {
     const t = topicInput.trim();
