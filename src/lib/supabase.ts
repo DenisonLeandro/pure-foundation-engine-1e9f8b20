@@ -7,3 +7,6 @@ const key = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
 // Allow E2E tests to bypass auth by setting VITE_E2E_BYPASS_AUTH=true
 const e2eBypassAuth = (import.meta as any).env?.VITE_E2E_BYPASS_AUTH === "true";
 export const supabaseConfigured = !e2eBypassAuth && !!(url && key);
+
+// eslint-disable-next-line no-console
+console.info(`[auth] supabase configurado=${supabaseConfigured}`);
