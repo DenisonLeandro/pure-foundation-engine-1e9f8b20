@@ -29,6 +29,7 @@ import { useApp } from "@/contexts/use-app";
 import type { AutopilotConfig, AutopilotVisualFormat, AutopilotRecurrence, Platform } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { toast } from "sonner";
 import { AlertCircle } from "lucide-react";
 
@@ -89,6 +90,7 @@ const RECURRENCE_OPTIONS: { value: AutopilotRecurrence; label: string }[] = [
 
 export function AutopilotWizard({ existingConfig, onSaved, onCancel }: Props) {
   const { user } = useAuth();
+  const { activeCompanyId } = useCompany();
   const { config: appConfig } = useApp();
   const [step, setStep] = useState(0);
   const saveConfig = useSaveAutopilotConfig();
