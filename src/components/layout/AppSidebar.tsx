@@ -47,6 +47,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const { config } = useApp();
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
   return (
