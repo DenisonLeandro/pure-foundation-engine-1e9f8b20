@@ -1,96 +1,91 @@
-# Migrar brand_profiles para a empresa
 
-Marca passa a ser da **empresa** (compartilhada entre membros). Apenas Dono/Admin gerenciam; Editor só usa. Nenhuma outra tabela muda nesta etapa.
+# Corrigir permissões em `company_members`
 
-## Schema atual confirmado
-- `companies` (com `legacy_brand_profile_id`, `created_by`, `primary_color`, `name`)
-- `company_members` (status, role: owner/admin/editor)
-- `brand_profiles` (hoje filtrada por `user_id`)
-- `CompanyContext` expõe `activeCompanyId` e role helpers; já existe `is_company_member`, `get_company_role`, `can_manage_members`
-- Hoje no banco: 1 brand_profile, 1 company, 1 já com `legacy_brand_profile_id` apontando — backfill será trivial
+Escopo único: RLS de `company_members`. Nada de Studio, Galeria, marcas, configs, edges, autopilot.
 
-## Migration 1 — schema, backfill e índices
+## Diagnóstico do bug atual
+Policy `managers can update members` hoje:
+- USING: `can_manage_members AND target.user_id <> auth.uid() AND (actor é owner OR target.role = 'editor')`
+- WITH CHECK: `... AND new.role IN ('admin','editor')`
 
-1. **Coluna**: `ALTER TABLE brand_profiles ADD COLUMN IF NOT EXISTS company_id uuid REFERENCES companies(id) ON DELETE CASCADE` (nullable).
-2. **Backfill em DO block**, em ordem:
-   a. Para cada `companies` com `legacy_brand_profile_id` não nulo → `UPDATE brand_profiles SET company_id = c.id WHERE bp.id = c.legacy_brand_profile_id AND bp.company_id IS NULL`.
-   b. Para `brand_profiles` ainda sem `company_id` mas com `user_id`: buscar empresas onde o usuário é `owner` ativo.
-      - Exatamente 1 → vincular.
-      - Mais de 1 → deixar pendente, logar via `RAISE NOTICE`.
-      - 0 → criar empresa idempotente: procurar `companies WHERE created_by = user_id AND name IN (brand.name, 'Minha Empresa')`. Se não achar, criar (`name = brand.name OR 'Minha Empresa'`, `primary_color = brand.primary_color`, `created_by = user_id`). O trigger `handle_new_company` já cria o `company_members` owner. Vincular.
-3. **Garantir 1 default por empresa**: antes do índice, para cada `company_id` com >1 `is_default=true`, manter só o mais recente, marcar resto `false`.
-4. **Índices**:
-   - `CREATE INDEX IF NOT EXISTS idx_brand_profiles_company_id ON brand_profiles(company_id)`
-   - `CREATE UNIQUE INDEX IF NOT EXISTS one_default_brand_per_company ON brand_profiles(company_id) WHERE is_default = true AND company_id IS NOT NULL`
-5. **NOT NULL condicional**: só rodar `SET NOT NULL` se `SELECT count(*) FROM brand_profiles WHERE company_id IS NULL = 0`. Caso contrário, manter nullable e `RAISE NOTICE` listando ids pendentes.
-6. **`user_id`**: tornar nullable (auditoria — quem criou). Sem dropar.
+Brecha: admin atualiza linha cujo `role atual = 'editor'` (USING passa) e seta `new.role = 'admin'` (WITH CHECK passa). → admin promove editor a admin.
 
-## Migration 2 — função de permissão de marca e RLS
+## Migração — uma única migration
 
-1. **Nova função** (gerenciar marca ≠ gerenciar equipe):
-   ```sql
-   CREATE OR REPLACE FUNCTION public.can_manage_brand_profiles(_company uuid, _user uuid)
-   RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-     SELECT EXISTS (
-       SELECT 1 FROM public.company_members
-       WHERE company_id = _company AND user_id = _user
-         AND status = 'active' AND role IN ('owner','admin')
-     );
-   $$;
-   ```
-2. **DROP** policies antigas de `brand_profiles` baseadas em `user_id`.
-3. **Novas policies**:
-   - `SELECT` → `is_company_member(company_id, auth.uid())`
-   - `INSERT WITH CHECK` → `can_manage_brand_profiles(company_id, auth.uid())`
-   - `UPDATE USING/WITH CHECK` → `can_manage_brand_profiles(company_id, auth.uid())`
-   - `DELETE USING` → `can_manage_brand_profiles(company_id, auth.uid())`
-4. `GRANT SELECT, INSERT, UPDATE, DELETE ON public.brand_profiles TO authenticated`.
+### 1. Função auxiliar — contagem de owners ativos
+```sql
+CREATE OR REPLACE FUNCTION public.count_active_owners(_company uuid)
+RETURNS int LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT count(*)::int FROM public.company_members
+  WHERE company_id = _company AND status='active' AND role='owner';
+$$;
+```
 
-Resultado: Editor nunca escreve (mesmo via console). Outras empresas nunca leem. Nada de listagem global.
+### 2. Reescrever policies de `company_members`
+
+Drop das atuais `managers can update members` e `managers can remove members`. Recriar:
+
+**UPDATE**
+- USING:
+  - `can_manage_members(company_id, auth.uid())`
+  - AND `user_id <> auth.uid()` (ninguém mexe em si mesmo)
+  - AND `role <> 'owner'` (ninguém edita owner; protege último owner também)
+  - AND (`get_company_role(company_id, auth.uid()) = 'owner'` OR `role = 'editor'`)  ← admin só vê linhas de editor
+- WITH CHECK:
+  - `company_id` inalterado e `user_id` inalterado (garantido por mesma linha; reforço lógico)
+  - AND `role IN ('admin','editor')` (nunca cria owner)
+  - AND (`get_company_role(company_id, auth.uid()) = 'owner'` OR `role = 'editor'`)  ← admin só pode salvar role=editor
+
+Resultado por cenário:
+- Owner edita admin/editor, pode trocar entre admin↔editor. ✓
+- Admin edita só editor, só pode manter editor. Promover editor→admin falha no WITH CHECK. ✓
+- Editor: `can_manage_members` é falso → bloqueado. ✓
+- Promover qualquer um a owner: bloqueado pelo WITH CHECK. ✓
+- Auto-edição: bloqueado pelo USING. ✓
+
+**DELETE**
+- USING:
+  - `can_manage_members(company_id, auth.uid())`
+  - AND `user_id <> auth.uid()`
+  - AND `role <> 'owner'` OR (`role='owner' AND get_company_role(...)='owner' AND count_active_owners(company_id) > 1`)
+    - simplificação prática: bloquear DELETE de owner via RLS — owner sai por fluxo dedicado depois; mantém a regra "nunca remover último owner" sem complicação extra.
+  - AND (`get_company_role(...) = 'owner'` OR `role = 'editor'`)
+
+Cenários:
+- Owner remove admin/editor. ✓
+- Owner tenta remover outro owner: bloqueado (regra simplificada acima). Aceitamos por agora — não há UI para isso e protege o último owner.
+- Admin remove editor. ✓ Admin tentando remover admin/owner: USING falha. ✓
+- Editor: bloqueado. ✓
+- Auto-remoção: bloqueado pelo USING (decisão de "leave company" fica para outra etapa).
+
+**INSERT**: continua sem policy. Inserções vêm de `handle_new_company` (trigger SECURITY DEFINER) e `company-invite` (service_role). Mantém intocado.
+
+**SELECT**: já está correto (`is_company_member`). Não mexer.
+
+### 3. GRANTs
+Já existentes; não precisam mudar. (Tabela já tem grants para `authenticated` e `service_role`.)
 
 ## Frontend
+Sem mudança de UX. `src/components/team/InviteMemberDialog.tsx` e `src/pages/Team.tsx` já usam `invitableRoles(role)` que limita admin a convidar `editor`. Sem código para alterar.
 
-### `src/hooks/use-brands.ts`
-- Substituir `user_id` por `activeCompanyId` do `CompanyContext`.
-- Se `activeCompanyId` ausente → `brands=[]`, `loading=false`.
-- Recarregar quando `activeCompanyId` mudar.
+## Testes (manuais, via Supabase JS no console autenticado e via UI de Equipe)
 
-### `src/pages/Brands.tsx`
-- Insert/Update: `company_id: activeCompanyId`, `user_id: user.id` só auditoria.
-- "Definir default": `update is_default=false WHERE company_id = activeCompanyId` então `update is_default=true WHERE id`.
-- Permissões via `useCompany()` (`role`): se role !== 'owner'/'admin', esconder/desabilitar **Criar/Editar/Apagar/Definir default**, com tooltip *"Apenas Dono ou Admin podem gerenciar marcas."*
-- Auto-fill por IA continua igual (já edita a marca em memória).
+| # | Cenário | Esperado |
+|---|---|---|
+| A | Owner: `update company_members set role='admin' where id=<editor>` | OK |
+| B | Admin: mesmo update | erro RLS |
+| C | Admin: `delete from company_members where id=<editor>` | OK |
+| D | Admin: deletar outro admin | erro RLS |
+| E | Editor: qualquer update/delete | erro RLS |
+| F | Qualquer um: update no próprio registro | erro RLS |
+| G | Owner: tentar `role='owner'` num editor | erro RLS (WITH CHECK) |
+| H | Owner único tentando deletar outro owner / a si próprio | erro RLS |
+| I | Admin convida editor pela UI | continua funcionando (`company-invite` usa service_role) |
 
-### Tipos
-- `src/lib/brand.ts` e `src/types/index.ts`: `BrandProfile.company_id: string`, `user_id?: string | null`.
+Vou rodar os testes via `supabase--read_query`/`insert` simulando policies onde possível e validar no log do navegador. Para escalada via console (cenário B), instruirei verificação manual; minha responsabilidade é garantir a RLS correta.
 
-### `src/pages/CreateCompany.tsx`
-- Texto do botão de marca antiga: *"Converter minha marca existente"* (no lugar de "usar empresa existente").
-- Lista só `brand_profiles WHERE user_id = auth.uid() AND company_id IS NULL` (RLS antiga ainda permitia user_id; após migração de policies, criaremos uma policy adicional restrita: `SELECT` permitido também quando `company_id IS NULL AND user_id = auth.uid()` — só para o fluxo de conversão).
-- Ao converter: chamar fluxo já existente que cria company com `legacy_brand_profile_id` (trigger valida `_brand_owner = created_by`). Em seguida, novo passo: `UPDATE brand_profiles SET company_id = <new> WHERE id = <brand.id> AND user_id = auth.uid()`.
-
-## Edge Functions
-
-### `supabase/functions/_shared/brand.ts`
-- Nova assinatura: `getBrand({ supabase, userId, companyId? })`.
-- Se `companyId` vier:
-  1. Validar membership: `SELECT 1 FROM company_members WHERE company_id=? AND user_id=? AND status='active'` → 403 se falhar.
-  2. Buscar `brand_profiles WHERE company_id=? ORDER BY is_default DESC LIMIT 1`.
-- Se `companyId` ausente: fallback legado por `user_id` com `// TODO remover fallback`.
-
-### `supabase/functions/autopilot-run/index.ts`
-- Já recebe contexto do usuário; descobrir empresa via `get_company_keys_for_user` ou consulta direta a `company_members`. Usar essa company para `getBrand`. Manter fallback.
-
-### Frontend chamando edges
-- Onde o front invoca funções que precisam de marca (Studio/Autopilot/Copilot/Caption), incluir `companyId: activeCompanyId` no body.
-
-## Validação manual
-1. **Dono atual**: `/marcas` mostra a marca; coluna tem `company_id`; não cai em `/criar-empresa`.
-2. **Editor convidado**: vê a marca, todos botões de gestão desabilitados; tentativa `update` via DevTools console → erro RLS.
-3. **Admin**: cria/edita/apaga/define default normalmente.
-4. **Multiempresa**: trocar no `CompanySwitcher` troca a lista.
-5. **Duplo default**: 2ª chamada de "definir default" funciona (reset+set); insert direto com `is_default=true` em empresa que já tem default → erro do índice único.
-6. **Edge 403**: invocar `autopilot-run` com `companyId` alheio → 403.
-
-## Entregáveis
-Ao final informarei: migrações criadas, status de `NOT NULL`/pendentes, resumo do backfill, policies novas, função `can_manage_brand_profiles`, arquivos front alterados, edges alteradas, roteiro de teste por papel, e a lista de tabelas que ficam para a próxima etapa (creations, saved_sources, autopilot_*, post_history, analytics_snapshots).
+## Relatório final (após aplicar)
+- Policies alteradas: `company_members` UPDATE e DELETE (drop + recreate).
+- Função criada: `count_active_owners(uuid)` (reservada para futuros usos; principal proteção do último owner vem de bloquear DELETE de qualquer owner).
+- Convite de Editor por Admin: inalterado, segue funcionando via edge `company-invite`.
+- UI: sem mudanças.

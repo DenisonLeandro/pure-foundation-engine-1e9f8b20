@@ -812,6 +812,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      count_active_owners: { Args: { _company: string }; Returns: number }
       get_company_keys_for_user: {
         Args: { _user_id: string }
         Returns: {
