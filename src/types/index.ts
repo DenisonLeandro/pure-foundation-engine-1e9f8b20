@@ -63,20 +63,51 @@ export interface ContentSource {
   sourceType: string;
 }
 
+// Status (booleano) por integração da empresa ativa.
+// O frontend NUNCA recebe os valores reais das chaves.
+export interface IntegrationsStatus {
+  postforme: boolean;
+  blotato: boolean;
+  pexels: boolean;
+  apify: boolean;
+  firecrawl: boolean;
+  higgsfield: boolean;          // true só quando ID *e* Secret estão presentes
+  higgsfieldApiId: boolean;
+  higgsfieldApiSecret: boolean;
+  updatedAt?: string | null;
+}
+
+export const DEFAULT_INTEGRATIONS: IntegrationsStatus = {
+  postforme: false,
+  blotato: false,
+  pexels: false,
+  apify: false,
+  firecrawl: false,
+  higgsfield: false,
+  higgsfieldApiId: false,
+  higgsfieldApiSecret: false,
+  updatedAt: null,
+};
+
 export interface AppConfig {
-  // Core (obrigatório pra funcionar)
-  postformeApiKey: string;
+  // Perfil / marca (não-sensível).
   brandName: string;
-  onboardingCompleted?: boolean;
   brandLogo?: string;
-  // Legado (mantido por compat, não-obrigatório)
-  blotatoApiKey?: string;
-  // Opcionais (cada integração é independente)
-  pexelsApiKey?: string;
-  apifyApiToken?: string;
-  higgsFieldApiId?: string;
-  higgsFieldApiSecret?: string;
-  firecrawlApiKey?: string;
+  onboardingCompleted?: boolean;
+  // Status booleano das integrações — única informação de chaves visível ao frontend.
+  integrations: IntegrationsStatus;
+}
+
+// Patch operacional para gravar chaves de integração em company_configs.
+// Cada campo é opcional. `null` = remover; string = nova chave; ausente = não alterar.
+export interface IntegrationKeyPatch {
+  postformeApiKey?: string | null;
+  blotatoApiKey?: string | null;
+  pexelsApiKey?: string | null;
+  apifyApiToken?: string | null;
+  firecrawlApiKey?: string | null;
+  higgsFieldApiId?: string | null;
+  higgsFieldApiSecret?: string | null;
 }
 
 export interface PostDraft {

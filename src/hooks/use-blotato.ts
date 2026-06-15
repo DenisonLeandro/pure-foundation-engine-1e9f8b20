@@ -4,6 +4,9 @@ import * as api from "@/lib/api";
 import type { Platform } from "@/types";
 
 // ─── Blotato (ONLY for visuals + sources) ───────────────────────
+// Observação: o módulo `@/lib/api/blotato` ignora o primeiro parâmetro
+// (`_apiKey`) — a chave é resolvida no servidor a partir do `companyId`.
+// Mantemos a assinatura passando string vazia somente por compatibilidade.
 
 const keys = {
   accounts: (platform?: Platform) =>
@@ -12,24 +15,17 @@ const keys = {
     search ? (["blotato", "templates", search] as const) : (["blotato", "templates"] as const),
 };
 
-export function useValidateApiKey() {
-  const { config } = useApp();
-  return useMutation({
-    mutationFn: () => api.getUser(config.blotatoApiKey),
-  });
-}
-
 export function useAccounts(platform?: Platform) {
-  const { config, isConfigured, setAccounts } = useApp();
+  const { isConfigured, setAccounts } = useApp();
   return useQuery({
     queryKey: keys.accounts(platform),
     queryFn: async () => {
-      const accounts = await api.listAccounts(config.blotatoApiKey, platform);
+      const accounts = await api.listAccounts("", platform);
       const enriched = await Promise.all(
         accounts.map(async (acc) => {
           if ((acc.platform === "facebook" || acc.platform === "linkedin") && acc.id) {
             try {
-              const subs = await api.listSubaccounts(config.blotatoApiKey, acc.id);
+              const subs = await api.listSubaccounts("", acc.id);
               return { ...acc, subaccounts: subs };
             } catch { return acc; }
           }
@@ -47,11 +43,11 @@ export function useAccounts(platform?: Platform) {
 
 // Visuals (Blotato)
 export function useVisualTemplates(search?: string) {
-  const { config, isConfigured } = useApp();
+  const { isConfigured } = useApp();
   return useQuery({
     queryKey: keys.templates(search),
     queryFn: async () => {
-      const result = await api.listVisualTemplates(config.blotatoApiKey, search);
+      const result = await api.listVisualTemplates("", search);
       if (result && typeof result === "object" && "items" in result) {
         return (result as any).items as api.VisualTemplateFromAPI[];
       }
@@ -64,20 +60,17 @@ export function useVisualTemplates(search?: string) {
 }
 
 export function useCreateVisual() {
-  const { config } = useApp();
   return useMutation({
     mutationFn: (params: api.CreateVisualParams) =>
-      api.createVisual(config.blotatoApiKey, params),
+      api.createVisual("", params),
   });
 }
 
 export function useVisualStatus(id: string | null) {
-  const { config } = useApp();
   return useQuery({
     queryKey: ["blotato", "visualStatus", id],
     queryFn: async () => {
-      const data = await api.getVisualStatus(config.blotatoApiKey, id!);
-      // Log completo para debug — aparece no console do browser (F12)
+      const data = await api.getVisualStatus("", id!);
       console.log(`[VisualStatus ${id}]`, data);
       if (data.status === "creation-from-template-failed") {
         console.error("[VisualStatus] FALHOU:", JSON.stringify(data, null, 2));
@@ -88,7 +81,6 @@ export function useVisualStatus(id: string | null) {
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (status === "done" || status === "creation-from-template-failed") return false;
-      // Blotato recomenda polling a cada 5s (docs: https://help.blotato.com/api/create-video/find-video)
       return 5_000;
     },
   });
@@ -96,18 +88,16 @@ export function useVisualStatus(id: string | null) {
 
 // Sources (Blotato)
 export function useCreateSource() {
-  const { config } = useApp();
   return useMutation({
     mutationFn: (params: api.CreateSourceParams) =>
-      api.createSource(config.blotatoApiKey, params),
+      api.createSource("", params),
   });
 }
 
 export function useSourceStatus(id: string | null) {
-  const { config } = useApp();
   return useQuery({
     queryKey: ["blotato", "sourceStatus", id],
-    queryFn: () => api.getSourceStatus(config.blotatoApiKey, id!),
+    queryFn: () => api.getSourceStatus("", id!),
     enabled: !!id,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
@@ -120,7 +110,6 @@ export function useSourceStatus(id: string | null) {
 // ─── AI Content Generation ─────────────────────────────────────
 
 export function useGenerateContent() {
-  const { config } = useApp();
   return useMutation({
     mutationFn: (params: api.GenerateContentParams) =>
       api.generateContent(params),
@@ -128,7 +117,6 @@ export function useGenerateContent() {
 }
 
 export function useImageSearch() {
-  const { config } = useApp();
   return useMutation({
     mutationFn: (params: api.ImageSearchParams) =>
       api.searchImages(params),
