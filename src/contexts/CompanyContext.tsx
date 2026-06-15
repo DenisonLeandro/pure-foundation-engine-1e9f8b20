@@ -89,6 +89,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     userStorage.set(ACTIVE_KEY, id);
   }, []);
 
+  // Mantém o módulo Post for Me ciente da empresa ativa para enviar companyId no body.
+  useEffect(() => {
+    setPfmActiveCompany(activeCompanyId);
+  }, [activeCompanyId]);
+
+
+
   const value = useMemo<CompanyContextType>(() => {
     const active = companies.find((c) => c.company.id === activeCompanyId) ?? null;
     const role = active?.role ?? null;
