@@ -70,7 +70,7 @@ export default function Setup() {
   // Keys (initialized from saved config)
   const [blotatoKey, setBlotatoKey]     = useState(config.blotatoApiKey || "");
   const [pfmKey, setPfmKey]             = useState(config.postformeApiKey || "");
-  const [pexelsKey, setPexelsKey]       = useState(config.pexelsApiKey || "");
+  const [pexelsKey, setPexelsKey]       = useState(""); // Nunca pré-preencher: chave salva não trafega no browser.
   const [apifyToken, setApifyToken]     = useState(config.apifyApiToken || "");
   const [hfApiId, setHfApiId]           = useState(config.higgsFieldApiId || "");
   const [hfApiSecret, setHfApiSecret]   = useState(config.higgsFieldApiSecret || "");
