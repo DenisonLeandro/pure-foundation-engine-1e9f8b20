@@ -64,24 +64,12 @@ function friendlyError(status: number, data: any): string {
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-higgsfield-api-id, x-higgsfield-api-secret",
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 // deno-lint-ignore no-explicit-any
 type Args = Record<string, any>;
-
-function getAuthHeader(req: Request): string | null {
-  const apiId =
-    req.headers.get("x-higgsfield-api-id") ||
-    Deno.env.get("HIGGSFIELD_API_ID");
-  const apiSecret =
-    req.headers.get("x-higgsfield-api-secret") ||
-    Deno.env.get("HIGGSFIELD_API_SECRET");
-
-  if (!apiId || !apiSecret) return null;
-  return `Key ${apiId}:${apiSecret}`;
-}
 
 // ── Helpers ─────────────────────────────────────────────────
 /** Map BCP-47 language codes to descriptive names the model can understand. */
