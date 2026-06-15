@@ -92,6 +92,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   // Mantém o módulo Post for Me ciente da empresa ativa para enviar companyId no body.
   useEffect(() => {
     setPfmActiveCompany(activeCompanyId);
+    setBlotatoActiveCompany(activeCompanyId);
   }, [activeCompanyId]);
 
 
