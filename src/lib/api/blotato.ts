@@ -1,9 +1,18 @@
 /**
  * Blotato API Service Layer
  *
- * Calls Blotato MCP through a Supabase Edge Function proxy.
- * The Edge Function handles MCP protocol (initialize → tool call)
- * so the browser never hits CORS issues.
+ * Modelo seguro por empresa:
+ * - Frontend envia `{ tool, args, companyId }` no body.
+ * - A Edge Function `blotato-proxy` valida membership e busca
+ *   `blotato_api_key` em `company_configs` no servidor.
+ * - O frontend NÃO envia mais `x-blotato-api-key` no fluxo operacional.
+ *
+ * Único uso restante de `x-blotato-api-key`: validação de uma chave
+ * recém-digitada por Dono/Admin em Setup/ManageKeysView, via `getUser(typedKey)`
+ * (flag `validateKey: true`). Esse caminho nunca lê chave salva.
+ *
+ * TODO: futuramente o `companyId` deve ser passado explicitamente por cada
+ * chamada (em vez do setter de módulo abaixo) para reduzir estado global.
  */
 
 import type {
@@ -18,16 +27,32 @@ function getEdgeFunctionUrl(): string {
   return `${getSupabaseUrl()}/functions/v1/blotato-proxy`;
 }
 
+// ─── Empresa ativa (preenchido pelo CompanyContext) ──────────────
+let _activeCompanyId: string | null = null;
+export function setBlotatoActiveCompany(companyId: string | null | undefined) {
+  _activeCompanyId = companyId || null;
+}
+export function getBlotatoActiveCompany() {
+  return _activeCompanyId;
+}
+
 // ─── Transport ──────────────────────────────────────────────────
 
+interface CallOpts {
+  /** Use APENAS para validar uma chave recém-digitada em telas de Setup. */
+  validateKey?: boolean;
+  /** Chave digitada manualmente (somente quando validateKey === true). */
+  typedKey?: string;
+}
+
 async function callTool(
-  apiKey: string,
+  _apiKey: string,
   tool: string,
-  args: Record<string, unknown> = {}
+  args: Record<string, unknown> = {},
+  opts: CallOpts = {},
 ): Promise<unknown> {
   const url = getEdgeFunctionUrl();
 
-  // Get Supabase publishable key for auth (Lovable auto-injects)
   const anonKey =
     (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ??
     (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ??
@@ -35,19 +60,41 @@ async function callTool(
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "x-blotato-api-key": apiKey,
   };
 
-  // Supabase Edge Functions require the anon key for auth
-  if (anonKey) {
-    headers["apikey"] = anonKey;
-    headers["Authorization"] = `Bearer ${anonKey}`;
+  // Obter JWT do usuário, com fallback para anon.
+  try {
+    const { supabase } = await import("@/lib/supabase");
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (anonKey) headers["apikey"] = anonKey;
+    headers["Authorization"] = `Bearer ${token || anonKey}`;
+  } catch {
+    if (anonKey) {
+      headers["apikey"] = anonKey;
+      headers["Authorization"] = `Bearer ${anonKey}`;
+    }
+  }
+
+  const body: Record<string, unknown> = { tool, args };
+
+  if (opts.validateKey) {
+    // Caminho EXCLUSIVO de validação de chave digitada (Setup/ManageKeysView).
+    if (!opts.typedKey) throw new Error("Chave Blotato ausente para validação.");
+    headers["x-blotato-api-key"] = opts.typedKey;
+    body.validateKey = true;
+  } else {
+    // Fluxo operacional: companyId no body, NUNCA enviar a chave.
+    if (!_activeCompanyId) {
+      throw new Error("Selecione uma empresa antes de publicar.");
+    }
+    body.companyId = _activeCompanyId;
   }
 
   const response = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ tool, args }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -73,20 +120,27 @@ export interface BlotatoUser {
   statusCode: number;
 }
 
-export async function getUser(apiKey: string): Promise<BlotatoUser> {
-  return callTool(apiKey, "blotato_get_user") as Promise<BlotatoUser>;
+/**
+ * Valida uma chave Blotato recém-digitada.
+ * SOMENTE para uso em telas de configuração (Setup/ManageKeysView),
+ * sempre com chave vinda do input — nunca de config salvo.
+ */
+export async function getUser(typedKey: string): Promise<BlotatoUser> {
+  return callTool(typedKey, "blotato_get_user", {}, {
+    validateKey: true,
+    typedKey,
+  }) as Promise<BlotatoUser>;
 }
 
 // ─── Accounts ───────────────────────────────────────────────────
 
 export async function listAccounts(
-  apiKey: string,
+  _apiKey: string,
   platform?: Platform
 ): Promise<SocialAccount[]> {
   const args: Record<string, unknown> = {};
   if (platform) args.platform = platform;
-  const result = await callTool(apiKey, "blotato_list_accounts", args);
-  // REST API returns { items: [...] }, normalize to array
+  const result = await callTool(_apiKey, "blotato_list_accounts", args);
   if (result && typeof result === "object" && "items" in (result as any)) {
     return (result as any).items as SocialAccount[];
   }
@@ -95,10 +149,10 @@ export async function listAccounts(
 }
 
 export async function listSubaccounts(
-  apiKey: string,
+  _apiKey: string,
   accountId: string
 ): Promise<SubAccount[]> {
-  const result = await callTool(apiKey, "blotato_list_subaccounts", { accountId });
+  const result = await callTool(_apiKey, "blotato_list_subaccounts", { accountId });
   if (result && typeof result === "object" && "items" in (result as any)) {
     return (result as any).items as SubAccount[];
   }
@@ -115,12 +169,12 @@ export interface VisualTemplateFromAPI {
 }
 
 export async function listVisualTemplates(
-  apiKey: string,
+  _apiKey: string,
   search?: string
 ): Promise<unknown> {
   const args: Record<string, unknown> = { fields: "id,description,inputs" };
   if (search) args.search = search;
-  return callTool(apiKey, "blotato_list_visual_templates", args);
+  return callTool(_apiKey, "blotato_list_visual_templates", args);
 }
 
 // ─── Media Upload ───────────────────────────────────────────────
@@ -131,10 +185,10 @@ export interface MediaUploadResult {
 }
 
 export async function uploadMedia(
-  apiKey: string,
+  _apiKey: string,
   url: string
 ): Promise<MediaUploadResult> {
-  return callTool(apiKey, "blotato_upload_media", { url }) as Promise<MediaUploadResult>;
+  return callTool(_apiKey, "blotato_upload_media", { url }) as Promise<MediaUploadResult>;
 }
 
 export interface CreateVisualParams {
@@ -155,10 +209,10 @@ export interface VisualCreation {
 }
 
 export async function createVisual(
-  apiKey: string,
+  _apiKey: string,
   params: CreateVisualParams
 ): Promise<VisualCreation> {
-  return callTool(apiKey, "blotato_create_visual", {
+  return callTool(_apiKey, "blotato_create_visual", {
     ...params,
     inputs: params.inputs ?? {},
     render: params.render ?? true,
@@ -166,10 +220,10 @@ export async function createVisual(
 }
 
 export async function getVisualStatus(
-  apiKey: string,
+  _apiKey: string,
   id: string
 ): Promise<VisualCreation> {
-  return callTool(apiKey, "blotato_get_visual_status", {
+  return callTool(_apiKey, "blotato_get_visual_status", {
     id,
   }) as Promise<VisualCreation>;
 }
@@ -184,21 +238,21 @@ export interface CreateSourceParams {
 }
 
 export async function createSource(
-  apiKey: string,
+  _apiKey: string,
   params: CreateSourceParams
 ): Promise<ContentSource> {
   return callTool(
-    apiKey,
+    _apiKey,
     "blotato_create_source",
-    params as unknown as Record<string, unknown>
+    params as unknown as Record<string, unknown>,
   ) as Promise<ContentSource>;
 }
 
 export async function getSourceStatus(
-  apiKey: string,
+  _apiKey: string,
   id: string
 ): Promise<ContentSource> {
-  return callTool(apiKey, "blotato_get_source_status", {
+  return callTool(_apiKey, "blotato_get_source_status", {
     id,
   }) as Promise<ContentSource>;
 }
