@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/contexts/AppContext";
 import { useApp } from "@/contexts/use-app";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { CompanyProvider, useCompany } from "@/contexts/CompanyContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Loader2 } from "lucide-react";
@@ -17,6 +18,8 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import UpdatePassword from "./pages/UpdatePassword";
+import CreateCompany from "./pages/CreateCompany";
+import AcceptInvite from "./pages/AcceptInvite";
 
 // App pages (lazy loaded)
 const Setup = lazy(() => import("./pages/Setup"));
