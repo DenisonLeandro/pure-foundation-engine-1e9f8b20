@@ -53,10 +53,8 @@ async function callTool(
 ): Promise<unknown> {
   const url = getEdgeFunctionUrl();
 
-  const anonKey =
-    (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY ??
-    (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ??
-    "";
+  const { getAnonKey } = await import("./_shared");
+  const anonKey = getAnonKey();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
