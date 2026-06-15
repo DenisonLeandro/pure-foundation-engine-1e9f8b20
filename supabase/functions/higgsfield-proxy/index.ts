@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { getCompanyConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Higgsfield AI Video Generation Proxy
@@ -63,24 +64,12 @@ function friendlyError(status: number, data: any): string {
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-higgsfield-api-id, x-higgsfield-api-secret",
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 // deno-lint-ignore no-explicit-any
 type Args = Record<string, any>;
-
-function getAuthHeader(req: Request): string | null {
-  const apiId =
-    req.headers.get("x-higgsfield-api-id") ||
-    Deno.env.get("HIGGSFIELD_API_ID");
-  const apiSecret =
-    req.headers.get("x-higgsfield-api-secret") ||
-    Deno.env.get("HIGGSFIELD_API_SECRET");
-
-  if (!apiId || !apiSecret) return null;
-  return `Key ${apiId}:${apiSecret}`;
-}
 
 // ── Helpers ─────────────────────────────────────────────────
 /** Map BCP-47 language codes to descriptive names the model can understand. */
@@ -161,9 +150,8 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const auth = await requireUser(req, corsHeaders);
-  if (auth instanceof Response) return auth;
-
+  const authResult = await requireUser(req, corsHeaders);
+  if (authResult instanceof Response) return authResult;
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -173,17 +161,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const auth = getAuthHeader(req);
-    if (!auth) {
-      return new Response(
-        JSON.stringify({ error: "Higgsfield API credentials não configuradas. Configure no Setup." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const { tool, args = {} } = (await req.json()) as {
+    const { tool, args = {}, companyId } = (await req.json()) as {
       tool: string;
       args?: Args;
+      companyId?: string;
     };
 
     if (!tool) {
@@ -193,8 +174,28 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (!companyId) {
+      return new Response(
+        JSON.stringify({ error: "Empresa não informada." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const cfg = await getCompanyConfig(companyId, authResult.user.id, corsHeaders);
+    if (cfg instanceof Response) return cfg;
+
+    const apiId = cfg.config.higgsfield_api_id;
+    const apiSecret = cfg.config.higgsfield_api_secret;
+    if (!apiId || !apiSecret) {
+      return new Response(
+        JSON.stringify({ error: "Higgsfield não configurado para esta empresa." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const authKey = `Key ${apiId}:${apiSecret}`;
+
     const headers: Record<string, string> = {
-      "Authorization": auth,
+      "Authorization": authKey,
       "Content-Type": "application/json",
       "Accept": "application/json",
     };

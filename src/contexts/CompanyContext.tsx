@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, R
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { userStorage } from "@/lib/storage";
-import { setPfmActiveCompany, setBlotatoActiveCompany, setFirecrawlActiveCompany } from "@/lib/api";
+import { setPfmActiveCompany, setBlotatoActiveCompany, setFirecrawlActiveCompany, setHiggsfieldActiveCompany } from "@/lib/api";
 import type { CompanyRole } from "@/lib/permissions";
 
 export interface Company {
@@ -94,6 +94,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     setPfmActiveCompany(activeCompanyId);
     setBlotatoActiveCompany(activeCompanyId);
     setFirecrawlActiveCompany(activeCompanyId);
+    setHiggsfieldActiveCompany(activeCompanyId);
   }, [activeCompanyId]);
 
 
