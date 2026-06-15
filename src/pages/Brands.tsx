@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import {
   Building2, Plus, Star, Pencil, Trash2, ChevronDown, Palette,
   Sparkles, Globe, Upload, Loader2, Eye, Instagram, Linkedin,
@@ -81,6 +82,8 @@ type FormState = typeof emptyForm;
 
 export default function Brands() {
   const { user } = useAuth();
+  const { activeCompanyId, isOwner, isAdmin } = useCompany();
+  const canManage = isOwner || isAdmin;
   const [profiles, setProfiles] = useState<BrandProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -95,12 +98,16 @@ export default function Brands() {
 
   // Load from database
   const fetchProfiles = useCallback(async () => {
-    if (!user) return;
+    if (!activeCompanyId) {
+      setProfiles([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { data, error } = await supabase
       .from("brand_profiles")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("company_id", activeCompanyId)
       .order("is_default", { ascending: false });
     if (error) {
       toast.error("Erro ao carregar perfis");
@@ -123,7 +130,7 @@ export default function Brands() {
       );
     }
     setLoading(false);
-  }, [user]);
+  }, [activeCompanyId]);
 
   useEffect(() => {
     fetchProfiles();
@@ -162,10 +169,14 @@ export default function Brands() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !user) return;
+    if (!form.name.trim() || !user || !activeCompanyId) return;
+    if (!canManage) {
+      toast.error("Apenas Dono ou Admin podem gerenciar marcas.");
+      return;
+    }
     setSaving(true);
 
-    const payload = {
+    const payload: any = {
       name: form.name.trim(),
       description: form.description,
       tone: form.tone || "profissional",
@@ -183,6 +194,7 @@ export default function Brands() {
       website: form.website,
       social_links: form.social_links,
       values: form.values,
+      company_id: activeCompanyId,
       user_id: user.id,
     };
 
@@ -191,7 +203,6 @@ export default function Brands() {
       if (error) toast.error("Erro ao salvar");
       else toast.success("Perfil atualizado!");
     } else {
-      // If first profile, set as default
       if (profiles.length === 0) payload.is_default = true;
       const { error } = await supabase.from("brand_profiles").insert(payload);
       if (error) toast.error("Erro ao criar perfil");
@@ -204,6 +215,10 @@ export default function Brands() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canManage) {
+      toast.error("Apenas Dono ou Admin podem gerenciar marcas.");
+      return;
+    }
     const { error } = await supabase.from("brand_profiles").delete().eq("id", id);
     if (error) toast.error("Erro ao excluir");
     else {
@@ -213,9 +228,12 @@ export default function Brands() {
   };
 
   const handleSetDefault = async (id: string) => {
-    if (!user) return;
-    // Unset all defaults, then set the chosen one
-    await supabase.from("brand_profiles").update({ is_default: false }).eq("user_id", user.id);
+    if (!activeCompanyId) return;
+    if (!canManage) {
+      toast.error("Apenas Dono ou Admin podem gerenciar marcas.");
+      return;
+    }
+    await supabase.from("brand_profiles").update({ is_default: false }).eq("company_id", activeCompanyId);
     await supabase.from("brand_profiles").update({ is_default: true }).eq("id", id);
     fetchProfiles();
     toast.success("Perfil padrão atualizado");
