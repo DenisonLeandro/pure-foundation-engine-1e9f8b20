@@ -276,6 +276,7 @@ export type Database = {
         Row: {
           avoid_words: string[] | null
           colors: string[] | null
+          company_id: string
           created_at: string
           description: string | null
           example_posts: string[] | null
@@ -299,6 +300,7 @@ export type Database = {
         Insert: {
           avoid_words?: string[] | null
           colors?: string[] | null
+          company_id: string
           created_at?: string
           description?: string | null
           example_posts?: string[] | null
@@ -322,6 +324,7 @@ export type Database = {
         Update: {
           avoid_words?: string[] | null
           colors?: string[] | null
+          company_id?: string
           created_at?: string
           description?: string | null
           example_posts?: string[] | null
@@ -342,7 +345,15 @@ export type Database = {
           values?: string | null
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "brand_profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       companies: {
         Row: {
@@ -774,6 +785,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_brand_profiles: {
+        Args: { _company: string; _user: string }
+        Returns: boolean
+      }
       can_manage_members: {
         Args: { _company: string; _user: string }
         Returns: boolean

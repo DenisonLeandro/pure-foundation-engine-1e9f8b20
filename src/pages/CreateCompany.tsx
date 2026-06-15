@@ -83,6 +83,7 @@ export default function CreateCompany() {
         .from("brand_profiles")
         .select("id, name, industry, logo_url, colors, is_default")
         .eq("user_id", user.id)
+        .is("company_id", null)
         .order("is_default", { ascending: false })
         .order("created_at", { ascending: false }),
       (supabase as any)
@@ -119,13 +120,21 @@ export default function CreateCompany() {
   };
 
   const linkLegacyBrandIfNeeded = async (company: OwnedCompany, brandId: string) => {
-    if (company.legacy_brand_profile_id === brandId) return;
-    const { error } = await (supabase as any)
-      .from("companies")
-      .update({ legacy_brand_profile_id: brandId })
-      .eq("id", company.id)
-      .is("legacy_brand_profile_id", null);
-    if (error) console.warn("[CreateCompany] não foi possível vincular marca antiga:", error);
+    if (company.legacy_brand_profile_id !== brandId) {
+      const { error } = await (supabase as any)
+        .from("companies")
+        .update({ legacy_brand_profile_id: brandId })
+        .eq("id", company.id)
+        .is("legacy_brand_profile_id", null);
+      if (error) console.warn("[CreateCompany] não foi possível vincular marca antiga:", error);
+    }
+    // Atualiza a marca para apontar para a empresa (migração definitiva)
+    const { error: bErr } = await (supabase as any)
+      .from("brand_profiles")
+      .update({ company_id: company.id })
+      .eq("id", brandId)
+      .is("company_id", null);
+    if (bErr) console.warn("[CreateCompany] não foi possível migrar marca para empresa:", bErr);
   };
 
   const claimExistingCompany = async (company: OwnedCompany, brandId?: string) => {
@@ -167,6 +176,12 @@ export default function CreateCompany() {
         .single();
 
       if (error || !data) throw error || new Error("Não foi possível conectar a marca.");
+      // Migra brand_profile.company_id para a nova empresa
+      await (supabase as any)
+        .from("brand_profiles")
+        .update({ company_id: data.id })
+        .eq("id", brand.id)
+        .is("company_id", null);
       toast({ title: "Empresa conectada" });
       await goToCompany(data.id);
     } catch (error) {
