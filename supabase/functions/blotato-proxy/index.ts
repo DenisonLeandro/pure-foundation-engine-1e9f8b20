@@ -1,8 +1,20 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { getCompanyConfig } from "../_shared/company-secrets.ts";
 
 /**
- * Blotato REST API Proxy — Verified endpoints
+ * Blotato REST API Proxy — modelo seguro por empresa.
+ *
+ *  - Frontend envia { tool, args, companyId } no body.
+ *  - Validamos membership e buscamos blotato_api_key em company_configs via
+ *    SERVICE_ROLE no servidor. A chave NUNCA é devolvida no body nem logada.
+ *
+ *  Exceção controlada (validação de chave digitada em Setup/ManageKeysView):
+ *  - Quando o body inclui `validateKey: true` e tool === "blotato_get_user",
+ *    aceitamos `x-blotato-api-key` para validar uma chave recém-digitada.
+ *    Não lê nenhuma chave salva.
+ *  TODO: migrar essa validação para uma rota dedicada (ex.: blotato-validate-key)
+ *  e remover o header do CORS por completo.
  *
  * All endpoints tested and confirmed working against backend.blotato.com/v2
  * Rate limit: 30 req/min per endpoint
@@ -208,18 +220,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const apiKey = req.headers.get("x-blotato-api-key");
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "Missing x-blotato-api-key header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const { tool, args = {} } = (await req.json()) as {
-      tool: string;
+    const body = (await req.json().catch(() => ({}))) as {
+      tool?: string;
       args?: Record<string, unknown>;
+      companyId?: string;
+      validateKey?: boolean;
     };
+    const { tool, args = {}, companyId, validateKey } = body;
 
     if (!tool) {
       return new Response(
@@ -239,6 +246,39 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // ── Resolução da chave Blotato ─────────────────────────────────
+    // Caminho principal: companyId → membership → company_configs.blotato_api_key
+    // Caminho de validação (TODO remover): header x-blotato-api-key apenas para
+    // tool=blotato_get_user e validateKey=true, usado por Setup/ManageKeysView.
+    let apiKey: string | null = null;
+
+    if (validateKey === true && tool === "blotato_get_user" && !companyId) {
+      const headerKey = req.headers.get("x-blotato-api-key");
+      if (!headerKey) {
+        return new Response(
+          JSON.stringify({ error: "Chave Blotato ausente para validação." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      apiKey = headerKey;
+    } else {
+      if (!companyId) {
+        return new Response(
+          JSON.stringify({ error: "Empresa não informada." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const cfgResult = await getCompanyConfig(companyId, auth.user.id, corsHeaders);
+      if (cfgResult instanceof Response) return cfgResult;
+      apiKey = cfgResult.config.blotato_api_key;
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: "Blotato não configurado para esta empresa." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     const url = `${BLOTATO_BASE}${route.path(args)}`;
     const fetchOptions: RequestInit = {
       method: route.method,
@@ -247,6 +287,7 @@ Deno.serve(async (req: Request) => {
         "blotato-api-key": apiKey,
       },
     };
+
 
     if (route.body && (route.method === "POST" || route.method === "PATCH")) {
       fetchOptions.body = JSON.stringify(route.body(args));
