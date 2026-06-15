@@ -132,50 +132,59 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <ThemeBoot>
         <AuthProvider>
-          <AppProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <Suspense fallback={<PageLoader />}>
-                  <Routes>
-                    {/* Auth routes (guest only) */}
-                    <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
-                    <Route path="/signup" element={<GuestOnly><Signup /></GuestOnly>} />
-                    <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
-                    <Route path="/update-password" element={<UpdatePassword />} />
+          <CompanyProvider>
+            <AppProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
+                  <Suspense fallback={<PageLoader />}>
+                    <Routes>
+                      {/* Auth routes (guest only) */}
+                      <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
+                      <Route path="/signup" element={<GuestOnly><Signup /></GuestOnly>} />
+                      <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
+                      <Route path="/update-password" element={<UpdatePassword />} />
 
-                    {/* Onboarding (authenticated) */}
-                    <Route path="/setup" element={<RequireSetupAccess><RoutePage><Setup /></RoutePage></RequireSetupAccess>} />
+                      {/* Convite */}
+                      <Route path="/aceitar-convite" element={<AcceptInvite />} />
 
-                    {/* App routes (authenticated + onboarded + layout) */}
-                    <Route element={<RequireAppAccess><AppLayout /></RequireAppAccess>}>
-                      <Route path="/dashboard" element={<RoutePage><Dashboard /></RoutePage>} />
-                      <Route path="/accounts" element={<RoutePage><Accounts /></RoutePage>} />
-                      <Route path="/studio" element={<RoutePage><Studio /></RoutePage>} />
-                      {/* Telas antigas aposentadas — redirecionam ao Studio unificado */}
-                      <Route path="/create" element={<Navigate to="/studio" replace />} />
-                      <Route path="/carousel" element={<Navigate to="/studio" replace />} />
-                      <Route path="/visuals" element={<Navigate to="/studio" replace />} />
-                      <Route path="/gallery" element={<RoutePage><Gallery /></RoutePage>} />
-                      <Route path="/analytics" element={<RoutePage><Analytics /></RoutePage>} />
-                      <Route path="/lab" element={<RoutePage><Lab /></RoutePage>} />
-                      <Route path="/schedule" element={<RoutePage><Schedule /></RoutePage>} />
-                      <Route path="/sources" element={<RoutePage><Sources /></RoutePage>} />
-                      <Route path="/brands" element={<RoutePage><Brands /></RoutePage>} />
-                      <Route path="/insights" element={<RoutePage><Insights /></RoutePage>} />
-                      <Route path="/autopilot" element={<RoutePage><Autopilot /></RoutePage>} />
-                      <Route path="/admin" element={<RoutePage><Admin /></RoutePage>} />
-                    </Route>
+                      {/* Criar empresa (autenticado, sem exigir empresa) */}
+                      <Route path="/criar-empresa" element={<RequireCompanyShell><CreateCompany /></RequireCompanyShell>} />
 
-                    {/* Redirects */}
-                    <Route path="/" element={<RootRedirect />} />
-                    <Route path="*" element={<RoutePage><NotFound /></RoutePage>} />
-                  </Routes>
-                </Suspense>
-              </BrowserRouter>
-            </TooltipProvider>
-          </AppProvider>
+                      {/* Onboarding (authenticated) */}
+                      <Route path="/setup" element={<RequireSetupAccess><RoutePage><Setup /></RoutePage></RequireSetupAccess>} />
+
+                      {/* App routes (authenticated + company + layout) */}
+                      <Route element={<RequireAppAccess><AppLayout /></RequireAppAccess>}>
+                        <Route path="/dashboard" element={<RoutePage><Dashboard /></RoutePage>} />
+                        <Route path="/accounts" element={<RoutePage><Accounts /></RoutePage>} />
+                        <Route path="/studio" element={<RoutePage><Studio /></RoutePage>} />
+                        {/* Telas antigas aposentadas — redirecionam ao Studio unificado */}
+                        <Route path="/create" element={<Navigate to="/studio" replace />} />
+                        <Route path="/carousel" element={<Navigate to="/studio" replace />} />
+                        <Route path="/visuals" element={<Navigate to="/studio" replace />} />
+                        <Route path="/gallery" element={<RoutePage><Gallery /></RoutePage>} />
+                        <Route path="/analytics" element={<RoutePage><Analytics /></RoutePage>} />
+                        <Route path="/lab" element={<RoutePage><Lab /></RoutePage>} />
+                        <Route path="/schedule" element={<RoutePage><Schedule /></RoutePage>} />
+                        <Route path="/sources" element={<RoutePage><Sources /></RoutePage>} />
+                        <Route path="/brands" element={<RoutePage><Brands /></RoutePage>} />
+                        <Route path="/insights" element={<RoutePage><Insights /></RoutePage>} />
+                        <Route path="/autopilot" element={<RoutePage><Autopilot /></RoutePage>} />
+                        <Route path="/admin" element={<RoutePage><Admin /></RoutePage>} />
+                        <Route path="/admin/equipe" element={<RoutePage><Team /></RoutePage>} />
+                      </Route>
+
+                      {/* Redirects */}
+                      <Route path="/" element={<RootRedirect />} />
+                      <Route path="*" element={<RoutePage><NotFound /></RoutePage>} />
+                    </Routes>
+                  </Suspense>
+                </BrowserRouter>
+              </TooltipProvider>
+            </AppProvider>
+          </CompanyProvider>
         </AuthProvider>
       </ThemeBoot>
     </QueryClientProvider>
