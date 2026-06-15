@@ -93,6 +93,38 @@ export function ManageKeysView({
   onBack?: () => void;
   embedded?: boolean;
 }) {
+  const { isEditor } = useCompany();
+
+  if (isEditor) {
+    const blocked = (
+      <Card className="border-amber-500/40 bg-amber-500/5">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-amber-500" /> Acesso restrito
+          </CardTitle>
+          <CardDescription>
+            Apenas Dono ou Admin da empresa podem visualizar ou editar as chaves de integração.
+            Solicite ao administrador da sua empresa caso precise alterar alguma chave.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+    if (embedded) return blocked;
+    return (
+      <div className="min-h-screen p-4 sm:p-6 lg:p-8 relative overflow-hidden">
+        <AnimatedBackground />
+        <div className="mx-auto max-w-3xl space-y-6 relative z-10">
+          {onBack && (
+            <Button variant="outline" onClick={onBack}>
+              <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+            </Button>
+          )}
+          {blocked}
+        </div>
+      </div>
+    );
+  }
+
   const content = (
     <div className="grid gap-4">
       {MANAGE_KEYS.map((def) => (
