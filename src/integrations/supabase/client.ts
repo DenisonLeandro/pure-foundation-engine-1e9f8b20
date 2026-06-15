@@ -7,10 +7,16 @@ import type { Database } from './types';
 // does not throw at module load — which would white-screen the app before
 // React mounts. The `supabaseConfigured` flag in src/lib/supabase.ts handles
 // the "backend not configured" UX gracefully across the app.
+// Hard fallbacks to the real publishable backend identity so the published
+// bundle continues to authenticate even when Vite env injection is missing.
+// These are public values (URL + publishable/anon key) — safe to ship.
+const FALLBACK_SUPABASE_URL = 'https://pgimbjfdxwefahxmpdpc.supabase.co';
+const FALLBACK_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_iJUl_R_VWamc4p2eC2XAWw_3Li5jJ0t';
+
 const SUPABASE_URL =
-  (import.meta as any).env?.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+  (import.meta as any).env?.VITE_SUPABASE_URL || FALLBACK_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY =
-  (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-key';
+  (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY || FALLBACK_SUPABASE_PUBLISHABLE_KEY;
 
 if (
   !(import.meta as any).env?.VITE_SUPABASE_URL ||
@@ -18,7 +24,7 @@ if (
 ) {
   // eslint-disable-next-line no-console
   console.warn(
-    '[supabase/client] VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY missing at build time — using placeholders. Backend calls will be disabled via supabaseConfigured.'
+    '[supabase/client] env ausente no build — usando fallback público do backend.'
   );
 }
 
