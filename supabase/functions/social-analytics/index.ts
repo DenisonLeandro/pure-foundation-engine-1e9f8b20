@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { getCompanyConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Social Analytics Edge Function — via Apify Actors
@@ -33,7 +34,7 @@ const APIFY_BASE = "https://api.apify.com/v2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-apify-api-token",
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -850,9 +851,8 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const auth = await requireUser(req, corsHeaders);
-  if (auth instanceof Response) return auth;
-
+  const authResult = await requireUser(req, corsHeaders);
+  if (authResult instanceof Response) return authResult;
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -862,22 +862,29 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const apifyToken =
-      req.headers.get("x-apify-api-token") ||
-      Deno.env.get("APIFY_API_TOKEN");
-    if (!apifyToken) {
+    const { accounts, enrich = false, companyId } = (await req.json()) as {
+      accounts: { platform: string; username: string }[];
+      enrich?: boolean;
+      companyId?: string;
+    };
+
+    if (!companyId) {
       return new Response(
-        JSON.stringify({
-          error: "APIFY_API_TOKEN não configurada. Configure no Setup da plataforma.",
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Empresa não informada." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const { accounts, enrich = false } = (await req.json()) as {
-      accounts: { platform: string; username: string }[];
-      enrich?: boolean;
-    };
+    const cfg = await getCompanyConfig(companyId, authResult.user.id, corsHeaders);
+    if (cfg instanceof Response) return cfg; // 403 se não membro
+
+    const apifyToken = cfg.config.apify_api_token;
+    if (!apifyToken) {
+      return new Response(
+        JSON.stringify({ error: "Apify não configurado para esta empresa." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!accounts?.length) {
       return new Response(

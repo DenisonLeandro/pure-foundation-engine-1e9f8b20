@@ -3,7 +3,19 @@
  * plus the helpers that build account lists and validate the Apify token.
  */
 
-import { getSupabaseUrl, getSavedConfig, baseHeaders } from "./_shared";
+import { getSupabaseUrl, baseHeaders } from "./_shared";
+
+// TODO: no futuro, passar companyId explicitamente em cada chamada (em vez
+// do setter de módulo) para evitar acoplamento global ao CompanyContext.
+let _activeCompanyId: string | null = null;
+
+export function setApifyActiveCompany(companyId: string | null) {
+  _activeCompanyId = companyId;
+}
+
+export function getApifyActiveCompany(): string | null {
+  return _activeCompanyId;
+}
 
 // ─── Social Analytics (Apify) ───────────────────────────────────
 
@@ -126,15 +138,16 @@ export async function fetchAnalytics(
   accounts: { platform: string; username: string }[],
   enrich = false
 ): Promise<AnalyticsResult> {
+  if (!_activeCompanyId) {
+    throw new Error("Selecione uma empresa antes de consultar métricas.");
+  }
   const url = `${getSupabaseUrl()}/functions/v1/social-analytics`;
-  const cfg = getSavedConfig();
   const headers = await baseHeaders();
-  if (cfg.apifyApiToken) headers["x-apify-api-token"] = cfg.apifyApiToken;
 
   const response = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ accounts, enrich }),
+    body: JSON.stringify({ accounts, enrich, companyId: _activeCompanyId }),
   });
 
   if (!response.ok) {
@@ -151,10 +164,16 @@ export async function fetchAnalytics(
   return response.json();
 }
 
-/** Validate Apify token */
-export async function validateApifyToken(token: string): Promise<{ valid: boolean; error?: string }> {
+/**
+ * Valida APENAS um token recém-digitado por Dono/Admin no Setup.
+ * NUNCA usar com token salvo em AppContext/company_configs.
+ * TODO: migrar para Edge Function dedicada que só aceite no caminho de validação manual.
+ */
+export async function validateApifyToken(typedToken: string): Promise<{ valid: boolean; error?: string }> {
+  const t = (typedToken || "").trim();
+  if (!t) return { valid: false, error: "Token vazio" };
   try {
-    const res = await fetch(`https://api.apify.com/v2/users/me?token=${token}`);
+    const res = await fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(t)}`);
     if (res.status === 401) return { valid: false, error: "Token inválido" };
     if (!res.ok) return { valid: false, error: `HTTP ${res.status}` };
     return { valid: true };
