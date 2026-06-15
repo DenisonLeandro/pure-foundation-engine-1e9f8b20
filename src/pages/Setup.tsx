@@ -25,11 +25,25 @@ import { SettingsShell } from "@/components/setup/SettingsShell";
 export default function Setup() {
   const { config, setConfig, isConfigured, onboardingCompleted, configLoading, completeOnboarding, saveConfigToDb, resetConfig } = useApp();
   const { user } = useAuth();
+  const { isEditor, loading: companyLoading } = useCompany();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const isWizardMode = searchParams.get("wizard") === "1";
   const isManageMode = !isWizardMode;
+
+  // Bloqueia Editor: somente Dono/Admin podem gerenciar integrações.
+  useEffect(() => {
+    if (companyLoading) return;
+    if (isEditor) {
+      toast({
+        title: "Acesso restrito",
+        description: "Apenas Dono ou Admin podem gerenciar integrações.",
+        variant: "destructive",
+      });
+      navigate("/dashboard", { replace: true });
+    }
+  }, [companyLoading, isEditor, navigate, toast]);
 
   // Reset demo: se ?reset=1 na URL, limpa tudo
   useEffect(() => {
