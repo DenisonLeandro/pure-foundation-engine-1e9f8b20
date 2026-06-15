@@ -73,7 +73,6 @@ export async function searchImages(
   const headers = await baseHeaders();
   // companyId vem do módulo Higgsfield (setado pelo CompanyContext).
   // Edge Function valida membership e busca higgsfield_api_id/secret no servidor.
-  const { getHiggsfieldActiveCompany } = await import("./higgsfield");
   const companyId = getHiggsfieldActiveCompany();
 
   const response = await fetch(url, {
