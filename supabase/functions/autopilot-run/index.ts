@@ -284,14 +284,10 @@ async function handleGenerate(configId: string, userId?: string) {
     brand = data;
   }
 
-  // Load firecrawl API key
-  const { data: userCfg } = await sb
-    .from("user_configs")
-    .select("firecrawl_api_key")
-    .eq("user_id", effectiveUserId)
-    .single();
+  // Load firecrawl API key from company config (shared) with fallback to user.
+  const keys = await loadKeysForUser(sb, effectiveUserId);
+  const firecrawlKey = keys?.firecrawl_api_key;
 
-  const firecrawlKey = userCfg?.firecrawl_api_key;
 
   // 1. Research via Firecrawl
   let allResults: { url: string; title: string; markdown: string }[] = [];
@@ -435,15 +431,10 @@ async function handleSchedule(calendarId: string) {
     return { scheduled: 0, message: "Nenhum post para agendar" };
   }
 
-  // Load user config for PFM key
+  // Load shared keys (company-scoped, falls back to user)
   const userId = posts[0].user_id;
-  const { data: userCfg } = await sb
-    .from("user_configs")
-    .select("postforme_api_key")
-    .eq("user_id", userId)
-    .single();
-
-  const pfmKey = userCfg?.postforme_api_key;
+  const keys = await loadKeysForUser(sb, userId);
+  const pfmKey = keys?.postforme_api_key;
   if (!pfmKey) throw new Error("PostForMe API key não configurada");
 
   // Load autopilot config for social_account_ids
@@ -459,14 +450,9 @@ async function handleSchedule(calendarId: string) {
     .eq("id", calendar?.config_id)
     .single();
 
-  // Credenciais de mídia (Higgsfield p/ vídeo) e brand (raiz dos visuais)
-  const { data: mediaCfg } = await sb
-    .from("user_configs")
-    .select("higgsfield_api_id, higgsfield_api_secret")
-    .eq("user_id", userId)
-    .single();
-  const hfId = mediaCfg?.higgsfield_api_id;
-  const hfSecret = mediaCfg?.higgsfield_api_secret;
+  const hfId = keys?.higgsfield_api_id;
+  const hfSecret = keys?.higgsfield_api_secret;
+
 
   let brandRow: BrandRow | null = null;
   if (config?.brand_id) {
