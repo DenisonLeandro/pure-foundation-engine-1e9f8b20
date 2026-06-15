@@ -40,6 +40,25 @@ function jsonResponse(data: unknown, status = 200) {
   });
 }
 
+/**
+ * Resolve API keys for a user, preferring the company they belong to (shared keys)
+ * and falling back to their own user_configs row if no company config exists yet.
+ */
+async function loadKeysForUser(
+  sb: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<Record<string, string | null>> {
+  const { data: companyKeys } = await sb.rpc("get_company_keys_for_user", { _user_id: userId });
+  if (companyKeys && (companyKeys as any).id) return companyKeys as Record<string, string | null>;
+  const { data: userCfg } = await sb
+    .from("user_configs")
+    .select("blotato_api_key, postforme_api_key, anthropic_api_key, unsplash_api_key, pexels_api_key, apify_api_token, firecrawl_api_key, higgsfield_api_id, higgsfield_api_secret")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return (userCfg ?? {}) as Record<string, string | null>;
+
+}
+
 function errorResponse(message: string, status = 500) {
   return jsonResponse({ error: message }, status);
 }
@@ -265,14 +284,10 @@ async function handleGenerate(configId: string, userId?: string) {
     brand = data;
   }
 
-  // Load firecrawl API key
-  const { data: userCfg } = await sb
-    .from("user_configs")
-    .select("firecrawl_api_key")
-    .eq("user_id", effectiveUserId)
-    .single();
+  // Load firecrawl API key from company config (shared) with fallback to user.
+  const keys = await loadKeysForUser(sb, effectiveUserId);
+  const firecrawlKey = keys?.firecrawl_api_key;
 
-  const firecrawlKey = userCfg?.firecrawl_api_key;
 
   // 1. Research via Firecrawl
   let allResults: { url: string; title: string; markdown: string }[] = [];
@@ -416,15 +431,10 @@ async function handleSchedule(calendarId: string) {
     return { scheduled: 0, message: "Nenhum post para agendar" };
   }
 
-  // Load user config for PFM key
+  // Load shared keys (company-scoped, falls back to user)
   const userId = posts[0].user_id;
-  const { data: userCfg } = await sb
-    .from("user_configs")
-    .select("postforme_api_key")
-    .eq("user_id", userId)
-    .single();
-
-  const pfmKey = userCfg?.postforme_api_key;
+  const keys = await loadKeysForUser(sb, userId);
+  const pfmKey = keys?.postforme_api_key;
   if (!pfmKey) throw new Error("PostForMe API key não configurada");
 
   // Load autopilot config for social_account_ids
@@ -440,14 +450,9 @@ async function handleSchedule(calendarId: string) {
     .eq("id", calendar?.config_id)
     .single();
 
-  // Credenciais de mídia (Higgsfield p/ vídeo) e brand (raiz dos visuais)
-  const { data: mediaCfg } = await sb
-    .from("user_configs")
-    .select("higgsfield_api_id, higgsfield_api_secret")
-    .eq("user_id", userId)
-    .single();
-  const hfId = mediaCfg?.higgsfield_api_id;
-  const hfSecret = mediaCfg?.higgsfield_api_secret;
+  const hfId = keys?.higgsfield_api_id;
+  const hfSecret = keys?.higgsfield_api_secret;
+
 
   let brandRow: BrandRow | null = null;
   if (config?.brand_id) {
@@ -605,15 +610,11 @@ async function handleCheckVisuals(calendarId: string) {
   if (!posts?.length) return { checked: 0 };
 
   const userId = posts[0].user_id;
-  const { data: userCfg } = await sb
-    .from("user_configs")
-    .select("blotato_api_key, higgsfield_api_id, higgsfield_api_secret")
-    .eq("user_id", userId)
-    .single();
+  const keys = await loadKeysForUser(sb, userId);
+  const blotatoKey = keys?.blotato_api_key;
+  const hfId = keys?.higgsfield_api_id;
+  const hfSecret = keys?.higgsfield_api_secret;
 
-  const blotatoKey = userCfg?.blotato_api_key;
-  const hfId = userCfg?.higgsfield_api_id;
-  const hfSecret = userCfg?.higgsfield_api_secret;
   const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
   let updated = 0;
 
@@ -698,9 +699,10 @@ async function handleConfirm(calendarId: string) {
   if (!posts?.length) return { confirmed: 0 };
 
   const userId = posts[0].user_id;
-  const { data: userCfg } = await sb.from("user_configs").select("postforme_api_key").eq("user_id", userId).single();
-  const pfmKey = userCfg?.postforme_api_key;
+  const keys = await loadKeysForUser(sb, userId);
+  const pfmKey = keys?.postforme_api_key;
   if (!pfmKey) return { confirmed: 0, error: "PFM key not found" };
+
 
   const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
   let confirmed = 0;

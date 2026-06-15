@@ -388,6 +388,62 @@ export type Database = {
           },
         ]
       }
+      company_configs: {
+        Row: {
+          anthropic_api_key: string | null
+          apify_api_token: string | null
+          blotato_api_key: string | null
+          company_id: string
+          created_at: string
+          firecrawl_api_key: string | null
+          higgsfield_api_id: string | null
+          higgsfield_api_secret: string | null
+          id: string
+          pexels_api_key: string | null
+          postforme_api_key: string | null
+          unsplash_api_key: string | null
+          updated_at: string
+        }
+        Insert: {
+          anthropic_api_key?: string | null
+          apify_api_token?: string | null
+          blotato_api_key?: string | null
+          company_id: string
+          created_at?: string
+          firecrawl_api_key?: string | null
+          higgsfield_api_id?: string | null
+          higgsfield_api_secret?: string | null
+          id?: string
+          pexels_api_key?: string | null
+          postforme_api_key?: string | null
+          unsplash_api_key?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anthropic_api_key?: string | null
+          apify_api_token?: string | null
+          blotato_api_key?: string | null
+          company_id?: string
+          created_at?: string
+          firecrawl_api_key?: string | null
+          higgsfield_api_id?: string | null
+          higgsfield_api_secret?: string | null
+          id?: string
+          pexels_api_key?: string | null
+          postforme_api_key?: string | null
+          unsplash_api_key?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_configs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_invites: {
         Row: {
           accepted_at: string | null
@@ -737,6 +793,30 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "company_members"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_company_keys_for_user: {
+        Args: { _user_id: string }
+        Returns: {
+          anthropic_api_key: string | null
+          apify_api_token: string | null
+          blotato_api_key: string | null
+          company_id: string
+          created_at: string
+          firecrawl_api_key: string | null
+          higgsfield_api_id: string | null
+          higgsfield_api_secret: string | null
+          id: string
+          pexels_api_key: string | null
+          postforme_api_key: string | null
+          unsplash_api_key: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "company_configs"
           isOneToOne: true
           isSetofReturn: false
         }
