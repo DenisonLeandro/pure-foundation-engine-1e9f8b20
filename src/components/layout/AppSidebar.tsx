@@ -19,8 +19,9 @@ import {
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
-import { useApp } from "@/contexts/use-app";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
+import { canManageTeam } from "@/lib/permissions";
 import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -28,6 +29,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { CompanySwitcher } from "@/components/layout/CompanySwitcher";
 
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -45,26 +47,16 @@ const navItems = [
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
-  const { config } = useApp();
   const { user, signOut } = useAuth();
+  const { role } = useCompany();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="flex h-full flex-col">
-      {/* Brand */}
-      <div className="flex items-center gap-3 px-6 py-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white font-bold text-lg shadow-lg">
-          <Zap className="h-5 w-5" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-bold text-sidebar-foreground leading-tight">
-            {config.brandName || "Minha Empresa"}
-          </span>
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-            Redes Sociais
-          </span>
-        </div>
+      {/* Company switcher */}
+      <div className="px-3 py-3">
+        <CompanySwitcher />
       </div>
 
       <Separator />
@@ -89,6 +81,21 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </NavLink>
           );
         })}
+        {canManageTeam(role) && (
+          <NavLink to="/admin/equipe" onClick={onNavigate}>
+            <div
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                location.pathname === "/admin/equipe"
+                  ? "bg-gradient-to-r from-violet-600/10 to-fuchsia-500/10 text-violet-600 dark:text-violet-400 shadow-sm"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <Users className={cn("h-4 w-4", location.pathname === "/admin/equipe" && "text-violet-600 dark:text-violet-400")} />
+              Equipe
+            </div>
+          </NavLink>
+        )}
       </nav>
 
       {/* Autopilot — botão destacado */}

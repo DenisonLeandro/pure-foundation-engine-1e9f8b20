@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/contexts/AppContext";
 import { useApp } from "@/contexts/use-app";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { CompanyProvider, useCompany } from "@/contexts/CompanyContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Loader2 } from "lucide-react";
@@ -17,6 +18,8 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import UpdatePassword from "./pages/UpdatePassword";
+import CreateCompany from "./pages/CreateCompany";
+import AcceptInvite from "./pages/AcceptInvite";
 
 // App pages (lazy loaded)
 const Setup = lazy(() => import("./pages/Setup"));
@@ -32,6 +35,7 @@ const Lab = lazy(() => import("./pages/Lab"));
 const Studio = lazy(() => import("./pages/Studio"));
 const Autopilot = lazy(() => import("./pages/Autopilot"));
 const Admin = lazy(() => import("./pages/Admin"));
+const Team = lazy(() => import("./pages/Team"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -83,10 +87,20 @@ function RequireSetupAccess({ children }: { children: React.ReactNode }) {
 function RequireAppAccess({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { configLoading } = useApp();
+  const { companies, loading: companyLoading, activeCompanyId } = useCompany();
 
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
-  if (configLoading) return <PageLoader />;
+  if (configLoading || companyLoading) return <PageLoader />;
+  if (companies.length === 0) return <Navigate to="/criar-empresa" replace />;
+  if (!activeCompanyId) return <Navigate to="/criar-empresa" replace />;
+  return <>{children}</>;
+}
+
+function RequireCompanyShell({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <PageLoader />;
+  if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 // Redirect to dashboard if already authenticated
@@ -119,50 +133,59 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <ThemeBoot>
         <AuthProvider>
-          <AppProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <Suspense fallback={<PageLoader />}>
-                  <Routes>
-                    {/* Auth routes (guest only) */}
-                    <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
-                    <Route path="/signup" element={<GuestOnly><Signup /></GuestOnly>} />
-                    <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
-                    <Route path="/update-password" element={<UpdatePassword />} />
+          <CompanyProvider>
+            <AppProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
+                  <Suspense fallback={<PageLoader />}>
+                    <Routes>
+                      {/* Auth routes (guest only) */}
+                      <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
+                      <Route path="/signup" element={<GuestOnly><Signup /></GuestOnly>} />
+                      <Route path="/forgot-password" element={<GuestOnly><ForgotPassword /></GuestOnly>} />
+                      <Route path="/update-password" element={<UpdatePassword />} />
 
-                    {/* Onboarding (authenticated) */}
-                    <Route path="/setup" element={<RequireSetupAccess><RoutePage><Setup /></RoutePage></RequireSetupAccess>} />
+                      {/* Convite */}
+                      <Route path="/aceitar-convite" element={<AcceptInvite />} />
 
-                    {/* App routes (authenticated + onboarded + layout) */}
-                    <Route element={<RequireAppAccess><AppLayout /></RequireAppAccess>}>
-                      <Route path="/dashboard" element={<RoutePage><Dashboard /></RoutePage>} />
-                      <Route path="/accounts" element={<RoutePage><Accounts /></RoutePage>} />
-                      <Route path="/studio" element={<RoutePage><Studio /></RoutePage>} />
-                      {/* Telas antigas aposentadas — redirecionam ao Studio unificado */}
-                      <Route path="/create" element={<Navigate to="/studio" replace />} />
-                      <Route path="/carousel" element={<Navigate to="/studio" replace />} />
-                      <Route path="/visuals" element={<Navigate to="/studio" replace />} />
-                      <Route path="/gallery" element={<RoutePage><Gallery /></RoutePage>} />
-                      <Route path="/analytics" element={<RoutePage><Analytics /></RoutePage>} />
-                      <Route path="/lab" element={<RoutePage><Lab /></RoutePage>} />
-                      <Route path="/schedule" element={<RoutePage><Schedule /></RoutePage>} />
-                      <Route path="/sources" element={<RoutePage><Sources /></RoutePage>} />
-                      <Route path="/brands" element={<RoutePage><Brands /></RoutePage>} />
-                      <Route path="/insights" element={<RoutePage><Insights /></RoutePage>} />
-                      <Route path="/autopilot" element={<RoutePage><Autopilot /></RoutePage>} />
-                      <Route path="/admin" element={<RoutePage><Admin /></RoutePage>} />
-                    </Route>
+                      {/* Criar empresa (autenticado, sem exigir empresa) */}
+                      <Route path="/criar-empresa" element={<RequireCompanyShell><CreateCompany /></RequireCompanyShell>} />
 
-                    {/* Redirects */}
-                    <Route path="/" element={<RootRedirect />} />
-                    <Route path="*" element={<RoutePage><NotFound /></RoutePage>} />
-                  </Routes>
-                </Suspense>
-              </BrowserRouter>
-            </TooltipProvider>
-          </AppProvider>
+                      {/* Onboarding (authenticated) */}
+                      <Route path="/setup" element={<RequireSetupAccess><RoutePage><Setup /></RoutePage></RequireSetupAccess>} />
+
+                      {/* App routes (authenticated + company + layout) */}
+                      <Route element={<RequireAppAccess><AppLayout /></RequireAppAccess>}>
+                        <Route path="/dashboard" element={<RoutePage><Dashboard /></RoutePage>} />
+                        <Route path="/accounts" element={<RoutePage><Accounts /></RoutePage>} />
+                        <Route path="/studio" element={<RoutePage><Studio /></RoutePage>} />
+                        {/* Telas antigas aposentadas — redirecionam ao Studio unificado */}
+                        <Route path="/create" element={<Navigate to="/studio" replace />} />
+                        <Route path="/carousel" element={<Navigate to="/studio" replace />} />
+                        <Route path="/visuals" element={<Navigate to="/studio" replace />} />
+                        <Route path="/gallery" element={<RoutePage><Gallery /></RoutePage>} />
+                        <Route path="/analytics" element={<RoutePage><Analytics /></RoutePage>} />
+                        <Route path="/lab" element={<RoutePage><Lab /></RoutePage>} />
+                        <Route path="/schedule" element={<RoutePage><Schedule /></RoutePage>} />
+                        <Route path="/sources" element={<RoutePage><Sources /></RoutePage>} />
+                        <Route path="/brands" element={<RoutePage><Brands /></RoutePage>} />
+                        <Route path="/insights" element={<RoutePage><Insights /></RoutePage>} />
+                        <Route path="/autopilot" element={<RoutePage><Autopilot /></RoutePage>} />
+                        <Route path="/admin" element={<RoutePage><Admin /></RoutePage>} />
+                        <Route path="/admin/equipe" element={<RoutePage><Team /></RoutePage>} />
+                      </Route>
+
+                      {/* Redirects */}
+                      <Route path="/" element={<RootRedirect />} />
+                      <Route path="*" element={<RoutePage><NotFound /></RoutePage>} />
+                    </Routes>
+                  </Suspense>
+                </BrowserRouter>
+              </TooltipProvider>
+            </AppProvider>
+          </CompanyProvider>
         </AuthProvider>
       </ThemeBoot>
     </QueryClientProvider>
