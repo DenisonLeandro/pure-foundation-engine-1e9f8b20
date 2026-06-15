@@ -78,6 +78,7 @@ interface AutoStudioProps {
 export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: AutoStudioProps) {
   const { brands, defaultBrand } = useBrands();
   const { user } = useAuth();
+  const { activeCompanyId } = useCompany();
   const userId = user?.id;
   const [brandId, setBrandId] = useState<string | null>(initialForm?.brandId ?? null);
   useEffect(() => { if (!brandId && defaultBrand) setBrandId(defaultBrand.id); }, [defaultBrand, brandId]);
@@ -263,9 +264,10 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
     let bg: string | undefined;
     try {
       const query = await pickStockQuery(topic, heading, sceneBrief);
-      let { images } = await searchStockImages({ query, count: 5, orientation: "portrait" });
+      if (!activeCompanyId) { toast.error("Selecione uma empresa."); return {}; }
+      let { images } = await searchStockImages({ companyId: activeCompanyId, query, count: 5, orientation: "portrait" });
       if (!images?.length) {
-        const fb = await searchStockImages({ query: "profissional negócios trabalho", count: 5, orientation: "portrait" });
+        const fb = await searchStockImages({ companyId: activeCompanyId, query: "profissional negócios trabalho", count: 5, orientation: "portrait" });
         images = fb.images;
       }
       if (images?.length) bg = images[idx % images.length].url;
