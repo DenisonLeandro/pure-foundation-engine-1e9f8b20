@@ -1,9 +1,17 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { getCompanyConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Firecrawl Search Proxy
- * Busca conteúdo via Firecrawl REST API para pesquisa automatizada.
+ *
+ * Fluxo operacional: { companyId, query, limit } no body.
+ *  - Valida membership ativo via helper.
+ *  - Busca firecrawl_api_key em company_configs (server-side, SERVICE_ROLE).
+ *
+ * Fluxo de validação manual (chave recém-digitada por Dono/Admin no Setup):
+ *  - { validateKey: true } no body + header x-firecrawl-api-key com a chave digitada.
+ *  - NUNCA usar chave salva nesse caminho.
  */
 
 const corsHeaders = {
@@ -14,20 +22,34 @@ const corsHeaders = {
 };
 
 interface SearchRequest {
+  companyId?: string;
   query: string;
   limit?: number;
   lang?: string;
+  validateKey?: boolean;
+}
+
+async function callFirecrawl(apiKey: string, query: string, limit: number, lang: string) {
+  const response = await fetch("https://api.firecrawl.dev/v1/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query,
+      limit,
+      lang,
+      scrapeOptions: { formats: ["markdown"], onlyMainContent: true },
+    }),
+  });
+  return response;
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
-
-  const auth = await requireUser(req, corsHeaders);
-  if (auth instanceof Response) return auth;
-
-
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
@@ -35,43 +57,53 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  try {
-    const apiKey = req.headers.get("x-firecrawl-api-key") || Deno.env.get("FIRECRAWL_API_KEY");
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "Missing x-firecrawl-api-key header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  const auth = await requireUser(req, corsHeaders);
+  if (auth instanceof Response) return auth;
 
+  try {
     const body: SearchRequest = await req.json();
-    const { query, limit = 5, lang = "pt-br" } = body;
+    const { query, limit = 5, lang = "pt-br", validateKey, companyId } = body;
 
     if (!query) {
-      return new Response(
-        JSON.stringify({ error: "Missing 'query' in request body" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Missing 'query' in request body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let apiKey: string | null = null;
+
+    if (validateKey) {
+      // Validação manual: usa SOMENTE a chave digitada via header.
+      apiKey = req.headers.get("x-firecrawl-api-key");
+      if (!apiKey) {
+        return new Response(JSON.stringify({ error: "Chave não fornecida para validação" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      // Fluxo operacional: valida membership e busca chave no servidor.
+      if (!companyId) {
+        return new Response(JSON.stringify({ error: "Empresa não informada." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const cfg = await getCompanyConfig(companyId, auth.user.id, corsHeaders);
+      if (cfg instanceof Response) return cfg;
+      apiKey = cfg.config.firecrawl_api_key;
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: "Firecrawl não configurado para esta empresa." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     console.log(`[firecrawl-search] Searching: "${query}" (limit=${limit})`);
 
-    const response = await fetch("https://api.firecrawl.dev/v1/search", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query,
-        limit,
-        lang,
-        scrapeOptions: {
-          formats: ["markdown"],
-          onlyMainContent: true,
-        },
-      }),
-    });
+    const response = await callFirecrawl(apiKey, query, limit, lang);
 
     if (!response.ok) {
       const errText = await response.text();
@@ -85,18 +117,16 @@ Deno.serve(async (req: Request) => {
             fallback: true,
             results: [],
           }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
       return new Response(
-        JSON.stringify({ error: `Firecrawl API ${response.status}: ${errText}` }),
-        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: `Firecrawl API ${response.status}: ${errText.slice(0, 200)}` }),
+        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     const data = await response.json();
-
-    // Normalizar resultados
     const results = (data.data || []).map((item: Record<string, unknown>) => ({
       url: item.url || "",
       title: (item.metadata as any)?.title || item.title || "",
