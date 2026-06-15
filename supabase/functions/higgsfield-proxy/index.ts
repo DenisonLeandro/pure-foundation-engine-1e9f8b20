@@ -150,9 +150,8 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const auth = await requireUser(req, corsHeaders);
-  if (auth instanceof Response) return auth;
-
+  const authResult = await requireUser(req, corsHeaders);
+  if (authResult instanceof Response) return authResult;
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -162,17 +161,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const auth = getAuthHeader(req);
-    if (!auth) {
-      return new Response(
-        JSON.stringify({ error: "Higgsfield API credentials não configuradas. Configure no Setup." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const { tool, args = {} } = (await req.json()) as {
+    const { tool, args = {}, companyId } = (await req.json()) as {
       tool: string;
       args?: Args;
+      companyId?: string;
     };
 
     if (!tool) {
@@ -182,8 +174,28 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (!companyId) {
+      return new Response(
+        JSON.stringify({ error: "Empresa não informada." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const cfg = await getCompanyConfig(companyId, authResult.user.id, corsHeaders);
+    if (cfg instanceof Response) return cfg;
+
+    const apiId = cfg.config.higgsfield_api_id;
+    const apiSecret = cfg.config.higgsfield_api_secret;
+    if (!apiId || !apiSecret) {
+      return new Response(
+        JSON.stringify({ error: "Higgsfield não configurado para esta empresa." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const authKey = `Key ${apiId}:${apiSecret}`;
+
     const headers: Record<string, string> = {
-      "Authorization": auth,
+      "Authorization": authKey,
       "Content-Type": "application/json",
       "Accept": "application/json",
     };
