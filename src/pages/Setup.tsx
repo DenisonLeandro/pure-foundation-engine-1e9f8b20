@@ -94,7 +94,7 @@ export default function Setup() {
     didSyncLoadedConfig.current = true;
     setBlotatoKey(config.blotatoApiKey || "");
     setPfmKey(config.postformeApiKey || "");
-    setPexelsKey(config.pexelsApiKey || "");
+    // Pexels: NUNCA pré-preencher com config.pexelsApiKey — chave salva não deve trafegar pelo navegador.
     setApifyToken(config.apifyApiToken || "");
     setHfApiId(config.higgsFieldApiId || "");
     setHfApiSecret(config.higgsFieldApiSecret || "");
