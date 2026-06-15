@@ -867,6 +867,10 @@ export type Database = {
         Args: { _company: string; _user: string }
         Returns: boolean
       }
+      update_company_integration_keys: {
+        Args: { _company_id: string; _patch: Json }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "user"
