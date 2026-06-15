@@ -35,6 +35,7 @@ const Lab = lazy(() => import("./pages/Lab"));
 const Studio = lazy(() => import("./pages/Studio"));
 const Autopilot = lazy(() => import("./pages/Autopilot"));
 const Admin = lazy(() => import("./pages/Admin"));
+const Team = lazy(() => import("./pages/Team"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
