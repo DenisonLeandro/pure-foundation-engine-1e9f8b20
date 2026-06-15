@@ -18,15 +18,10 @@ const SUPABASE_URL =
 const SUPABASE_PUBLISHABLE_KEY =
   (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY || FALLBACK_SUPABASE_PUBLISHABLE_KEY;
 
-if (
-  !(import.meta as any).env?.VITE_SUPABASE_URL ||
-  !(import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY
-) {
-  // eslint-disable-next-line no-console
-  console.warn(
-    '[supabase/client] env ausente no build — usando fallback público do backend.'
-  );
-}
+// Fallbacks são a identidade pública real do backend — quando o build vem
+// sem env injetada (ex.: bundle publicado antigo), os fallbacks garantem que
+// o client funcione sem ruído no console. Não há perda de segurança: tanto a
+// URL quanto a publishable key são valores públicos por design.
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
