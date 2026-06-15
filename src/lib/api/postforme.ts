@@ -1,11 +1,32 @@
 /**
  * Post for Me (PFM) — unified accounts + posting + analytics.
  *
- * All calls go through the postforme-proxy Edge Function. The PFM key can be
- * set explicitly (setPfmUserKey) or read from the user's saved config.
+ * Modelo seguro por empresa:
+ * - Todas as chamadas operacionais incluem `companyId` no body.
+ * - A Edge Function postforme-proxy valida membership e busca
+ *   `postforme_api_key` em `company_configs` no servidor.
+ * - O frontend NÃO envia mais `x-pfm-api-key` no fluxo operacional.
+ *
+ * Único uso restante de `x-pfm-api-key`: validação de uma chave recém-digitada
+ * em Setup/ManageKeysView (`validatePfmKey`). Esse caminho não usa nenhuma
+ * chave salva — apenas a string digitada no input.
  */
 
-import { getSupabaseUrl, getSavedConfig, baseHeaders } from "./_shared";
+import { getSupabaseUrl, baseHeaders } from "./_shared";
+
+// ─── Empresa ativa (preenchido pelo CompanyContext) ────────────────
+let _activeCompanyId: string | null = null;
+export function setPfmActiveCompany(companyId: string | null | undefined) {
+  _activeCompanyId = companyId || null;
+}
+export function getPfmActiveCompany() {
+  return _activeCompanyId;
+}
+
+// ─── No-ops mantidos para compatibilidade com AppContext ───────────
+// (a chave da empresa não é mais lida no frontend; o backend resolve.)
+export function setPfmUserKey(_key: string | undefined) { /* no-op */ }
+export function getPfmUserKey(): string | undefined { return undefined; }
 
 // Exported for direct use (e.g. Bluesky auth)
 export async function callPfmDirect(
@@ -15,25 +36,22 @@ export async function callPfmDirect(
   return callPfm(tool, args);
 }
 
-// PFM key can be passed from user config
-let _pfmUserKey: string | undefined;
-export function setPfmUserKey(key: string | undefined) { _pfmUserKey = key; }
-export function getPfmUserKey() { return _pfmUserKey; }
-
 async function callPfm(
   tool: string,
   args: Record<string, unknown> = {}
 ): Promise<unknown> {
+  const companyId = _activeCompanyId;
+  if (!companyId) {
+    throw new Error("Selecione uma empresa antes de publicar.");
+  }
+
   const url = `${getSupabaseUrl()}/functions/v1/postforme-proxy`;
-  const cfg = getSavedConfig();
   const headers = await baseHeaders();
-  if (_pfmUserKey) headers["x-pfm-api-key"] = _pfmUserKey;
-  else if (cfg.postformeApiKey) headers["x-pfm-api-key"] = cfg.postformeApiKey;
 
   const res = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ tool, args }),
+    body: JSON.stringify({ tool, args, companyId }),
   });
 
   let payload: any = null;
@@ -51,7 +69,9 @@ async function callPfm(
   return payload;
 }
 
-/** Validate PFM key by listing accounts */
+/** Valida uma chave PFM recém-digitada pelo Dono/Admin.
+ *  Envia a chave digitada via header APENAS para essa rota de validação.
+ *  Não lê nem usa nenhuma chave salva da empresa. */
 export async function validatePfmKey(key: string): Promise<{ valid: boolean; error?: string }> {
   try {
     const url = `${getSupabaseUrl()}/functions/v1/postforme-proxy`;
@@ -60,13 +80,12 @@ export async function validatePfmKey(key: string): Promise<{ valid: boolean; err
     const res = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "pfm_list_accounts", args: {} }),
+      body: JSON.stringify({ tool: "pfm_list_accounts", args: {}, validateKey: true }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       return { valid: false, error: body.error || `HTTP ${res.status}` };
     }
-    setPfmUserKey(key);
     return { valid: true };
   } catch (e) {
     return { valid: false, error: e instanceof Error ? e.message : "Erro de conexão" };
@@ -88,7 +107,7 @@ export async function pfmListAccounts(platform?: string): Promise<PfmAccount[]> 
   if (platform) args.platform = platform;
   const result = await callPfm("pfm_list_accounts", args) as any;
   return (result.data || [])
-    .filter((a: any) => a.status !== "disconnected")  // ignorar contas desconectadas
+    .filter((a: any) => a.status !== "disconnected")
     .map((a: any) => ({
       id: a.id,
       platform: a.platform === "x" ? "twitter" : a.platform,
@@ -150,7 +169,6 @@ export async function pfmAccountFeed(socialAccountId: string, limit = 20, cursor
 // Media upload
 export async function pfmCreateUploadUrl(): Promise<{ media_url: string; upload_url: string }> {
   const result = await callPfm("pfm_upload_url", {}) as any;
-  // PFM API may nest under .data or return flat
   const data = result?.data ?? result;
   if (!data?.media_url || !data?.upload_url) {
     throw new Error("PFM upload URL response missing media_url or upload_url");
