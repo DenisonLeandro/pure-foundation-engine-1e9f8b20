@@ -1,18 +1,22 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { getCompanyConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Post for Me API Proxy
  *
- * Unified proxy for all Post for Me operations:
- * - Account connection (OAuth)
- * - Posting & scheduling
- * - Analytics & metrics
- * - Media upload
- * - Feed reading
+ * Modelo seguro:
+ *  - Frontend envia { tool, args, companyId } no body.
+ *  - Validamos membership e buscamos postforme_api_key em company_configs
+ *    via SERVICE_ROLE no servidor. A chave NUNCA é devolvida no body.
  *
- * Replaces both Blotato (for accounts/posting) and Apify (for analytics).
- * Blotato is kept ONLY for visual/video generation.
+ * Exceção controlada (validação de chave digitada):
+ *  - Quando o body inclui `validateKey: true`, aceitamos `x-pfm-api-key`
+ *    para validar uma chave recém-digitada em Setup/ManageKeysView.
+ *    Esse caminho não lê nenhuma chave salva. Restringido a
+ *    tool === "pfm_list_accounts" e nunca expõe a chave em resposta/log.
+ *  TODO: remover esse fallback se/quando a validação for migrada para
+ *  uma rota dedicada (ex.: postforme-validate-key).
  */
 
 const PFM_BASE = "https://api.postforme.dev/v1";
