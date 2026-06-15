@@ -63,41 +63,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const signUp = async (email: string, password: string, name?: string) => {
-    if (!supabaseConfigured) return { error: "Autenticação não configurada" };
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: name || "" } },
-    });
-    return { error: error?.message ?? null };
-  };
-
-  const signIn = async (email: string, password: string) => {
-    if (!supabaseConfigured) return { error: "Autenticação não configurada" };
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
-  };
-
-  const signOut = async () => {
-    // Limpa todos os dados do usuário atual antes de deslogar
-    userStorage.clearUser();
-    if (supabaseConfigured) {
-      await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: name || "" } },
+      });
+      return { error: error?.message ?? null };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Falha ao cadastrar." };
     }
   };
 
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (!error) return { error: null };
+      const msg = error.message || "";
+      if (/invalid login credentials/i.test(msg)) return { error: "Email ou senha inválidos." };
+      if (/failed to fetch|network/i.test(msg)) return { error: "Não foi possível autenticar. Verifique sua conexão." };
+      if (/email not confirmed/i.test(msg)) return { error: "Confirme seu email antes de entrar." };
+      return { error: msg };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Não foi possível autenticar." };
+    }
+  };
+
+  const signOut = async () => {
+    userStorage.clearUser();
+    try { await supabase.auth.signOut(); } catch (err) { console.warn("[auth] signOut falhou:", err); }
+  };
+
   const resetPassword = async (email: string) => {
-    if (!supabaseConfigured) return { error: "Autenticação não configurada" };
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`,
-    });
-    return { error: error?.message ?? null };
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+      return { error: error?.message ?? null };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Falha ao enviar email." };
+    }
   };
 
   const updatePassword = async (password: string) => {
-    if (!supabaseConfigured) return { error: "Autenticação não configurada" };
-    const { error } = await supabase.auth.updateUser({ password });
-    return { error: error?.message ?? null };
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      return { error: error?.message ?? null };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Falha ao atualizar senha." };
+    }
   };
 
   return (
