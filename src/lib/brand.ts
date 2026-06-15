@@ -11,6 +11,8 @@ import type { BrandProfileForAI } from "@/lib/api";
 
 export interface BrandProfile {
   id: string;
+  company_id: string;
+  user_id?: string | null;
   name: string;
   description?: string;
   tone: string;
@@ -34,6 +36,8 @@ export interface BrandProfile {
 export function normalizeBrand(row: Record<string, unknown>): BrandProfile {
   return {
     id: String(row.id ?? ""),
+    company_id: String(row.company_id ?? ""),
+    user_id: (row.user_id as string) ?? null,
     name: String(row.name ?? ""),
     description: (row.description as string) ?? "",
     tone: (row.tone as string) ?? "",
