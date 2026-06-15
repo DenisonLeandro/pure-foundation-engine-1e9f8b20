@@ -1,8 +1,20 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { getCompanyConfig } from "../_shared/company-secrets.ts";
 
 /**
- * Blotato REST API Proxy — Verified endpoints
+ * Blotato REST API Proxy — modelo seguro por empresa.
+ *
+ *  - Frontend envia { tool, args, companyId } no body.
+ *  - Validamos membership e buscamos blotato_api_key em company_configs via
+ *    SERVICE_ROLE no servidor. A chave NUNCA é devolvida no body nem logada.
+ *
+ *  Exceção controlada (validação de chave digitada em Setup/ManageKeysView):
+ *  - Quando o body inclui `validateKey: true` e tool === "blotato_get_user",
+ *    aceitamos `x-blotato-api-key` para validar uma chave recém-digitada.
+ *    Não lê nenhuma chave salva.
+ *  TODO: migrar essa validação para uma rota dedicada (ex.: blotato-validate-key)
+ *  e remover o header do CORS por completo.
  *
  * All endpoints tested and confirmed working against backend.blotato.com/v2
  * Rate limit: 30 req/min per endpoint
