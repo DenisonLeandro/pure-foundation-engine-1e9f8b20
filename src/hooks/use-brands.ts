@@ -1,20 +1,20 @@
 /**
  * Carregamento centralizado dos perfis de marca (brand_profiles).
- * Fonte única para o Studio e demais telas — a marca é a raiz da criação.
+ * Marca pertence à empresa ativa — membros ativos veem; Dono/Admin gerenciam.
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { normalizeBrand, type BrandProfile } from "@/lib/brand";
 
 export function useBrands() {
-  const { user } = useAuth();
+  const { activeCompanyId } = useCompany();
   const [brands, setBrands] = useState<BrandProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    if (!user) {
+    if (!activeCompanyId) {
       setBrands([]);
       setLoading(false);
       return;
@@ -23,13 +23,13 @@ export function useBrands() {
     const { data, error } = await supabase
       .from("brand_profiles")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("company_id", activeCompanyId)
       .order("is_default", { ascending: false });
     if (!error) {
       setBrands((data || []).map((d) => normalizeBrand(d as Record<string, unknown>)));
     }
     setLoading(false);
-  }, [user]);
+  }, [activeCompanyId]);
 
   useEffect(() => {
     reload();
