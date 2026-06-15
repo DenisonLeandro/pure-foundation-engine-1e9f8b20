@@ -95,6 +95,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     setBlotatoActiveCompany(activeCompanyId);
     setFirecrawlActiveCompany(activeCompanyId);
     setHiggsfieldActiveCompany(activeCompanyId);
+    setApifyActiveCompany(activeCompanyId);
   }, [activeCompanyId]);
 
 
