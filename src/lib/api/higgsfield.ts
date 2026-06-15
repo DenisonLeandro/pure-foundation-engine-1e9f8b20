@@ -1,8 +1,30 @@
 /**
  * Higgsfield image & video generation via the higgsfield-proxy Edge Function.
+ *
+ * Segurança: o frontend NÃO envia credenciais Higgsfield (api_id/api_secret).
+ * Em fluxo operacional, somente companyId é enviado no body — a Edge Function
+ * valida membership e busca higgsfield_api_id / higgsfield_api_secret em
+ * company_configs no servidor (SERVICE_ROLE).
+ *
+ * Validação manual (Setup, chave recém-digitada por Dono/Admin):
+ *   validateHiggsFieldKey(apiId, apiSecret) — chama Higgsfield direto a partir
+ *   do navegador APENAS com valores digitados (nunca com chaves salvas).
+ *
+ * TODO: no futuro, passar companyId explicitamente em cada chamada (em vez
+ * do setter de módulo) para evitar acoplamento global.
  */
 
-import { getSupabaseUrl, getSavedConfig, baseHeaders } from "./_shared";
+import { getSupabaseUrl, baseHeaders } from "./_shared";
+
+let _activeCompanyId: string | null = null;
+
+export function setHiggsfieldActiveCompany(companyId: string | null) {
+  _activeCompanyId = companyId;
+}
+
+export function getHiggsfieldActiveCompany(): string | null {
+  return _activeCompanyId;
+}
 
 export interface HfGenerationResult {
   status: string;
@@ -23,16 +45,16 @@ export async function callHiggsfield(
   tool: string,
   args: Record<string, unknown> = {}
 ): Promise<unknown> {
+  if (!_activeCompanyId) {
+    throw new Error("Selecione uma empresa antes de gerar vídeo.");
+  }
   const url = `${getSupabaseUrl()}/functions/v1/higgsfield-proxy`;
-  const cfg = getSavedConfig();
   const headers = await baseHeaders();
-  if (cfg.higgsFieldApiId) headers["x-higgsfield-api-id"] = cfg.higgsFieldApiId;
-  if (cfg.higgsFieldApiSecret) headers["x-higgsfield-api-secret"] = cfg.higgsFieldApiSecret;
 
   const res = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ tool, args }),
+    body: JSON.stringify({ tool, args, companyId: _activeCompanyId }),
   });
 
   if (!res.ok) {
@@ -82,20 +104,29 @@ export async function hfCancel(requestId: string): Promise<void> {
   await callHiggsfield("hf_cancel", { request_id: requestId });
 }
 
-/** Validate Higgsfield credentials */
+/**
+ * Valida APENAS credenciais recém-digitadas no Setup por Dono/Admin.
+ * NUNCA usar com chave salva em AppContext/company_configs.
+ * Editor não deve acessar essa função (bloqueado nas views Setup/ManageKeysView).
+ *
+ * TODO: migrar essa validação para uma Edge Function dedicada que aceite
+ * apenas no caminho explícito de validação manual.
+ */
 export async function validateHiggsFieldKey(apiId: string, apiSecret: string): Promise<{ valid: boolean; error?: string }> {
+  if (!apiId?.trim() || !apiSecret?.trim()) {
+    return { valid: false, error: "Credenciais vazias" };
+  }
   try {
     const res = await fetch("https://platform.higgsfield.ai/higgsfield-ai/soul/standard", {
       method: "POST",
       headers: {
-        "Authorization": `Key ${apiId}:${apiSecret}`,
+        "Authorization": `Key ${apiId.trim()}:${apiSecret.trim()}`,
         "Content-Type": "application/json",
         "Accept": "application/json",
       },
       body: JSON.stringify({ prompt: "test", aspect_ratio: "1:1", resolution: "360p" }),
     });
     if (res.status === 401 || res.status === 403) return { valid: false, error: "Credenciais inválidas" };
-    // 200 or 429 = credentials valid
     return { valid: true };
   } catch (e) {
     return { valid: false, error: e instanceof Error ? e.message : "Erro de conexão" };
