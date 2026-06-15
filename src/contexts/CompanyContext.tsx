@@ -62,9 +62,9 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         console.warn("[CompanyContext] erro ao buscar empresas:", error);
         setCompanies([]);
       } else {
-        const mapped = (data ?? [])
-          .filter((r: { company: Company | null }) => r.company)
-          .map((r: { role: CompanyRole; company: Company }) => ({ role: r.role, company: r.company }));
+        const mapped: CompanyMembership[] = ((data ?? []) as unknown as Array<{ role: string; company: Company | null }>)
+          .filter((r) => r.company)
+          .map((r) => ({ role: r.role as CompanyRole, company: r.company as Company }));
         setCompanies(mapped);
 
         const stored = userStorage.get(ACTIVE_KEY);
