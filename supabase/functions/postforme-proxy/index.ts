@@ -1,18 +1,22 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { getCompanyConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Post for Me API Proxy
  *
- * Unified proxy for all Post for Me operations:
- * - Account connection (OAuth)
- * - Posting & scheduling
- * - Analytics & metrics
- * - Media upload
- * - Feed reading
+ * Modelo seguro:
+ *  - Frontend envia { tool, args, companyId } no body.
+ *  - Validamos membership e buscamos postforme_api_key em company_configs
+ *    via SERVICE_ROLE no servidor. A chave NUNCA é devolvida no body.
  *
- * Replaces both Blotato (for accounts/posting) and Apify (for analytics).
- * Blotato is kept ONLY for visual/video generation.
+ * Exceção controlada (validação de chave digitada):
+ *  - Quando o body inclui `validateKey: true`, aceitamos `x-pfm-api-key`
+ *    para validar uma chave recém-digitada em Setup/ManageKeysView.
+ *    Esse caminho não lê nenhuma chave salva. Restringido a
+ *    tool === "pfm_list_accounts" e nunca expõe a chave em resposta/log.
+ *  TODO: remover esse fallback se/quando a validação for migrada para
+ *  uma rota dedicada (ex.: postforme-validate-key).
  */
 
 const PFM_BASE = "https://api.postforme.dev/v1";
@@ -262,22 +266,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // API key from header or env
-    const apiKey =
-      req.headers.get("x-pfm-api-key") ||
-      Deno.env.get("POSTFORME_API_KEY");
-
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "POSTFORME_API_KEY não configurada." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const { tool, args = {} } = (await req.json()) as {
-      tool: string;
+    const body = (await req.json().catch(() => ({}))) as {
+      tool?: string;
       args?: Args;
+      companyId?: string;
+      validateKey?: boolean;
     };
+    const { tool, args = {}, companyId, validateKey } = body;
 
     if (!tool) {
       return new Response(
@@ -293,6 +288,40 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // ── Resolução da chave Post for Me ─────────────────────────────
+    // Caminho principal: companyId → membership → company_configs.postforme_api_key
+    // Caminho de validação (TODO remover): header x-pfm-api-key apenas para
+    // tool=pfm_list_accounts e validateKey=true, usado pelo Setup/ManageKeysView.
+    let apiKey: string | null = null;
+
+    if (validateKey === true && tool === "pfm_list_accounts" && !companyId) {
+      const headerKey = req.headers.get("x-pfm-api-key");
+      if (!headerKey) {
+        return new Response(
+          JSON.stringify({ error: "Chave Post for Me ausente para validação." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      apiKey = headerKey;
+    } else {
+      if (!companyId) {
+        return new Response(
+          JSON.stringify({ error: "Empresa não informada." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const cfgResult = await getCompanyConfig(companyId, auth.user.id, corsHeaders);
+      if (cfgResult instanceof Response) return cfgResult;
+      apiKey = cfgResult.config.postforme_api_key;
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: "Post for Me não configurado para esta empresa." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
 
     const queryStr = route.query ? route.query(args) : "";
     const url = `${PFM_BASE}${route.path(args)}${queryStr ? `?${queryStr}` : ""}`;

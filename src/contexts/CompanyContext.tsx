@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, R
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { userStorage } from "@/lib/storage";
+import { setPfmActiveCompany } from "@/lib/api";
 import type { CompanyRole } from "@/lib/permissions";
 
 export interface Company {
@@ -87,6 +88,13 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     setActiveCompanyIdState(id);
     userStorage.set(ACTIVE_KEY, id);
   }, []);
+
+  // Mantém o módulo Post for Me ciente da empresa ativa para enviar companyId no body.
+  useEffect(() => {
+    setPfmActiveCompany(activeCompanyId);
+  }, [activeCompanyId]);
+
+
 
   const value = useMemo<CompanyContextType>(() => {
     const active = companies.find((c) => c.company.id === activeCompanyId) ?? null;
