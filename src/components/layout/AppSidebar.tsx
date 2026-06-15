@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -47,6 +47,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
   const { config } = useApp();
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -145,7 +146,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           variant="ghost"
           size="sm"
           className="w-full justify-start gap-3 px-3 text-muted-foreground hover:text-destructive"
-          onClick={async () => { await signOut(); }}
+          onClick={async () => { await signOut(); navigate("/login", { replace: true }); }}
         >
           <LogOut className="h-4 w-4" />
           Sair

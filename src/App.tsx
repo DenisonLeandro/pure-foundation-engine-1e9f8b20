@@ -71,33 +71,29 @@ function RoutePage({ children }: { children: React.ReactNode }) {
 }
 
 function RequireSetupAccess({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAuthEnabled } = useAuth();
+  const { user, loading } = useAuth();
   const { configLoading } = useApp();
 
-  if (loading || configLoading) return <PageLoader />;
-  if (!isAuthEnabled) return <>{children}</>;
+  if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
+  if (configLoading) return <PageLoader />;
   return <>{children}</>;
 }
 
 function RequireAppAccess({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAuthEnabled } = useAuth();
+  const { user, loading } = useAuth();
   const { configLoading } = useApp();
 
-  if (loading || configLoading) return <PageLoader />;
-  if (!isAuthEnabled) return <>{children}</>;
+  if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
-  
+  if (configLoading) return <PageLoader />;
   return <>{children}</>;
 }
 // Redirect to dashboard if already authenticated
 function GuestOnly({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAuthEnabled } = useAuth();
-  const { configLoading } = useApp();
+  const { user, loading } = useAuth();
 
-  if (loading || (isAuthEnabled && user && configLoading)) return <PageLoader />;
-  // If auth not configured, show the page (login will work when configured)
-  if (!isAuthEnabled) return <>{children}</>;
+  if (loading) return <PageLoader />;
   if (user) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
@@ -109,11 +105,10 @@ function ThemeBoot({ children }: { children: React.ReactNode }) {
 
 // Decide pra onde mandar quando o usuário abre a raiz "/"
 function RootRedirect() {
-  const { user, loading, isAuthEnabled } = useAuth();
+  const { user, loading } = useAuth();
   const { configLoading } = useApp();
 
   if (loading) return <PageLoader />;
-  if (!isAuthEnabled) return <Navigate to="/dashboard" replace />;
   if (!user) return <Navigate to="/login" replace />;
   if (configLoading) return <PageLoader />;
   return <Navigate to="/dashboard" replace />;
