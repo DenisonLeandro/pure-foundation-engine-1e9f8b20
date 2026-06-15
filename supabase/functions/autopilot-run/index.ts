@@ -851,19 +851,49 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { action, config_id, calendar_id } = await req.json();
+    // ── AuthN gate ──
+    // Accept either: (a) trusted cron via shared x-cron-secret header,
+    // or (b) an authenticated end-user JWT. Reject otherwise.
+    const cronSecret = Deno.env.get("CRON_SECRET");
+    const providedCronSecret =
+      req.headers.get("x-cron-secret") || req.headers.get("X-Cron-Secret");
+    const isCron = !!cronSecret && providedCronSecret === cronSecret;
 
-    if (!action) {
-      return errorResponse("Missing 'action'", 400);
+    let userId: string | undefined;
+    if (!isCron) {
+      const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+      if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+        return errorResponse("Unauthorized", 401);
+      }
+      const sbUser = supabaseForUser(authHeader);
+      const { data: { user }, error: authErr } = await sbUser.auth.getUser();
+      if (authErr || !user) return errorResponse("Unauthorized", 401);
+      userId = user.id;
     }
 
-    // Extract user ID from auth header if present
-    const authHeader = req.headers.get("authorization");
-    let userId: string | undefined;
-    if (authHeader) {
-      const sb = supabaseForUser(authHeader);
-      const { data: { user } } = await sb.auth.getUser();
-      userId = user?.id;
+    const { action, config_id, calendar_id } = await req.json();
+    if (!action) return errorResponse("Missing 'action'", 400);
+
+    // ── AuthZ gate (only for user-initiated calls) ──
+    // Verify the caller owns the target config/calendar before mutating it.
+    if (!isCron && userId) {
+      const sb = supabaseAdmin();
+      if (config_id) {
+        const { data: cfg } = await sb
+          .from("autopilot_configs")
+          .select("user_id")
+          .eq("id", config_id)
+          .maybeSingle();
+        if (!cfg || cfg.user_id !== userId) return errorResponse("Forbidden", 403);
+      }
+      if (calendar_id) {
+        const { data: cal } = await sb
+          .from("autopilot_calendars")
+          .select("user_id")
+          .eq("id", calendar_id)
+          .maybeSingle();
+        if (!cal || cal.user_id !== userId) return errorResponse("Forbidden", 403);
+      }
     }
 
     switch (action) {
@@ -901,3 +931,4 @@ Deno.serve(async (req: Request) => {
     return errorResponse(message, 502);
   }
 });
+

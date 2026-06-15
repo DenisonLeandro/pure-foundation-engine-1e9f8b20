@@ -24,17 +24,22 @@ function supabaseAdmin() {
 }
 
 async function callAutopilotRun(payload: Record<string, unknown>) {
+  const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
   const res = await fetch(`${SUPABASE_URL}/functions/v1/autopilot-run`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      // Use shared cron secret so autopilot-run can authenticate the call
+      // without falling back to anonymous service-role access.
+      "x-cron-secret": cronSecret,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify(payload),
   });
   return { ok: res.ok, status: res.status };
 }
+
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
