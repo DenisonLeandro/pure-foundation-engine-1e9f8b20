@@ -69,15 +69,16 @@ export async function searchImages(
   params: ImageSearchParams
 ): Promise<{ images: StockImage[] }> {
   const url = `${getSupabaseUrl()}/functions/v1/image-search`;
-  const cfg = getSavedConfig();
   const headers = await baseHeaders();
-  if (cfg.higgsFieldApiId) headers["x-higgsfield-api-id"] = cfg.higgsFieldApiId;
-  if (cfg.higgsFieldApiSecret) headers["x-higgsfield-api-secret"] = cfg.higgsFieldApiSecret;
+  // companyId vem do módulo Higgsfield (setado pelo CompanyContext).
+  // Edge Function valida membership e busca higgsfield_api_id/secret no servidor.
+  const { getHiggsfieldActiveCompany } = await import("./higgsfield");
+  const companyId = getHiggsfieldActiveCompany();
 
   const response = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify(params),
+    body: JSON.stringify({ ...params, companyId }),
   });
 
   if (!response.ok) {
