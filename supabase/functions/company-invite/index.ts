@@ -128,7 +128,14 @@ Deno.serve(async (req) => {
         return json({ error: "Convite expirado" }, 400);
       }
 
-      // Upsert membership
+      // Strict email match: invite must be addressed to the authenticated user's email.
+      const inviteEmail = (invite.email || "").toLowerCase().trim();
+      const userEmail = (user.email || "").toLowerCase().trim();
+      if (!userEmail || inviteEmail !== userEmail) {
+        return json({ error: "Este convite foi enviado para outro email." }, 403);
+      }
+
+      // Upsert membership — accept is the only path allowed to reactivate a removed membership.
       const { data: existing } = await admin
         .from("company_members")
         .select("id, role, status")
@@ -137,6 +144,14 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (existing) {
+        if (existing.status === "active") {
+          // Already an active member — mark invite consumed and return.
+          await admin
+            .from("company_invites")
+            .update({ status: "accepted", accepted_at: new Date().toISOString(), accepted_by: user.id })
+            .eq("id", invite.id);
+          return json({ ok: true, companyId: invite.company_id, alreadyMember: true });
+        }
         await admin
           .from("company_members")
           .update({ status: "active", role: existing.role === "owner" ? "owner" : invite.role })
@@ -147,7 +162,7 @@ Deno.serve(async (req) => {
           user_id: user.id,
           role: invite.role,
           status: "active",
-          invited_by: null,
+          invited_by: invite.id ? null : null,
         });
       }
 
@@ -158,6 +173,7 @@ Deno.serve(async (req) => {
 
       return json({ ok: true, companyId: invite.company_id });
     }
+
 
     return json({ error: "Ação desconhecida" }, 400);
   } catch (err) {

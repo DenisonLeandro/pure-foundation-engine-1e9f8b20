@@ -257,17 +257,20 @@ export default function CreateCompany() {
             <Card className="p-6 space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold">Usar empresa existente</h2>
-                  <p className="text-sm text-muted-foreground">Conecte uma marca antiga sem duplicar seus dados.</p>
+                  <h2 className="text-lg font-semibold">Converter minha marca existente</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Apenas marcas e empresas que pertencem à sua conta aparecem aqui. Empresas de outros usuários nunca são listadas.
+                  </p>
                 </div>
                 {checkingLegacy && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden="true" />}
               </div>
 
               {!checkingLegacy && legacyBrands.length === 0 && unlinkedCompanies.length === 0 && (
                 <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                  Nenhuma marca antiga ou empresa sem vínculo foi encontrada nesta conta.
+                  Você não tem marcas antigas ou empresas sem vínculo nesta conta.
                 </div>
               )}
+
 
               <div className="space-y-3">
                 {legacyBrands.map((brand) => {
@@ -297,8 +300,9 @@ export default function CreateCompany() {
                         </div>
                         <Button type="button" onClick={() => handleUseBrand(brand)} disabled={!!actionId} className="shrink-0">
                           {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
-                          {alreadyMember ? "Acessar empresa" : "Usar esta empresa"}
+                          {alreadyMember ? "Acessar empresa" : "Converter minha marca"}
                         </Button>
+
                       </div>
                     </div>
                   );
@@ -311,12 +315,13 @@ export default function CreateCompany() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <h3 className="truncate font-semibold">{company.name}</h3>
-                          <p className="text-sm text-muted-foreground">Empresa existente sem membro vinculado</p>
+                          <p className="text-sm text-muted-foreground">Empresa que você criou e ainda não está vinculada</p>
                         </div>
                         <Button type="button" variant="secondary" onClick={() => handleConnectCompany(company)} disabled={!!actionId} className="shrink-0">
                           {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
-                          Conectar empresa existente
+                          Reivindicar empresa
                         </Button>
+
                       </div>
                     </div>
                   );
