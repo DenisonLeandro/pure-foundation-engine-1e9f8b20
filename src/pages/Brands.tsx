@@ -333,6 +333,8 @@ export default function Brands() {
           size="sm"
           className="bg-gradient-to-r from-violet-600 to-fuchsia-500"
           onClick={openCreate}
+          disabled={!canManage}
+          title={!canManage ? "Apenas Dono ou Admin podem gerenciar marcas." : undefined}
         >
           <Plus className="mr-2 h-4 w-4" />
           Novo Perfil
@@ -430,15 +432,15 @@ export default function Brands() {
                   <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => { setPreviewProfile(profile); setPreviewOpen(true); }}>
                     <Eye className="mr-1.5 h-3 w-3" /> Preview
                   </Button>
-                  <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => openEdit(profile)}>
+                  <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => openEdit(profile)} disabled={!canManage} title={!canManage ? "Apenas Dono ou Admin podem gerenciar marcas." : undefined}>
                     <Pencil className="mr-1.5 h-3 w-3" /> Editar
                   </Button>
                   {!profile.is_default && (
-                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleSetDefault(profile.id)}>
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleSetDefault(profile.id)} disabled={!canManage} title={!canManage ? "Apenas Dono ou Admin podem gerenciar marcas." : undefined}>
                       <Star className="mr-1 h-3 w-3" />
                     </Button>
                   )}
-                  <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive" onClick={() => handleDelete(profile.id)}>
+                  <Button variant="ghost" size="sm" className="text-xs text-destructive hover:text-destructive" onClick={() => handleDelete(profile.id)} disabled={!canManage} title={!canManage ? "Apenas Dono ou Admin podem gerenciar marcas." : undefined}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
