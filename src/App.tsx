@@ -86,10 +86,20 @@ function RequireSetupAccess({ children }: { children: React.ReactNode }) {
 function RequireAppAccess({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { configLoading } = useApp();
+  const { companies, loading: companyLoading, activeCompanyId } = useCompany();
 
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
-  if (configLoading) return <PageLoader />;
+  if (configLoading || companyLoading) return <PageLoader />;
+  if (companies.length === 0) return <Navigate to="/criar-empresa" replace />;
+  if (!activeCompanyId) return <Navigate to="/criar-empresa" replace />;
+  return <>{children}</>;
+}
+
+function RequireCompanyShell({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <PageLoader />;
+  if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 // Redirect to dashboard if already authenticated
