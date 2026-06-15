@@ -66,9 +66,13 @@ function stripDataUrls(node: unknown): void {
 // ─── Public API ─────────────────────────────────────────────────
 
 export async function getCreations(filter?: "image" | "video" | "carousel"): Promise<Creation[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
   let query = supabase
     .from("creations")
-    .select("*")
+    .select("id,user_id,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,design_doc,caption")
+    .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
   if (filter) {
@@ -77,7 +81,12 @@ export async function getCreations(filter?: "image" | "video" | "carousel"): Pro
 
   const { data, error } = await query;
   if (error) {
-    console.error("Failed to load creations:", error);
+    console.error("Failed to load creations:", {
+      message: error.message,
+      code: (error as { code?: string }).code,
+      details: (error as { details?: string }).details,
+      hint: (error as { hint?: string }).hint,
+    });
     return [];
   }
 
