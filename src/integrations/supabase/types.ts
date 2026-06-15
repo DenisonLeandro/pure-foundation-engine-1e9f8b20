@@ -349,6 +349,7 @@ export type Database = {
           created_at: string
           created_by: string
           id: string
+          legacy_brand_profile_id: string | null
           logo_url: string | null
           name: string
           primary_color: string | null
@@ -359,6 +360,7 @@ export type Database = {
           created_at?: string
           created_by: string
           id?: string
+          legacy_brand_profile_id?: string | null
           logo_url?: string | null
           name: string
           primary_color?: string | null
@@ -369,13 +371,22 @@ export type Database = {
           created_at?: string
           created_by?: string
           id?: string
+          legacy_brand_profile_id?: string | null
           logo_url?: string | null
           name?: string
           primary_color?: string | null
           segment?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "companies_legacy_brand_profile_id_fkey"
+            columns: ["legacy_brand_profile_id"]
+            isOneToOne: false
+            referencedRelation: "brand_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       company_invites: {
         Row: {
@@ -710,6 +721,25 @@ export type Database = {
       can_manage_members: {
         Args: { _company: string; _user: string }
         Returns: boolean
+      }
+      claim_owned_company: {
+        Args: { _company_id: string }
+        Returns: {
+          company_id: string
+          created_at: string
+          id: string
+          invited_by: string | null
+          role: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "company_members"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       get_company_role: {
         Args: { _company: string; _user: string }
