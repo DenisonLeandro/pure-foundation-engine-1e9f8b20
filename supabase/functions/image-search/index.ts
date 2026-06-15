@@ -1,45 +1,51 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { getCompanyConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Image Search Edge Function
  *
- * Generates images via Higgsfield Soul text-to-image API.
- * Falls back to curated placeholder images if Higgsfield is not configured.
+ * Gera imagens via Higgsfield Soul (text-to-image).
+ *
+ * Segurança:
+ *  - Recebe { companyId, keywords, count?, orientation? } no body.
+ *  - Valida membership ativo via helper.
+ *  - Carrega higgsfield_api_id/secret de company_configs no servidor.
+ *  - Sem credenciais Higgsfield: retorna placeholders em vez de erro
+ *    (mantém o comportamento de fallback anterior).
+ *  - Nunca aceita credenciais no header em fluxo operacional.
  */
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-higgsfield-api-id, x-higgsfield-api-secret",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 interface ImageResult {
   id: string;
-  url: string;       // Regular size (good for posts)
-  thumbUrl: string;   // Thumbnail for preview
-  fullUrl: string;    // Full resolution
+  url: string;
+  thumbUrl: string;
+  fullUrl: string;
   alt: string;
   author: string;
   authorUrl: string;
-  source: string;     // "higgsfield" | "placeholder"
+  source: string; // "higgsfield" | "placeholder"
 }
 
 interface RequestBody {
+  companyId?: string;
   keywords: string[];
   count?: number;
   orientation?: "landscape" | "portrait" | "squarish";
 }
-
-// ─── Higgsfield Soul ─────────────────────────────────────────────
 
 async function generateWithHiggsfield(
   apiId: string,
   apiSecret: string,
   keywords: string[],
   count: number,
-  orientation: string
+  orientation: string,
 ): Promise<ImageResult[]> {
   const prompt = keywords.join(" ");
   const aspectRatio =
@@ -49,8 +55,7 @@ async function generateWithHiggsfield(
 
   const results: ImageResult[] = [];
 
-  // Generate images (one request per image since each returns one image)
-  const promises = Array.from({ length: count }, async (_, i) => {
+  const promises = Array.from({ length: count }, async () => {
     const response = await fetch("https://platform.higgsfield.ai/higgsfield-ai/soul/standard", {
       method: "POST",
       headers: {
@@ -71,28 +76,20 @@ async function generateWithHiggsfield(
 
     const data = await response.json();
     const requestId = data.request_id;
+    if (!requestId) throw new Error("Higgsfield não retornou request_id");
 
-    if (!requestId) {
-      throw new Error("Higgsfield não retornou request_id");
-    }
-
-    // Poll for completion
     const statusUrl = `https://platform.higgsfield.ai/requests/${requestId}/status`;
-    const maxAttempts = 60; // up to ~2 minutes
+    const maxAttempts = 60;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
-
       const statusRes = await fetch(statusUrl, {
         headers: {
           "Authorization": `Key ${apiId}:${apiSecret}`,
           "Accept": "application/json",
         },
       });
-
       if (!statusRes.ok) continue;
-
       const statusData = await statusRes.json();
-
       if (statusData.status === "completed" && statusData.images?.length) {
         const imageUrl = statusData.images[0].url;
         return {
@@ -106,12 +103,10 @@ async function generateWithHiggsfield(
           source: "higgsfield",
         } as ImageResult;
       }
-
       if (statusData.status === "failed" || statusData.status === "nsfw") {
         throw new Error(`Higgsfield geração falhou: ${statusData.status}`);
       }
     }
-
     throw new Error("Higgsfield timeout - geração demorou demais");
   });
 
@@ -121,14 +116,10 @@ async function generateWithHiggsfield(
       results.push(result.value);
     }
   }
-
   return results;
 }
 
-// ─── Placeholder fallback ───────────────────────────────────────
-
 function getPlaceholders(keywords: string[], count: number): ImageResult[] {
-  // Use picsum.photos as a reliable placeholder service
   return Array.from({ length: count }, (_, i) => {
     const seed = encodeURIComponent(keywords.join("-") + i);
     return {
@@ -144,17 +135,10 @@ function getPlaceholders(keywords: string[], count: number): ImageResult[] {
   });
 }
 
-// ─── Handler ────────────────────────────────────────────────────
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
-
-  const auth = await requireUser(req, corsHeaders);
-  if (auth instanceof Response) return auth;
-
-
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
@@ -162,50 +146,50 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const authResult = await requireUser(req, corsHeaders);
+  if (authResult instanceof Response) return authResult;
+
   try {
     const body: RequestBody = await req.json();
-    const { keywords, count = 8, orientation = "squarish" } = body;
+    const { keywords, count = 8, orientation = "squarish", companyId } = body;
 
     if (!keywords?.length) {
-      return new Response(
-        JSON.stringify({ error: "Missing 'keywords' array" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Missing 'keywords' array" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    let hfApiId: string | null = null;
+    let hfApiSecret: string | null = null;
+
+    if (companyId) {
+      const cfg = await getCompanyConfig(companyId, authResult.user.id, corsHeaders);
+      if (cfg instanceof Response) return cfg; // 403 se não for membro
+      hfApiId = cfg.config.higgsfield_api_id;
+      hfApiSecret = cfg.config.higgsfield_api_secret;
     }
 
     let images: ImageResult[] = [];
-
-    // Try Higgsfield Soul (header > env)
-    const hfApiId =
-      req.headers.get("x-higgsfield-api-id") ||
-      Deno.env.get("HIGGSFIELD_API_ID");
-    const hfApiSecret =
-      req.headers.get("x-higgsfield-api-secret") ||
-      Deno.env.get("HIGGSFIELD_API_SECRET");
-
     if (hfApiId && hfApiSecret) {
       try {
         images = await generateWithHiggsfield(hfApiId, hfApiSecret, keywords, count, orientation);
       } catch (err) {
-        console.error("Higgsfield falhou:", err);
+        console.error("Higgsfield falhou:", err instanceof Error ? err.message : err);
       }
     }
 
-    // Final fallback to placeholders
     if (images.length === 0) {
       images = getPlaceholders(keywords, count);
     }
 
     return new Response(JSON.stringify({ images }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("image-search error:", message);
     return new Response(JSON.stringify({ error: message }), {
-      status: 502,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
