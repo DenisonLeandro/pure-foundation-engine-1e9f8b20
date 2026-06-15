@@ -6,6 +6,7 @@
  */
 
 import { getSupabaseUrl, getSavedConfig, baseHeaders } from "./_shared";
+import { getHiggsfieldActiveCompany } from "./higgsfield";
 
 // ─── AI Content Generation ──────────────────────────────────────
 
