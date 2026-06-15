@@ -266,22 +266,13 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // API key from header or env
-    const apiKey =
-      req.headers.get("x-pfm-api-key") ||
-      Deno.env.get("POSTFORME_API_KEY");
-
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "POSTFORME_API_KEY não configurada." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const { tool, args = {} } = (await req.json()) as {
-      tool: string;
+    const body = (await req.json().catch(() => ({}))) as {
+      tool?: string;
       args?: Args;
+      companyId?: string;
+      validateKey?: boolean;
     };
+    const { tool, args = {}, companyId, validateKey } = body;
 
     if (!tool) {
       return new Response(
@@ -297,6 +288,40 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // ── Resolução da chave Post for Me ─────────────────────────────
+    // Caminho principal: companyId → membership → company_configs.postforme_api_key
+    // Caminho de validação (TODO remover): header x-pfm-api-key apenas para
+    // tool=pfm_list_accounts e validateKey=true, usado pelo Setup/ManageKeysView.
+    let apiKey: string | null = null;
+
+    if (validateKey === true && tool === "pfm_list_accounts" && !companyId) {
+      const headerKey = req.headers.get("x-pfm-api-key");
+      if (!headerKey) {
+        return new Response(
+          JSON.stringify({ error: "Chave Post for Me ausente para validação." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      apiKey = headerKey;
+    } else {
+      if (!companyId) {
+        return new Response(
+          JSON.stringify({ error: "Empresa não informada." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const cfgResult = await getCompanyConfig(companyId, auth.user.id, corsHeaders);
+      if (cfgResult instanceof Response) return cfgResult;
+      apiKey = cfgResult.config.postforme_api_key;
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: "Post for Me não configurado para esta empresa." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
 
     const queryStr = route.query ? route.query(args) : "";
     const url = `${PFM_BASE}${route.path(args)}${queryStr ? `?${queryStr}` : ""}`;
