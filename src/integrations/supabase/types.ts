@@ -813,6 +813,20 @@ export type Database = {
         }
       }
       count_active_owners: { Args: { _company: string }; Returns: number }
+      get_company_configs_status: {
+        Args: { _company_id: string }
+        Returns: {
+          has_apify: boolean
+          has_blotato: boolean
+          has_firecrawl: boolean
+          has_higgsfield: boolean
+          has_higgsfield_api_id: boolean
+          has_higgsfield_api_secret: boolean
+          has_pexels: boolean
+          has_postforme: boolean
+          updated_at: string
+        }[]
+      }
       get_company_keys_for_user: {
         Args: { _user_id: string }
         Returns: {
