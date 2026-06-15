@@ -96,8 +96,8 @@ export function AutopilotWizard({ existingConfig, onSaved, onCancel }: Props) {
   const saveConfig = useSaveAutopilotConfig();
   const pfmAccounts = usePfmAccounts();
 
-  const hasFirecrawlKey = !!appConfig.firecrawlApiKey;
-  const hasPfmKey = !!appConfig.postformeApiKey;
+  const hasFirecrawlKey = !!appConfig.integrations.firecrawl;
+  const hasPfmKey = !!appConfig.integrations.postforme;
   // Visuais agora são OpenAI (sem Blotato)
 
   // Form state

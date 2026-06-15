@@ -13,7 +13,7 @@ import { useApp } from "@/contexts/use-app";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
-import { getPfmUserKey, getUser, validatePfmKey, validateApifyToken, validateHiggsFieldKey, validateFirecrawlKey, validatePexelsKey } from "@/lib/api";
+import { getUser, validatePfmKey, validateApifyToken, validateHiggsFieldKey, validateFirecrawlKey, validatePexelsKey } from "@/lib/api";
 import { ConnectAccountDialog } from "@/components/ConnectAccountDialog";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { SecretInput } from "@/components/setup/SecretInput";
@@ -23,7 +23,16 @@ import { SettingsShell } from "@/components/setup/SettingsShell";
 // ─── Componente principal ────────────────────────────────────────
 
 export default function Setup() {
-  const { config, setConfig, isConfigured, onboardingCompleted, configLoading, completeOnboarding, saveConfigToDb, resetConfig } = useApp();
+  const {
+    config,
+    isConfigured,
+    onboardingCompleted,
+    configLoading,
+    completeOnboarding,
+    saveConfigToDb,
+    saveIntegrationKeys,
+    resetConfig,
+  } = useApp();
   const { user } = useAuth();
   const { isEditor, loading: companyLoading } = useCompany();
   const navigate = useNavigate();
@@ -52,6 +61,7 @@ export default function Setup() {
       resetConfig();
       window.history.replaceState({}, "", "/setup");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -67,67 +77,29 @@ export default function Setup() {
   const [connectOpen, setConnectOpen] = useState(false);
   const [bootReady, setBootReady] = useState(false);
 
-  // Keys (initialized from saved config)
-  const [blotatoKey, setBlotatoKey]     = useState(config.blotatoApiKey || "");
-  const [pfmKey, setPfmKey]             = useState(config.postformeApiKey || "");
-  const [pexelsKey, setPexelsKey]       = useState(""); // Nunca pré-preencher: chave salva não trafega no browser.
-  const [apifyToken, setApifyToken]     = useState(config.apifyApiToken || "");
-  const [hfApiId, setHfApiId]           = useState(config.higgsFieldApiId || "");
-  const [hfApiSecret, setHfApiSecret]   = useState(config.higgsFieldApiSecret || "");
-  const [firecrawlKey, setFirecrawlKey] = useState(config.firecrawlApiKey || "");
+  // Inputs SEMPRE vazios. Nenhuma chave salva trafega pelo navegador.
+  const [blotatoKey, setBlotatoKey]     = useState("");
+  const [pfmKey, setPfmKey]             = useState("");
+  const [pexelsKey, setPexelsKey]       = useState("");
+  const [apifyToken, setApifyToken]     = useState("");
+  const [hfApiId, setHfApiId]           = useState("");
+  const [hfApiSecret, setHfApiSecret]   = useState("");
+  const [firecrawlKey, setFirecrawlKey] = useState("");
   const [brandName, setBrandName]       = useState(config.brandName || "");
   const didSyncLoadedConfig = useRef(false);
 
-  // Validation status for checklist
-  const [validated, setValidated] = useState({
-    blotato: !!config.blotatoApiKey,
-    pfm: !!config.postformeApiKey,
-    apify: !!config.apifyApiToken,
-    higgsfield: !!(config.higgsFieldApiId && config.higgsFieldApiSecret),
-  });
-
-  const totalSteps = STEPS.length;
-  const progress = Math.round((step / totalSteps) * 100);
+  const status = config.integrations;
 
   useEffect(() => {
     if (configLoading || didSyncLoadedConfig.current) return;
     didSyncLoadedConfig.current = true;
-    setBlotatoKey(config.blotatoApiKey || "");
-    setPfmKey(config.postformeApiKey || "");
-    // Pexels: NUNCA pré-preencher com config.pexelsApiKey — chave salva não deve trafegar pelo navegador.
-    setApifyToken(config.apifyApiToken || "");
-    setHfApiId(config.higgsFieldApiId || "");
-    setHfApiSecret(config.higgsFieldApiSecret || "");
-    setFirecrawlKey(config.firecrawlApiKey || "");
     setBrandName(config.brandName || "");
-    setValidated({
-      blotato: !!config.blotatoApiKey,
-      pfm: !!config.postformeApiKey,
-      apify: !!config.apifyApiToken,
-      higgsfield: !!(config.higgsFieldApiId && config.higgsFieldApiSecret),
-    });
 
     if (!isManageMode) {
-      if (!config.postformeApiKey) setStep(1);
+      if (!status.postforme) setStep(1);
       else if (!onboardingCompleted) setStep(8);
     }
-  }, [configLoading, config, isManageMode, onboardingCompleted]);
-
-  const saveKey = (partial: Partial<typeof config>) => {
-    const updated = {
-      ...config,
-      blotatoApiKey: blotatoKey.trim() || config.blotatoApiKey,
-      postformeApiKey: pfmKey.trim() || config.postformeApiKey || (config as { pfmApiKey?: string }).pfmApiKey || getPfmUserKey(),
-      pexelsApiKey: pexelsKey.trim() || config.pexelsApiKey,
-      apifyApiToken: apifyToken.trim() || config.apifyApiToken,
-      higgsFieldApiId: hfApiId.trim() || config.higgsFieldApiId,
-      higgsFieldApiSecret: hfApiSecret.trim() || config.higgsFieldApiSecret,
-      firecrawlApiKey: firecrawlKey.trim() || config.firecrawlApiKey,
-      brandName: brandName || config.brandName,
-      ...partial,
-    };
-    setConfig(updated);
-  };
+  }, [configLoading, config, isManageMode, onboardingCompleted, status.postforme]);
 
   // ── Step 1: Validar Blotato ──────────────────────────────────
   const handleValidateBlotato = async () => {
@@ -140,8 +112,8 @@ export default function Setup() {
         setError("Assinatura Blotato não está ativa.");
         return;
       }
-      saveKey({ blotatoApiKey: blotatoKey.trim() });
-      setValidated((v) => ({ ...v, blotato: true }));
+      await saveIntegrationKeys({ blotatoApiKey: blotatoKey.trim() });
+      setBlotatoKey("");
       toast({ title: "Blotato conectado!", description: `Assinatura ${u.subscriptionStatus}` });
       setStep(7);
     } catch (err) {
@@ -162,8 +134,8 @@ export default function Setup() {
         setError(result.error || "Chave inválida");
         return;
       }
-      saveKey({ postformeApiKey: pfmKey.trim() });
-      setValidated((v) => ({ ...v, pfm: true }));
+      await saveIntegrationKeys({ postformeApiKey: pfmKey.trim() });
+      setPfmKey("");
       toast({ title: "Post for Me conectado!" });
       setStep(2);
     } catch (err) {
@@ -172,9 +144,6 @@ export default function Setup() {
       setIsValidating(false);
     }
   };
-
-  // Step 3 (Imagens IA) now reuses Higgsfield credentials already configured in Step 5
-  // No separate validation needed — user can skip or configure in Step 5
 
   // ── Step 4: Validar Apify ────────────────────────────────────
   const handleValidateApify = async () => {
@@ -187,8 +156,8 @@ export default function Setup() {
         setError(result.error || "Token inválido");
         return;
       }
-      saveKey({ apifyApiToken: apifyToken.trim() });
-      setValidated((v) => ({ ...v, apify: true }));
+      await saveIntegrationKeys({ apifyApiToken: apifyToken.trim() });
+      setApifyToken("");
       toast({ title: "Apify conectado!" });
       setStep(4);
     } catch (err) {
@@ -209,8 +178,9 @@ export default function Setup() {
         setError(result.error || "Credenciais inválidas");
         return;
       }
-      saveKey({ higgsFieldApiId: hfApiId.trim(), higgsFieldApiSecret: hfApiSecret.trim() });
-      setValidated((v) => ({ ...v, higgsfield: true }));
+      await saveIntegrationKeys({ higgsFieldApiId: hfApiId.trim(), higgsFieldApiSecret: hfApiSecret.trim() });
+      setHfApiId("");
+      setHfApiSecret("");
       toast({ title: "Higgsfield conectado!" });
       setStep(3);
     } catch (err) {
@@ -231,7 +201,8 @@ export default function Setup() {
         setError(result.error || "Chave inválida");
         return;
       }
-      saveKey({ firecrawlApiKey: firecrawlKey.trim() });
+      await saveIntegrationKeys({ firecrawlApiKey: firecrawlKey.trim() });
+      setFirecrawlKey("");
       toast({ title: "Firecrawl conectado!" });
       setStep(5);
     } catch (err) {
@@ -241,32 +212,42 @@ export default function Setup() {
     }
   };
 
+  const handleValidatePexels = async () => {
+    if (!pexelsKey.trim()) return;
+    setIsValidating(true);
+    setError("");
+    try {
+      const r = await validatePexelsKey(pexelsKey.trim());
+      if (!r.valid) { setError(r.error || "Chave inválida"); return; }
+      await saveIntegrationKeys({ pexelsApiKey: pexelsKey.trim() });
+      setPexelsKey("");
+      toast({ title: "Pexels conectado!" });
+      setStep(6);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
   const handleFinish = async () => {
     setIsSaving(true);
     try {
-      const finalConfig: typeof config = {
-        ...config,
-        blotatoApiKey: blotatoKey.trim() || config.blotatoApiKey,
-        postformeApiKey: pfmKey.trim() || config.postformeApiKey || (config as { pfmApiKey?: string }).pfmApiKey || getPfmUserKey(),
-        pexelsApiKey: pexelsKey.trim() || config.pexelsApiKey,
-        apifyApiToken: apifyToken.trim() || config.apifyApiToken,
-        higgsFieldApiId: hfApiId.trim() || config.higgsFieldApiId,
-        higgsFieldApiSecret: hfApiSecret.trim() || config.higgsFieldApiSecret,
-        firecrawlApiKey: firecrawlKey.trim() || config.firecrawlApiKey,
-        brandName: brandName || config.brandName,
-        onboardingCompleted: true,
-      };
-
-      if (!finalConfig.postformeApiKey) {
+      if (!status.postforme) {
         setError("Configure o Post for Me antes de finalizar.");
         return;
       }
 
+      const finalConfig = {
+        ...config,
+        brandName: brandName || config.brandName,
+        onboardingCompleted: true,
+      };
+
       const savedConfig = await saveConfigToDb(finalConfig);
-      setConfig(savedConfig);
       completeOnboarding(savedConfig);
 
-      toast({ title: "Configuração salva!", description: "Todas as chaves foram guardadas com segurança." });
+      toast({ title: "Configuração salva!", description: "Pronto para começar." });
       navigate("/dashboard");
     } catch (err) {
       toast({ title: "Erro ao salvar", description: err instanceof Error ? err.message : "Erro desconhecido", variant: "destructive" });
@@ -309,14 +290,15 @@ export default function Setup() {
       <SettingsShell
         currentConfig={config}
         onSave={async (partial) => {
+          // SettingsShell agora só recebe campos de perfil (marca/logo).
+          // Chaves são tratadas dentro do ManageKeysView via saveIntegrationKeys.
           const updated = {
             ...config,
             ...partial,
             onboardingCompleted: true,
           };
-          const savedConfig = await saveConfigToDb(updated);
-          setConfig(savedConfig);
-          toast({ title: "Chave atualizada", description: "Suas alterações foram salvas." });
+          await saveConfigToDb(updated);
+          toast({ title: "Configurações salvas." });
         }}
         onBack={() => navigate("/dashboard")}
       />
@@ -332,6 +314,11 @@ export default function Setup() {
     );
   }
 
+  const totalSteps = STEPS.length;
+  const progress = Math.round((step / totalSteps) * 100);
+
+  // Em qualquer step, se a integração já está conectada, permitimos avançar
+  // sem revalidar — o input em branco preserva a chave salva.
   return (
     <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden">
       <AnimatedBackground />
@@ -383,11 +370,18 @@ export default function Setup() {
         {step === 1 && (
           <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Link2 className="h-5 w-5 text-violet-500" /> Post for Me — Publicação</CardTitle>
-              <CardDescription>Obrigatório para publicar em 9 redes sociais, agendar posts e gerenciar contas.</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-violet-500" /> Post for Me — Publicação
+                {status.postforme && <Badge className="bg-green-600 text-[10px] px-1.5 py-0 h-4">Conectado</Badge>}
+              </CardTitle>
+              <CardDescription>
+                {status.postforme
+                  ? "Chave já configurada. Deixe em branco para manter, ou cole uma nova para substituir."
+                  : "Obrigatório para publicar em 9 redes sociais, agendar posts e gerenciar contas."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SecretInput id="pfm" label="Post for Me API Key" placeholder="pfm_live_xxxxxxxxxxxxx" value={pfmKey} onChange={setPfmKey} required hint="Obtenha em" link="https://app.postforme.dev/settings" linkLabel="app.postforme.dev/settings" />
+              <SecretInput id="pfm" label="Post for Me API Key" placeholder={status.postforme ? "Cole uma nova chave para substituir" : "pfm_live_xxxxxxxxxxxxx"} value={pfmKey} onChange={setPfmKey} hint="Obtenha em" link="https://app.postforme.dev/settings" linkLabel="app.postforme.dev/settings" />
               <div className="rounded-lg bg-violet-500/5 border border-violet-500/20 p-3 text-xs text-muted-foreground space-y-1">
                 <p className="font-medium text-violet-600">O que habilita:</p>
                 <ul className="list-disc pl-4 space-y-0.5">
@@ -397,7 +391,11 @@ export default function Setup() {
                 </ul>
               </div>
               <p className="text-xs text-muted-foreground">💡 Imagens são geradas automaticamente via IA (OpenAI gpt-image-2) — sem configuração extra.</p>
-              <NavButtons onNext={handleValidatePfm} canProceed={!!pfmKey.trim()} />
+              <NavButtons
+                onNext={pfmKey.trim() ? handleValidatePfm : undefined}
+                next={pfmKey.trim() ? undefined : (status.postforme ? 2 : undefined)}
+                canProceed={!!pfmKey.trim() || status.postforme}
+              />
             </CardContent>
           </Card>
         )}
@@ -406,13 +404,27 @@ export default function Setup() {
         {step === 2 && (
           <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Film className="h-5 w-5 text-pink-500" /> Higgsfield — Vídeo IA <Badge variant="secondary" className="text-[10px]">opcional</Badge></CardTitle>
-              <CardDescription>Gera vídeos de alta qualidade com IA (Kling, Veo, Sora). Sem isso, o Studio funciona sem vídeo.</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Film className="h-5 w-5 text-pink-500" /> Higgsfield — Vídeo IA <Badge variant="secondary" className="text-[10px]">opcional</Badge>
+                {status.higgsfield && <Badge className="bg-green-600 text-[10px] px-1.5 py-0 h-4">Conectado</Badge>}
+              </CardTitle>
+              <CardDescription>
+                {status.higgsfield
+                  ? "Credenciais já configuradas. Deixe em branco para manter, ou cole novos valores para substituir."
+                  : "Gera vídeos de alta qualidade com IA (Kling, Veo, Sora). Sem isso, o Studio funciona sem vídeo."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SecretInput id="hf-api-id" label="API ID" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value={hfApiId} onChange={setHfApiId} hint="Obtenha em" link="https://cloud.higgsfield.ai/settings" linkLabel="cloud.higgsfield.ai" />
-              <SecretInput id="hf-api-secret" label="API Secret" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value={hfApiSecret} onChange={setHfApiSecret} />
-              <NavButtons prev={1} onNext={(hfApiId.trim() && hfApiSecret.trim()) ? handleValidateHiggsfield : undefined} next={(hfApiId.trim() && hfApiSecret.trim()) ? undefined : 3} skipTo={3} canSkip canProceed={!!(hfApiId.trim() && hfApiSecret.trim())} />
+              <SecretInput id="hf-api-id" label="API ID" placeholder={status.higgsfieldApiId ? "Cole um novo API ID para substituir" : "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"} value={hfApiId} onChange={setHfApiId} hint="Obtenha em" link="https://cloud.higgsfield.ai/settings" linkLabel="cloud.higgsfield.ai" />
+              <SecretInput id="hf-api-secret" label="API Secret" placeholder={status.higgsfieldApiSecret ? "Cole um novo API Secret para substituir" : "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"} value={hfApiSecret} onChange={setHfApiSecret} />
+              <NavButtons
+                prev={1}
+                onNext={(hfApiId.trim() && hfApiSecret.trim()) ? handleValidateHiggsfield : undefined}
+                next={(hfApiId.trim() && hfApiSecret.trim()) ? undefined : 3}
+                skipTo={3}
+                canSkip
+                canProceed={(!!hfApiId.trim() && !!hfApiSecret.trim()) || status.higgsfield}
+              />
             </CardContent>
           </Card>
         )}
@@ -421,12 +433,26 @@ export default function Setup() {
         {step === 3 && (
           <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><BarChart3 className="h-5 w-5 text-green-500" /> Apify — Analytics <Badge variant="secondary" className="text-[10px]">opcional</Badge></CardTitle>
-              <CardDescription>Para buscar seguidores, likes e engajamento real no painel Analytics.</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-green-500" /> Apify — Analytics <Badge variant="secondary" className="text-[10px]">opcional</Badge>
+                {status.apify && <Badge className="bg-green-600 text-[10px] px-1.5 py-0 h-4">Conectado</Badge>}
+              </CardTitle>
+              <CardDescription>
+                {status.apify
+                  ? "Token já configurado. Deixe em branco para manter, ou cole um novo token para substituir."
+                  : "Para buscar seguidores, likes e engajamento real no painel Analytics."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SecretInput id="apify" label="Apify API Token" placeholder="apify_api_xxxxxxxxxxxxx" value={apifyToken} onChange={setApifyToken} hint="Crie conta grátis em" link="https://console.apify.com/account/integrations" linkLabel="console.apify.com" />
-              <NavButtons prev={2} onNext={apifyToken.trim() ? handleValidateApify : undefined} next={apifyToken.trim() ? undefined : 4} skipTo={4} canSkip canProceed={!!apifyToken.trim()} />
+              <SecretInput id="apify" label="Apify API Token" placeholder={status.apify ? "Cole um novo token para substituir" : "apify_api_xxxxxxxxxxxxx"} value={apifyToken} onChange={setApifyToken} hint="Crie conta grátis em" link="https://console.apify.com/account/integrations" linkLabel="console.apify.com" />
+              <NavButtons
+                prev={2}
+                onNext={apifyToken.trim() ? handleValidateApify : undefined}
+                next={apifyToken.trim() ? undefined : 4}
+                skipTo={4}
+                canSkip
+                canProceed={!!apifyToken.trim() || status.apify}
+              />
             </CardContent>
           </Card>
         )}
@@ -435,12 +461,26 @@ export default function Setup() {
         {step === 4 && (
           <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Search className="h-5 w-5 text-orange-500" /> Firecrawl — Pesquisa e Fontes <Badge variant="secondary" className="text-[10px]">opcional</Badge></CardTitle>
-              <CardDescription>Pesquisa web no Autopilot e extração de conteúdo de URLs/YouTube.</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5 text-orange-500" /> Firecrawl — Pesquisa e Fontes <Badge variant="secondary" className="text-[10px]">opcional</Badge>
+                {status.firecrawl && <Badge className="bg-green-600 text-[10px] px-1.5 py-0 h-4">Conectado</Badge>}
+              </CardTitle>
+              <CardDescription>
+                {status.firecrawl
+                  ? "Chave já configurada. Deixe em branco para manter, ou cole uma nova para substituir."
+                  : "Pesquisa web no Autopilot e extração de conteúdo de URLs/YouTube."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SecretInput id="firecrawl" label="Firecrawl API Key" placeholder="fc-xxxxxxxxxxxxx" value={firecrawlKey} onChange={setFirecrawlKey} hint="Crie conta em" link="https://www.firecrawl.dev/app/api-keys" linkLabel="firecrawl.dev" />
-              <NavButtons prev={3} onNext={firecrawlKey.trim() ? handleValidateFirecrawl : undefined} next={firecrawlKey.trim() ? undefined : 5} skipTo={5} canSkip canProceed={!!firecrawlKey.trim()} />
+              <SecretInput id="firecrawl" label="Firecrawl API Key" placeholder={status.firecrawl ? "Cole uma nova chave para substituir" : "fc-xxxxxxxxxxxxx"} value={firecrawlKey} onChange={setFirecrawlKey} hint="Crie conta em" link="https://www.firecrawl.dev/app/api-keys" linkLabel="firecrawl.dev" />
+              <NavButtons
+                prev={3}
+                onNext={firecrawlKey.trim() ? handleValidateFirecrawl : undefined}
+                next={firecrawlKey.trim() ? undefined : 5}
+                skipTo={5}
+                canSkip
+                canProceed={!!firecrawlKey.trim() || status.firecrawl}
+              />
             </CardContent>
           </Card>
         )}
@@ -452,28 +492,26 @@ export default function Setup() {
               <CardTitle className="flex items-center gap-2">
                 <Image className="h-5 w-5 text-blue-500" /> Pexels — Banco de Imagens
                 <Badge variant="secondary" className="text-[10px]">opcional</Badge>
-                {config.pexelsApiKey && (
+                {status.pexels && (
                   <Badge className="bg-green-600 text-[10px] px-1.5 py-0 h-4">Conectado</Badge>
                 )}
               </CardTitle>
               <CardDescription>
-                {config.pexelsApiKey
+                {status.pexels
                   ? "Chave já configurada. Deixe em branco para manter, ou cole uma nova chave para substituir."
                   : "Busque fotos de acervo profissional para usar nos posts."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SecretInput id="pexels" label="Pexels API Key" placeholder={config.pexelsApiKey ? "Cole uma nova chave para substituir" : "Sua chave Pexels"} value={pexelsKey} onChange={setPexelsKey} hint="Crie conta grátis em" link="https://www.pexels.com/api/" linkLabel="pexels.com/api" />
-              <NavButtons prev={4} onNext={pexelsKey.trim() ? async () => {
-                setIsValidating(true); setError("");
-                try {
-                  const r = await validatePexelsKey(pexelsKey.trim());
-                  if (!r.valid) { setError(r.error || "Chave inválida"); return; }
-                  saveKey({ pexelsApiKey: pexelsKey.trim() });
-                  toast({ title: "Pexels conectado!" }); setStep(6);
-                } catch (e) { setError(e instanceof Error ? e.message : "Erro"); }
-                finally { setIsValidating(false); }
-              } : undefined} next={pexelsKey.trim() ? undefined : 6} skipTo={6} canSkip canProceed={!!pexelsKey.trim() || !!config.pexelsApiKey} />
+              <SecretInput id="pexels" label="Pexels API Key" placeholder={status.pexels ? "Cole uma nova chave para substituir" : "Sua chave Pexels"} value={pexelsKey} onChange={setPexelsKey} hint="Crie conta grátis em" link="https://www.pexels.com/api/" linkLabel="pexels.com/api" />
+              <NavButtons
+                prev={4}
+                onNext={pexelsKey.trim() ? handleValidatePexels : undefined}
+                next={pexelsKey.trim() ? undefined : 6}
+                skipTo={6}
+                canSkip
+                canProceed={!!pexelsKey.trim() || status.pexels}
+              />
             </CardContent>
           </Card>
         )}
@@ -483,12 +521,26 @@ export default function Setup() {
         {step === 6 && (
           <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Zap className="h-5 w-5 text-muted-foreground" /> Blotato <Badge variant="secondary" className="text-[10px]">legado · opcional</Badge></CardTitle>
-              <CardDescription>Extração de fontes de conteúdo (YouTube, artigos). Não é mais obrigatório — visuais e vídeos agora usam OpenAI e Higgsfield.</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-muted-foreground" /> Blotato <Badge variant="secondary" className="text-[10px]">legado · opcional</Badge>
+                {status.blotato && <Badge className="bg-green-600 text-[10px] px-1.5 py-0 h-4">Conectado</Badge>}
+              </CardTitle>
+              <CardDescription>
+                {status.blotato
+                  ? "Chave já configurada. Deixe em branco para manter, ou cole uma nova para substituir."
+                  : "Extração de fontes de conteúdo (YouTube, artigos). Não é mais obrigatório — visuais e vídeos agora usam OpenAI e Higgsfield."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SecretInput id="blotato" label="Blotato API Key" placeholder="blt_xxxxxxxxxxxxx" value={blotatoKey} onChange={setBlotatoKey} hint="Se já tiver, obtenha em" link="https://app.blotato.com/settings" linkLabel="app.blotato.com" />
-              <NavButtons prev={5} onNext={blotatoKey.trim() ? handleValidateBlotato : undefined} next={blotatoKey.trim() ? undefined : 7} skipTo={7} canSkip canProceed={!!blotatoKey.trim()} />
+              <SecretInput id="blotato" label="Blotato API Key" placeholder={status.blotato ? "Cole uma nova chave para substituir" : "blt_xxxxxxxxxxxxx"} value={blotatoKey} onChange={setBlotatoKey} hint="Se já tiver, obtenha em" link="https://app.blotato.com/settings" linkLabel="app.blotato.com" />
+              <NavButtons
+                prev={5}
+                onNext={blotatoKey.trim() ? handleValidateBlotato : undefined}
+                next={blotatoKey.trim() ? undefined : 7}
+                skipTo={7}
+                canSkip
+                canProceed={!!blotatoKey.trim() || status.blotato}
+              />
             </CardContent>
           </Card>
         )}
@@ -520,10 +572,10 @@ export default function Setup() {
               <div className="rounded-lg border p-4 space-y-2">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Resumo de configuração</p>
                 {[
-                  { label: "Post for Me (Publicação)",   ok: validated.pfm,         req: true  },
-                  { label: "Imagens IA (OpenAI)",        ok: true,                  req: false },
-                  { label: "Higgsfield (Vídeo IA)",      ok: validated.higgsfield,  req: false },
-                  { label: "Apify (Analytics)",          ok: validated.apify,       req: false },
+                  { label: "Post for Me (Publicação)",   ok: status.postforme,    req: true  },
+                  { label: "Imagens IA (OpenAI)",        ok: true,                req: false },
+                  { label: "Higgsfield (Vídeo IA)",      ok: status.higgsfield,   req: false },
+                  { label: "Apify (Analytics)",          ok: status.apify,        req: false },
                 ].map(({ label, ok, req }) => (
                   <div key={label} className="flex items-center gap-2 text-xs">
                     {ok
@@ -534,7 +586,7 @@ export default function Setup() {
                     <span className={ok ? "text-green-600 font-medium" : req ? "text-destructive" : "text-muted-foreground"}>
                       {label}
                     </span>
-                    {ok && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 ml-auto text-green-600">validado</Badge>}
+                    {ok && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 ml-auto text-green-600">conectado</Badge>}
                     {!ok && req && <Badge variant="destructive" className="text-[9px] px-1 py-0 h-4 ml-auto">faltando</Badge>}
                     {!ok && !req && <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 ml-auto">opcional</Badge>}
                   </div>
@@ -547,8 +599,14 @@ export default function Setup() {
                 </Button>
                 <Button
                   className="flex-1 bg-gradient-to-r from-violet-600 to-fuchsia-500"
-                  onClick={() => {
-                    if (brandName) saveKey({ brandName });
+                  onClick={async () => {
+                    try {
+                      if (brandName && brandName !== config.brandName) {
+                        await saveConfigToDb({ ...config, brandName });
+                      }
+                    } catch (e) {
+                      console.warn("[Setup] erro salvando brand name:", e);
+                    }
                     setStep(8);
                   }}
                 >
@@ -586,12 +644,12 @@ export default function Setup() {
               <Button
                 className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-500 hover:from-violet-700 hover:to-fuchsia-600"
                 onClick={handleFinish}
-                disabled={isSaving}
+                disabled={isSaving || !isConfigured}
               >
                 {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : <>Salvar e ir para o Dashboard <ArrowRight className="ml-2 h-4 w-4" /></>}
               </Button>
               <p className="text-xs text-center text-muted-foreground">
-                Todas as chaves serão guardadas com segurança no banco de dados.
+                Suas chaves ficam guardadas no servidor — nunca trafegam pelo navegador.
               </p>
             </CardContent>
           </Card>

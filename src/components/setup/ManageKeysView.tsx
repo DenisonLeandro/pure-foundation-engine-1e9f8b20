@@ -6,12 +6,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useApp } from "@/contexts/use-app";
 import { getUser, validatePfmKey, validateApifyToken, validateHiggsFieldKey, validateFirecrawlKey, validatePexelsKey } from "@/lib/api";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
-import type { AppConfig } from "@/types";
+import type { AppConfig, IntegrationKeyPatch, IntegrationsStatus } from "@/types";
+
+type IntegrationStatusKey = Exclude<keyof IntegrationsStatus, "updatedAt" | "higgsfieldApiId" | "higgsfieldApiSecret" | "higgsfield">;
 
 type ManageKeyDef = {
-  id: keyof AppConfig;
+  patchField: keyof IntegrationKeyPatch;
+  statusField: IntegrationStatusKey;
   label: string;
   description: string;
   placeholder: string;
@@ -22,7 +26,8 @@ type ManageKeyDef = {
 
 const MANAGE_KEYS: ManageKeyDef[] = [
   {
-    id: "blotatoApiKey",
+    patchField: "blotatoApiKey",
+    statusField: "blotato",
     label: "Blotato",
     description: "Visuais, vídeos IA e carrosséis.",
     placeholder: "blt_xxxxxxxxxxxxx",
@@ -39,7 +44,8 @@ const MANAGE_KEYS: ManageKeyDef[] = [
     },
   },
   {
-    id: "postformeApiKey",
+    patchField: "postformeApiKey",
+    statusField: "postforme",
     label: "Post for Me",
     description: "Publicação multi-plataforma.",
     placeholder: "pfm_live_xxxxxxxxxxxxx",
@@ -48,7 +54,8 @@ const MANAGE_KEYS: ManageKeyDef[] = [
     validate: async (v) => validatePfmKey(v),
   },
   {
-    id: "apifyApiToken",
+    patchField: "apifyApiToken",
+    statusField: "apify",
     label: "Apify",
     description: "Analytics reais das redes.",
     placeholder: "apify_api_xxxxxxxxxxxxx",
@@ -57,7 +64,8 @@ const MANAGE_KEYS: ManageKeyDef[] = [
     validate: async (v) => validateApifyToken(v),
   },
   {
-    id: "firecrawlApiKey",
+    patchField: "firecrawlApiKey",
+    statusField: "firecrawl",
     label: "Firecrawl",
     description: "Pesquisa de conteúdo (Autopilot).",
     placeholder: "fc-xxxxxxxxxxxxx",
@@ -66,7 +74,8 @@ const MANAGE_KEYS: ManageKeyDef[] = [
     validate: async (v) => validateFirecrawlKey(v),
   },
   {
-    id: "pexelsApiKey",
+    patchField: "pexelsApiKey",
+    statusField: "pexels",
     label: "Pexels",
     description: "Banco de imagens (fotos de acervo).",
     placeholder: "Sua chave Pexels",
@@ -76,24 +85,18 @@ const MANAGE_KEYS: ManageKeyDef[] = [
   },
 ];
 
-function maskKey(value?: string) {
-  if (!value) return "Não configurada";
-  if (value.length <= 4) return "••••";
-  return `••••${value.slice(-4)}`;
-}
-
-export function ManageKeysView({
-  currentConfig,
-  onSave,
-  onBack,
-  embedded = false,
-}: {
-  currentConfig: AppConfig;
-  onSave: (partial: Partial<AppConfig>) => Promise<void>;
+interface ManageKeysViewProps {
+  /** Mantido por compatibilidade com SettingsShell, mas não é mais necessário — usamos o status do AppContext. */
+  currentConfig?: AppConfig;
+  /** Mantido por compatibilidade — chaves agora vão por saveIntegrationKeys diretamente. */
+  onSave?: (partial: Partial<AppConfig>) => Promise<void>;
   onBack?: () => void;
   embedded?: boolean;
-}) {
+}
+
+export function ManageKeysView({ onBack, embedded = false }: ManageKeysViewProps) {
   const { isEditor } = useCompany();
+  const { config } = useApp();
 
   if (isEditor) {
     const blocked = (
@@ -129,16 +132,14 @@ export function ManageKeysView({
     <div className="grid gap-4">
       {MANAGE_KEYS.map((def) => (
         <ManageKeyCard
-          key={def.id as string}
+          key={def.patchField as string}
           def={def}
-          currentValue={currentConfig[def.id] as string | undefined}
-          onSave={onSave}
+          isConnected={!!config.integrations[def.statusField]}
         />
       ))}
       <HiggsfieldCard
-        apiId={currentConfig.higgsFieldApiId}
-        apiSecret={currentConfig.higgsFieldApiSecret}
-        onSave={onSave}
+        hasId={!!config.integrations.higgsfieldApiId}
+        hasSecret={!!config.integrations.higgsfieldApiSecret}
       />
     </div>
   );
@@ -155,7 +156,7 @@ export function ManageKeysView({
               Configurações — Chaves de API
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Atualize ou remova suas chaves a qualquer momento.
+              Atualize ou remova suas chaves a qualquer momento. As chaves salvas nunca são exibidas — apenas o status de conexão.
             </p>
           </div>
           {onBack && (
@@ -170,20 +171,12 @@ export function ManageKeysView({
   );
 }
 
-function ManageKeyCard({
-  def,
-  currentValue,
-  onSave,
-}: {
-  def: ManageKeyDef;
-  currentValue?: string;
-  onSave: (partial: Partial<AppConfig>) => Promise<void>;
-}) {
+function ManageKeyCard({ def, isConnected }: { def: ManageKeyDef; isConnected: boolean }) {
   const { toast } = useToast();
+  const { saveIntegrationKeys } = useApp();
   const [value, setValue] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
-  const isConfigured = !!currentValue;
 
   const handleSave = async () => {
     if (!value.trim()) return;
@@ -196,8 +189,11 @@ function ManageKeyCard({
           return;
         }
       }
-      await onSave({ [def.id]: value.trim() } as Partial<AppConfig>);
+      await saveIntegrationKeys({ [def.patchField]: value.trim() } as IntegrationKeyPatch);
       setValue("");
+      toast({ title: `${def.label} conectado!`, description: "Chave salva com segurança." });
+    } catch (e) {
+      toast({ title: "Erro ao salvar", description: e instanceof Error ? e.message : "Erro desconhecido", variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -207,7 +203,10 @@ function ManageKeyCard({
     if (!confirm(`Remover a chave do ${def.label}? As funcionalidades dependentes deixarão de funcionar.`)) return;
     setBusy(true);
     try {
-      await onSave({ [def.id]: undefined } as Partial<AppConfig>);
+      await saveIntegrationKeys({ [def.patchField]: null } as IntegrationKeyPatch);
+      toast({ title: `Chave do ${def.label} removida.` });
+    } catch (e) {
+      toast({ title: "Erro ao remover", description: e instanceof Error ? e.message : "Erro desconhecido", variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -220,7 +219,7 @@ function ManageKeyCard({
           <div>
             <CardTitle className="text-base flex items-center gap-2">
               {def.label}
-              {isConfigured ? (
+              {isConnected ? (
                 <Badge className="bg-green-600 text-[10px] px-1.5 py-0 h-4">Conectado</Badge>
               ) : (
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">Não configurado</Badge>
@@ -229,7 +228,7 @@ function ManageKeyCard({
             <CardDescription className="text-xs mt-1">{def.description}</CardDescription>
           </div>
           <div className="text-right text-xs text-muted-foreground font-mono shrink-0">
-            {maskKey(currentValue)}
+            {isConnected ? "Chave configurada" : "Não configurada"}
           </div>
         </div>
       </CardHeader>
@@ -237,10 +236,11 @@ function ManageKeyCard({
         <div className="relative">
           <Input
             type={show ? "text" : "password"}
-            placeholder={isConfigured ? "Cole uma nova chave para substituir" : def.placeholder}
+            placeholder={isConnected ? "Cole uma nova chave para substituir" : def.placeholder}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             className="font-mono text-sm pr-10"
+            autoComplete="off"
           />
           <button
             type="button"
@@ -257,7 +257,7 @@ function ManageKeyCard({
             </a>
           )}
           <div className="flex gap-2 ml-auto">
-            {isConfigured && (
+            {isConnected && (
               <Button variant="outline" size="sm" onClick={handleRemove} disabled={busy}>
                 <Trash2 className="h-3.5 w-3.5 mr-1" /> Remover
               </Button>
@@ -273,22 +273,15 @@ function ManageKeyCard({
   );
 }
 
-function HiggsfieldCard({
-  apiId,
-  apiSecret,
-  onSave,
-}: {
-  apiId?: string;
-  apiSecret?: string;
-  onSave: (partial: Partial<AppConfig>) => Promise<void>;
-}) {
+function HiggsfieldCard({ hasId, hasSecret }: { hasId: boolean; hasSecret: boolean }) {
   const { toast } = useToast();
+  const { saveIntegrationKeys } = useApp();
   const [id, setId] = useState("");
   const [secret, setSecret] = useState("");
   const [showId, setShowId] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [busy, setBusy] = useState(false);
-  const isConfigured = !!(apiId && apiSecret);
+  const isConfigured = hasId && hasSecret;
 
   const handleSave = async () => {
     if (!id.trim() || !secret.trim()) return;
@@ -299,9 +292,12 @@ function HiggsfieldCard({
         toast({ title: "Credenciais inválidas", description: r.error, variant: "destructive" });
         return;
       }
-      await onSave({ higgsFieldApiId: id.trim(), higgsFieldApiSecret: secret.trim() });
+      await saveIntegrationKeys({ higgsFieldApiId: id.trim(), higgsFieldApiSecret: secret.trim() });
       setId("");
       setSecret("");
+      toast({ title: "Higgsfield conectado!", description: "Credenciais salvas com segurança." });
+    } catch (e) {
+      toast({ title: "Erro ao salvar", description: e instanceof Error ? e.message : "Erro desconhecido", variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -311,7 +307,10 @@ function HiggsfieldCard({
     if (!confirm("Remover credenciais do Higgsfield? Geração de vídeo e imagens IA serão desativadas.")) return;
     setBusy(true);
     try {
-      await onSave({ higgsFieldApiId: undefined, higgsFieldApiSecret: undefined });
+      await saveIntegrationKeys({ higgsFieldApiId: null, higgsFieldApiSecret: null });
+      toast({ title: "Credenciais do Higgsfield removidas." });
+    } catch (e) {
+      toast({ title: "Erro ao remover", description: e instanceof Error ? e.message : "Erro desconhecido", variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -333,8 +332,8 @@ function HiggsfieldCard({
             <CardDescription className="text-xs mt-1">Geração de vídeo e imagens IA (par ID + Secret).</CardDescription>
           </div>
           <div className="text-right text-xs text-muted-foreground font-mono shrink-0">
-            <div>ID: {maskKey(apiId)}</div>
-            <div>Secret: {maskKey(apiSecret)}</div>
+            <div>ID: {hasId ? "configurado" : "não configurado"}</div>
+            <div>Secret: {hasSecret ? "configurado" : "não configurado"}</div>
           </div>
         </div>
       </CardHeader>
@@ -342,10 +341,11 @@ function HiggsfieldCard({
         <div className="relative">
           <Input
             type={showId ? "text" : "password"}
-            placeholder="API ID"
+            placeholder={hasId ? "Cole um novo API ID para substituir" : "API ID"}
             value={id}
             onChange={(e) => setId(e.target.value)}
             className="font-mono text-sm pr-10"
+            autoComplete="off"
           />
           <button type="button" onClick={() => setShowId((s) => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
             {showId ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -354,10 +354,11 @@ function HiggsfieldCard({
         <div className="relative">
           <Input
             type={showSecret ? "text" : "password"}
-            placeholder="API Secret"
+            placeholder={hasSecret ? "Cole um novo API Secret para substituir" : "API Secret"}
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
             className="font-mono text-sm pr-10"
+            autoComplete="off"
           />
           <button type="button" onClick={() => setShowSecret((s) => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
             {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
