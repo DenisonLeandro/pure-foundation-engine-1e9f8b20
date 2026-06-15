@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { useBrands } from "@/hooks/use-brands";
 import { searchStockImages, type StockImage } from "@/lib/api";
 import { ArtStyles } from "./ArtStyles";
@@ -13,6 +14,7 @@ import { uid, type El } from "./types";
 
 export function AssetsRail() {
   const { user } = useAuth();
+  const { activeCompanyId } = useCompany();
   const { brands } = useBrands();
   const { doc, addEl, patchEl, patchSlide, currentSlide, selectedEl } = useStudio();
   const brand = brands.find((b) => b.id === doc.brandId) || null;
@@ -56,9 +58,10 @@ export function AssetsRail() {
   const search = async () => {
     const query = q.trim() || brand?.industry || brand?.name || "";
     if (!query) { toast.error("Digite o que buscar."); return; }
+    if (!activeCompanyId) { toast.error("Selecione uma empresa."); return; }
     setSearching(true); setStock([]);
     try {
-      const { images } = await searchStockImages({ query, count: 9, orientation: "squarish" });
+      const { images } = await searchStockImages({ companyId: activeCompanyId, query, count: 9, orientation: "squarish" });
       if (!images?.length) toast.error("Nada encontrado."); else setStock(images);
     } catch (e) { toast.error(e instanceof Error ? e.message : "Erro na busca"); } finally { setSearching(false); }
   };

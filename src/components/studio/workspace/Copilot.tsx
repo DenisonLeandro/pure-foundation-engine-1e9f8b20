@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
+import { useCompany } from "@/contexts/CompanyContext";
 import {
   generateContent, generateOpenAiImage, searchStockImages, aiAssist,
   callHiggsfield, hfStatus, type HfGenerationResult,
@@ -23,6 +24,7 @@ const POST_PLATFORMS: Platform[] = ["instagram", "twitter", "linkedin", "faceboo
 
 export function Copilot() {
   const { brands } = useBrands();
+  const { activeCompanyId } = useCompany();
   const { doc, selectedEl, replaceDoc, patchEl, patchSlide, currentSlide, set, setPlatforms } = useStudio();
   const brand = brands.find((b) => b.id === doc.brandId) || null;
   const c1 = brand?.colors?.[0] || "#8b5cf6";
@@ -211,7 +213,8 @@ export function Copilot() {
         const { images } = await generateOpenAiImage({ prompt: [brandImageDirective(brand), q].filter(Boolean).join("\n\n"), size: "1024x1536", quality: "medium", n: 1 });
         url = images?.[0];
       } else {
-        const { images } = await searchStockImages({ query: q, count: 1, orientation: "squarish" });
+        if (!activeCompanyId) { toast.error("Selecione uma empresa."); return; }
+        const { images } = await searchStockImages({ companyId: activeCompanyId, query: q, count: 1, orientation: "squarish" });
         url = images?.[0]?.url;
       }
       if (!url) { toast.error("Nenhuma imagem."); return; }

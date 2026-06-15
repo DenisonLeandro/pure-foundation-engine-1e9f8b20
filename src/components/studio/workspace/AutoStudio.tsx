@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import {
   generateContent, generateOpenAiImage, searchStockImages, aiAssist,
   callHiggsfield, hfStatus, type HfGenerationResult,
