@@ -3,7 +3,19 @@
  * plus the helpers that build account lists and validate the Apify token.
  */
 
-import { getSupabaseUrl, getSavedConfig, baseHeaders } from "./_shared";
+import { getSupabaseUrl, baseHeaders } from "./_shared";
+
+// TODO: no futuro, passar companyId explicitamente em cada chamada (em vez
+// do setter de módulo) para evitar acoplamento global ao CompanyContext.
+let _activeCompanyId: string | null = null;
+
+export function setApifyActiveCompany(companyId: string | null) {
+  _activeCompanyId = companyId;
+}
+
+export function getApifyActiveCompany(): string | null {
+  return _activeCompanyId;
+}
 
 // ─── Social Analytics (Apify) ───────────────────────────────────
 
