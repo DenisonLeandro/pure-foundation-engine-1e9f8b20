@@ -1,29 +1,50 @@
-Plano para resolver o login no domínio publicado, sem alterar Studio, Galeria, integrações, permissões de empresa, marcas, chaves, agendamento, Autopilot ou aprovação.
+Diagnóstico encontrado:
 
-1. Corrigir a configuração do cliente de autenticação
-- Criar uma camada segura em `src/lib/supabase.ts` que use as variáveis do build quando existirem.
-- Se o build publicado ainda vier sem variáveis, usar um fallback público e específico deste backend, evitando o domínio placeholder que causa falha de rede.
-- Manter apenas chave pública/publicável no frontend; nenhum segredo privado será adicionado.
+- O domínio publicado em uso é `https://pure-foundation-engine.lovable.app`.
+- O site publicado ainda está servindo um bundle antigo: `/assets/index-DS6PpvZD.js`.
+- Esse bundle publicado não contém o fallback público que foi adicionado no código atual.
+- Dentro do bundle publicado, o cliente de autenticação ainda está assim:
+  - URL: `https://placeholder.supabase.co`
+  - chave: `placeholder-key`
+  - `supabaseConfigured = false` porque `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` não chegaram no build publicado.
+- Resultado: no publicado, o app acha que o backend não está configurado e o login não autentica corretamente.
+- O backend está saudável; não encontrei sinal de indisponibilidade no backend.
+- Os logs recentes de auth mostram chamadas `/user` com status 200, mas não mostram tentativa válida de login por senha vinda do domínio publicado no período consultado, o que combina com o frontend usando placeholder/cliente inválido antes de autenticar.
+- Há também indício de publicação desatualizada pelo HTML: o `<title>` publicado ainda aparece como `Lovable App`, ou seja, nem a correção anterior de metadata nem a correção do cliente chegaram ao site publicado.
 
-2. Aplicar a correção só nos fluxos de auth
-- Manter `AuthContext` como ponto central de login, sessão, logout, reset e troca de senha.
-- Trocar imports diretos do cliente gerado apenas em páginas de autenticação/configuração de login quando necessário, como `Login` e `Signup`, para usarem o cliente seguro.
-- Não alterar regras de empresa, `company_configs`, integrações operacionais ou páginas fora do fluxo de autenticação.
+Plano para corrigir somente o login publicado:
 
-3. Ajustar redirecionamento pós-login
-- Após login, mandar o usuário para `/dashboard` e deixar as guards existentes decidirem se precisa ir para `/criar-empresa`.
-- Confirmar que reload mantém sessão e logout retorna para `/login`.
+1. Garantir que o código atual de autenticação esteja consistente
+   - Manter o cliente de auth usando URL/chave pública reais quando as variáveis do build não forem injetadas.
+   - Não mexer em Studio, Galeria, `company_configs`, integrações, permissões de empresa, marcas, chaves, agendamento, Autopilot ou aprovação.
 
-4. Validar links de email
-- Conferir reset e convite usando `window.location.origin`, para o domínio publicado ser usado automaticamente.
-- Se necessário, ajustar somente URLs de auth para usar o domínio atual da aplicação.
+2. Corrigir a detecção de backend configurado
+   - Remover a dependência de `import.meta.env` para decidir se auth está habilitado.
+   - Como o cliente passa a ter fallback público válido, `supabaseConfigured` deve permanecer verdadeiro, exceto no bypass de testes.
 
-5. Verificação final
-- Testar no preview com sessão limpa.
-- Testar no domínio publicado, verificando console e requisições de login.
-- Confirmar que não há loop de rota, que sessão persiste no reload e que logout limpa a sessão.
+3. Ajustar o redirecionamento pós-login
+   - O login não deve forçar `/setup` sempre.
+   - Após autenticar, enviar para `/dashboard`; as guards existentes redirecionam para `/criar-empresa` quando o usuário não tiver empresa.
 
-Detalhes técnicos
-- Não vou editar o cliente gerado automaticamente do backend.
-- Não vou mexer em `company_configs`, Edge Functions de integrações, Studio, Galeria, marcas, agendamento ou Autopilot.
-- A correção será limitada ao client de auth/configuração pública e aos imports necessários para login/signup funcionarem no build publicado.
+4. Verificar links de reset/convite no domínio publicado
+   - Confirmar que reset usa `window.location.origin`.
+   - Confirmar convite não está fixando domínio de preview.
+
+5. Publicar novamente a versão corrigida
+   - A causa principal agora é que o publicado está desatualizado.
+   - Depois da publicação, verificar se o novo bundle contém `pgimbjfdxwefahxmpdpc` e `sb_publishable_...`, e não contém `placeholder.supabase.co` como cliente ativo.
+
+6. Validar no domínio publicado
+   - Abrir `https://pure-foundation-engine.lovable.app/login` em sessão limpa.
+   - Verificar console: sem erro de placeholder e sem erro de rede de auth.
+   - Tentar login com credenciais reais fornecidas/testáveis.
+   - Confirmar destino final: `/dashboard` ou `/criar-empresa` conforme o usuário.
+   - Recarregar a página e confirmar que a sessão persiste.
+   - Fazer logout e confirmar retorno para `/login`.
+
+Arquivos previstos para alteração:
+
+- `src/pages/Login.tsx`: ajustar o destino pós-login de `/setup` para `/dashboard`.
+- Se necessário, revisar apenas `src/lib/supabase.ts` e `src/integrations/supabase/client.ts` para garantir que a versão atual realmente contém o fallback válido e a flag correta.
+
+Nada será alterado nas áreas proibidas.
