@@ -88,19 +88,20 @@ export async function searchImages(
 }
 
 export interface StockSearchParams {
+  companyId: string;
   query: string;
   count?: number;
   orientation?: "landscape" | "portrait" | "squarish";
 }
 
-/** Busca fotos de acervo (Pexels) via edge function stock-search. */
+/** Busca fotos de acervo (Pexels) via edge function stock-search.
+ *  A chave Pexels é carregada da empresa no servidor — não trafega pelo cliente. */
 export async function searchStockImages(
   params: StockSearchParams
 ): Promise<{ images: StockImage[] }> {
+  if (!params.companyId) throw new Error("companyId é obrigatório para buscar imagens.");
   const url = `${getSupabaseUrl()}/functions/v1/stock-search`;
-  const cfg = getSavedConfig();
   const headers = await baseHeaders();
-  if (cfg.pexelsApiKey) headers["x-pexels-api-key"] = cfg.pexelsApiKey;
 
   const response = await fetch(url, {
     method: "POST",
@@ -118,21 +119,15 @@ export async function searchStockImages(
   return response.json();
 }
 
-/** Valida uma chave Pexels via stock-search (sem expor a chave no cliente). */
+/** Valida uma chave Pexels chamando a API diretamente (Pexels suporta CORS).
+ *  A chave digitada pelo usuário no Setup nunca passa por uma edge. */
 export async function validatePexelsKey(key: string): Promise<{ valid: boolean; error?: string }> {
   try {
-    const url = `${getSupabaseUrl()}/functions/v1/stock-search`;
-    const headers = await baseHeaders();
-    headers["x-pexels-api-key"] = key;
-    const res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ query: "teste", count: 1 }),
+    const res = await fetch("https://api.pexels.com/v1/search?query=test&per_page=1", {
+      headers: { Authorization: key },
     });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      return { valid: false, error: body.error || `HTTP ${res.status}` };
-    }
+    if (res.status === 401 || res.status === 403) return { valid: false, error: "Chave inválida" };
+    if (!res.ok) return { valid: false, error: `HTTP ${res.status}` };
     return { valid: true };
   } catch (e) {
     return { valid: false, error: e instanceof Error ? e.message : "Erro de conexão" };
