@@ -164,10 +164,16 @@ export async function fetchAnalytics(
   return response.json();
 }
 
-/** Validate Apify token */
-export async function validateApifyToken(token: string): Promise<{ valid: boolean; error?: string }> {
+/**
+ * Valida APENAS um token recém-digitado por Dono/Admin no Setup.
+ * NUNCA usar com token salvo em AppContext/company_configs.
+ * TODO: migrar para Edge Function dedicada que só aceite no caminho de validação manual.
+ */
+export async function validateApifyToken(typedToken: string): Promise<{ valid: boolean; error?: string }> {
+  const t = (typedToken || "").trim();
+  if (!t) return { valid: false, error: "Token vazio" };
   try {
-    const res = await fetch(`https://api.apify.com/v2/users/me?token=${token}`);
+    const res = await fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(t)}`);
     if (res.status === 401) return { valid: false, error: "Token inválido" };
     if (!res.ok) return { valid: false, error: `HTTP ${res.status}` };
     return { valid: true };
