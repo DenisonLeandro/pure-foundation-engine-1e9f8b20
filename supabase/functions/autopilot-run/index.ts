@@ -610,15 +610,11 @@ async function handleCheckVisuals(calendarId: string) {
   if (!posts?.length) return { checked: 0 };
 
   const userId = posts[0].user_id;
-  const { data: userCfg } = await sb
-    .from("user_configs")
-    .select("blotato_api_key, higgsfield_api_id, higgsfield_api_secret")
-    .eq("user_id", userId)
-    .single();
+  const keys = await loadKeysForUser(sb, userId);
+  const blotatoKey = keys?.blotato_api_key;
+  const hfId = keys?.higgsfield_api_id;
+  const hfSecret = keys?.higgsfield_api_secret;
 
-  const blotatoKey = userCfg?.blotato_api_key;
-  const hfId = userCfg?.higgsfield_api_id;
-  const hfSecret = userCfg?.higgsfield_api_secret;
   const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
   let updated = 0;
 
