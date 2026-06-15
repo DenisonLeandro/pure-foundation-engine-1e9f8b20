@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { ArrowLeft, ExternalLink, Loader2, Trash2, Save, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, ExternalLink, Loader2, Trash2, Save, Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/contexts/CompanyContext";
 import { getUser, validatePfmKey, validateApifyToken, validateHiggsFieldKey, validateFirecrawlKey, validatePexelsKey } from "@/lib/api";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import type { AppConfig } from "@/types";
