@@ -195,8 +195,8 @@ export default function Autopilot() {
       {/* Alertas de keys faltando */}
       {(() => {
         const missing: string[] = [];
-        if (!appConfig.postformeApiKey) missing.push("Post for Me");
-        if (!appConfig.firecrawlApiKey && activeConfig?.research_topics?.length) missing.push("Firecrawl");
+        if (!appConfig.integrations.postforme) missing.push("Post for Me");
+        if (!appConfig.integrations.firecrawl && activeConfig?.research_topics?.length) missing.push("Firecrawl");
         if (missing.length === 0) return null;
         return (
           <Card className="border-amber-500/50 bg-amber-500/5">
@@ -264,7 +264,7 @@ export default function Autopilot() {
                   size="sm"
                   variant="outline"
                   onClick={() => handleGenerate(activeConfig.id)}
-                  disabled={runAutopilot.isPending || !appConfig.postformeApiKey}
+                  disabled={runAutopilot.isPending || !appConfig.integrations.postforme}
                 >
                   {runAutopilot.isPending ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />

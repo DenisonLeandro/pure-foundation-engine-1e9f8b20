@@ -116,7 +116,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.warn("[AppContext] erro ao carregar status de integrações:", error);
       return DEFAULT_INTEGRATIONS;
     }
-    const row = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : undefined;
+    const list = (data ?? []) as Array<Record<string, unknown>>;
+    const row = Array.isArray(list) ? list[0] : undefined;
     if (!row) return DEFAULT_INTEGRATIONS;
     return {
       postforme: !!row.has_postforme,

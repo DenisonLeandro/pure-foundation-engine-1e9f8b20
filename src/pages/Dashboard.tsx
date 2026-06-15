@@ -81,7 +81,7 @@ export default function Dashboard() {
   const pfmAccountsQuery = usePfmAccounts();
   const { toast } = useToast();
   const [apisBannerDismissed, setApisBannerDismissed] = useState(false);
-  const showApisBanner = !configLoading && !config.postformeApiKey && !apisBannerDismissed;
+  const showApisBanner = !configLoading && !config.integrations.postforme && !apisBannerDismissed;
 
   // Banner de configurações pendentes (mostrado uma vez após onboarding com itens pulados)
   const [pendingDismissed, setPendingDismissed] = useState(false);
