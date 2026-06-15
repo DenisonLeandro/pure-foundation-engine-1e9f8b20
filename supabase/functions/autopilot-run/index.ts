@@ -699,9 +699,10 @@ async function handleConfirm(calendarId: string) {
   if (!posts?.length) return { confirmed: 0 };
 
   const userId = posts[0].user_id;
-  const { data: userCfg } = await sb.from("user_configs").select("postforme_api_key").eq("user_id", userId).single();
-  const pfmKey = userCfg?.postforme_api_key;
+  const keys = await loadKeysForUser(sb, userId);
+  const pfmKey = keys?.postforme_api_key;
   if (!pfmKey) return { confirmed: 0, error: "PFM key not found" };
+
 
   const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
   let confirmed = 0;
