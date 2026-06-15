@@ -138,15 +138,16 @@ export async function fetchAnalytics(
   accounts: { platform: string; username: string }[],
   enrich = false
 ): Promise<AnalyticsResult> {
+  if (!_activeCompanyId) {
+    throw new Error("Selecione uma empresa antes de consultar métricas.");
+  }
   const url = `${getSupabaseUrl()}/functions/v1/social-analytics`;
-  const cfg = getSavedConfig();
   const headers = await baseHeaders();
-  if (cfg.apifyApiToken) headers["x-apify-api-token"] = cfg.apifyApiToken;
 
   const response = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({ accounts, enrich }),
+    body: JSON.stringify({ accounts, enrich, companyId: _activeCompanyId }),
   });
 
   if (!response.ok) {
