@@ -1,20 +1,22 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { getCompanyConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Stock Image Search — banco de imagens REAL (Pexels).
- * Diferente de openai-image / image-search (geração por IA), aqui buscamos
- * fotos de acervo. Chave por usuário via header x-pexels-api-key (fallback env).
+ * Chave da empresa é carregada no servidor a partir de company_configs.
+ * O cliente NÃO envia x-pexels-api-key.
  */
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-pexels-api-key",
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 interface RequestBody {
+  companyId: string;
   query: string;
   count?: number;
   orientation?: "landscape" | "portrait" | "squarish";
@@ -47,18 +49,23 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { query, count = 12, orientation = "squarish" }: RequestBody = await req.json();
+    const body = await req.json() as Partial<RequestBody>;
+    const { companyId, query, count = 12, orientation = "squarish" } = body;
+
     if (!query?.trim()) {
       return new Response(JSON.stringify({ error: "Missing 'query'" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const apiKey = req.headers.get("x-pexels-api-key") || Deno.env.get("PEXELS_API_KEY");
+    const cfgResult = await getCompanyConfig(companyId, auth.user.id, corsHeaders);
+    if (cfgResult instanceof Response) return cfgResult; // 400/403/500
+
+    const apiKey = cfgResult.config.pexels_api_key;
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "Pexels não configurado. Adicione sua chave em Configurações." }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Pexels não configurado para esta empresa." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
