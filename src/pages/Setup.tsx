@@ -449,11 +449,21 @@ export default function Setup() {
         {step === 5 && (
           <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Image className="h-5 w-5 text-blue-500" /> Pexels — Banco de Imagens <Badge variant="secondary" className="text-[10px]">opcional</Badge></CardTitle>
-              <CardDescription>Busque fotos de acervo profissional para usar nos posts.</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Image className="h-5 w-5 text-blue-500" /> Pexels — Banco de Imagens
+                <Badge variant="secondary" className="text-[10px]">opcional</Badge>
+                {config.pexelsApiKey && (
+                  <Badge className="bg-green-600 text-[10px] px-1.5 py-0 h-4">Conectado</Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                {config.pexelsApiKey
+                  ? "Chave já configurada. Deixe em branco para manter, ou cole uma nova chave para substituir."
+                  : "Busque fotos de acervo profissional para usar nos posts."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <SecretInput id="pexels" label="Pexels API Key" placeholder="Sua chave Pexels" value={pexelsKey} onChange={setPexelsKey} hint="Crie conta grátis em" link="https://www.pexels.com/api/" linkLabel="pexels.com/api" />
+              <SecretInput id="pexels" label="Pexels API Key" placeholder={config.pexelsApiKey ? "Cole uma nova chave para substituir" : "Sua chave Pexels"} value={pexelsKey} onChange={setPexelsKey} hint="Crie conta grátis em" link="https://www.pexels.com/api/" linkLabel="pexels.com/api" />
               <NavButtons prev={4} onNext={pexelsKey.trim() ? async () => {
                 setIsValidating(true); setError("");
                 try {
@@ -463,10 +473,11 @@ export default function Setup() {
                   toast({ title: "Pexels conectado!" }); setStep(6);
                 } catch (e) { setError(e instanceof Error ? e.message : "Erro"); }
                 finally { setIsValidating(false); }
-              } : undefined} next={pexelsKey.trim() ? undefined : 6} skipTo={6} canSkip canProceed={!!pexelsKey.trim()} />
+              } : undefined} next={pexelsKey.trim() ? undefined : 6} skipTo={6} canSkip canProceed={!!pexelsKey.trim() || !!config.pexelsApiKey} />
             </CardContent>
           </Card>
         )}
+
 
         {/* ── STEP 6: Blotato (legado, opcional) ─────────────── */}
         {step === 6 && (
