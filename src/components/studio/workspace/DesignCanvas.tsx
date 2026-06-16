@@ -29,6 +29,7 @@ export function DesignCanvas() {
   const accent = brand?.colors?.[2] || "#ffffff";
   const canvas = getCanvasSize(doc);
   const exportSize = getExportSize(doc);
+  const staticFallback = doc.canvas?.source === "fallback" && doc.slides.every((s) => (s.els?.length ?? 0) === 0 && !!s.bgImage);
 
   const [exporting, setExporting] = useState(false);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -249,8 +250,10 @@ export function DesignCanvas() {
 
   return (
     <div className="flex h-full w-full flex-col items-center gap-4 overflow-auto p-6">
-      {/* presets */}
-      <div className="flex flex-wrap items-center justify-center gap-1.5">
+      {staticFallback && (
+        <p className="text-xs text-muted-foreground">Este post antigo não possui camadas editáveis. Ele será aberto como imagem final.</p>
+      )}
+      {!staticFallback && <div className="flex flex-wrap items-center justify-center gap-1.5">
         <span className="text-[11px] text-muted-foreground">Tema:</span>
         {PRESETS.map((p) => (
           <Button key={p.name} variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyTheme(p.theme)}>{p.name}</Button>
@@ -259,7 +262,7 @@ export function DesignCanvas() {
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("text")}><Type className="mr-1 h-3.5 w-3.5" />Texto</Button>
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("image")}><ImageIcon className="mr-1 h-3.5 w-3.5" />Imagem</Button>
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("shape")}><Square className="mr-1 h-3.5 w-3.5" />Forma</Button>
-      </div>
+      </div>}
 
       {/* canvas */}
       <div className="relative" style={{ width: canvas.width, height: canvas.height }}>
