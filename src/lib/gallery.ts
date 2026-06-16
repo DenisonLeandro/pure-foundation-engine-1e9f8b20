@@ -1,8 +1,20 @@
 /**
- * Gallery Service — persists creations in Supabase `creations` table
+ * Gallery Service — persists creations in Supabase `creations` table.
+ * Posts pertencem à empresa ativa (company_id); created_by mantém autoria.
  */
 
 import { supabase } from "@/integrations/supabase/client";
+
+let activeCompanyId: string | null = null;
+
+/** Chamado pelo CompanyContext sempre que a empresa ativa muda. */
+export function setGalleryActiveCompany(companyId: string | null) {
+  activeCompanyId = companyId;
+}
+
+export function getGalleryActiveCompany(): string | null {
+  return activeCompanyId;
+}
 
 export const DESIGN_DOC_SCHEMA_VERSION = 1;
 
