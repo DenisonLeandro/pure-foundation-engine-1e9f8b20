@@ -24,21 +24,26 @@ export default function AcceptInvite() {
       navigate(`/login?next=${encodeURIComponent(`/aceitar-convite?token=${token}`)}`, { replace: true });
       return;
     }
+    let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
     (async () => {
       const { data, error } = await supabase.functions.invoke("company-invite", {
         body: { action: "accept", token },
       });
+      if (cancelled) return;
       if (error || data?.error || !data?.companyId) {
         setStatus("error");
         setMessage(data?.error || error?.message || "Não foi possível aceitar o convite.");
         return;
       }
       await refreshCompanies();
+      if (cancelled) return;
       setActiveCompanyId(data.companyId);
       try { sessionStorage.removeItem("pendingInviteToken"); } catch { /* ignore */ }
       setStatus("ok");
-      setTimeout(() => navigate("/dashboard", { replace: true }), 800);
+      timer = setTimeout(() => navigate("/dashboard", { replace: true }), 800);
     })();
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [token, user, authLoading, navigate, refreshCompanies, setActiveCompanyId]);
 
   return (
