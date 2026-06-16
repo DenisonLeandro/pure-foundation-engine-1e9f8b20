@@ -138,13 +138,23 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
     return null;
   }
 
+  // Blindagem: nunca persistir data:/blob: em urls/thumbnail — converte pra storage primeiro.
+  const safeUrls = await persistUrls(input.urls);
+  if (!safeUrls.length) {
+    console.warn("[gallery] saveCreation: nenhuma URL válida após persistUrls");
+    return null;
+  }
+  const safeThumb = input.thumbnailUrl && input.thumbnailUrl.startsWith("http")
+    ? input.thumbnailUrl
+    : safeUrls[0];
+
   const payload: Record<string, unknown> = {
     user_id: user.id,
     created_by: user.id,
     company_id: activeCompanyId,
     type: input.type,
-    urls: input.urls,
-    thumbnail_url: input.thumbnailUrl || input.urls[0] || null,
+    urls: safeUrls,
+    thumbnail_url: safeThumb,
     prompt: input.prompt || null,
     template_id: input.templateId || null,
     template_name: input.templateName || null,
