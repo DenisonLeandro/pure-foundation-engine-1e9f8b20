@@ -22,8 +22,8 @@ export function ManagePreferencesView() {
 
   const handleSignOut = async () => {
     if (!confirm("Sair da conta?")) return;
-    await signOut();
-    navigate("/login");
+    try { await signOut(); } catch (e) { console.warn("[signOut] erro:", e); }
+    window.location.assign("/login");
   };
 
   return (
