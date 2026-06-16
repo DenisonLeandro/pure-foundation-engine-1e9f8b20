@@ -113,6 +113,10 @@ function RightRailContent() {
   );
 }
 
+function isStaticFallbackDoc(doc: StudioDoc): boolean {
+  return doc.canvas?.source === "fallback" && doc.slides.every((s) => (s.els?.length ?? 0) === 0 && !!s.bgImage);
+}
+
 function WorkspaceInner({
   onBack, editingCreationId, fallbackImageUrl, fallbackImageUrls,
   draftUserId, initialSlide, initialStylePreset, onDraftDiscarded, returnTo,
@@ -302,6 +306,7 @@ function WorkspaceInner({
   }, [defaultBrand, doc.brandId, set]);
 
   const brand = brands.find((b) => b.id === doc.brandId) || null;
+  const staticFallback = isStaticFallbackDoc(doc);
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col md:h-screen">
@@ -435,17 +440,21 @@ function WorkspaceInner({
 
       {/* Middle */}
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-56 shrink-0 overflow-y-auto border-r border-border p-3 lg:block">
-          <LeftRailContent brandName={brand?.name} brandHandle={brand?.handle} />
-        </aside>
+        {!staticFallback && (
+          <aside className="hidden w-56 shrink-0 overflow-y-auto border-r border-border p-3 lg:block">
+            <LeftRailContent brandName={brand?.name} brandHandle={brand?.handle} />
+          </aside>
+        )}
 
         <main className="min-w-0 flex-1 overflow-hidden bg-muted/30">
           <DesignCanvas />
         </main>
 
-        <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border p-3 xl:block">
-          <RightRailContent />
-        </aside>
+        {!staticFallback && (
+          <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border p-3 xl:block">
+            <RightRailContent />
+          </aside>
+        )}
       </div>
 
       <FlowBar onPublish={() => setPublishOpen(true)} />
