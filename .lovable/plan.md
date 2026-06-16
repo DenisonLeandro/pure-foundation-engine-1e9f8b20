@@ -1,61 +1,30 @@
-# Galeria não carrega — diagnóstico e correção
+# Restaurar edição da Galeria (sem reintroduzir o timeout)
 
-## Causa raiz
+## O que quebrou
 
-O `SELECT` da Galeria está estourando o **statement timeout** do Postgres:
+Na correção anterior eu removi `design_doc` do `SELECT` da listagem (`getCreations`) para baixar o payload. Acontece que `src/pages/Gallery.tsx` lia `creation.designDoc` direto do objeto da lista quando você clica em **Editar**. Como o campo agora vem `null`, o Studio abre sem o design original.
 
-```
-Failed to load creations: canceling statement due to statement timeout (57014)
-```
+`design_doc` precisa continuar fora da listagem (era 8–11 MB por linha somados às URLs — o que travava tudo). A solução é buscar o `design_doc` **sob demanda** no momento de editar.
 
-Apesar de só existirem **7 registros** em `creations`, a coluna `urls` (jsonb/array) de 6 deles contém **`data:` URLs em base64 inteiras**, totalizando entre 8 MB e 11 MB **por linha**. Listar a galeria transfere ~55 MB por requisição, passa do limite e o PostgREST aborta. Por isso:
+## Correção
 
-- a tela fica em "Carregando..." para sempre;
-- quando carrega parcial, vem sem foto (as `data:` URLs antigas nem renderizam de forma confiável);
-- "as fotos estão sumindo" — na prática nunca chegam ao cliente.
+### `src/pages/Gallery.tsx`
+No `handleEdit` (linhas ~110–130), antes de navegar para `/studio`:
 
-A função `persistUrls` já evita gravar `data:` em criações novas, mas as linhas antigas ficaram contaminadas.
+1. Chamar `getCreation(creation.id)` (já existe em `src/lib/gallery.ts` e traz `*`, incluindo `design_doc`).
+2. Usar o `designDoc` do resultado completo no `navigate(..., { state: { designDoc, ... } })`.
+3. Fallback: se a busca falhar, manter o comportamento atual (abrir Studio com as imagens como fundo) para não bloquear.
+4. Pequeno feedback visual: desabilitar o botão durante o fetch (já há `editingId` no componente — reaproveitar).
 
-## Correção (escopo mínimo, só Galeria)
+### `src/lib/gallery.ts`
+Sem mudança no schema/RLS. `getCreation(id)` já existe e retorna o design completo.
 
-### 1. Backfill das linhas existentes (data migration, sem mexer em schema)
-
-Para cada `creation` cujo `urls`/`thumbnail_url` contém `data:`:
-
-- decodificar o base64;
-- subir para o bucket `media` em `gallery/<created_by ou user_id>/<uuid>.<ext>`;
-- substituir a entrada em `urls` pelo `publicUrl`;
-- atualizar `thumbnail_url` (primeiro item) coerentemente;
-- se a string `data:` estiver truncada/ilegível, descartar essa entrada do array.
-
-Feito uma única vez via insert/update tool (sem alterar tabelas/RLS).
-
-### 2. Reduzir payload da listagem
-
-Em `src/lib/gallery.ts → getCreations`:
-
-- remover `design_doc` do `select` (campo pesado, usado só na edição);
-- continuar trazendo `caption`, `thumbnail_url`, `urls`, etc.
-- `getCreation(id)` continua trazendo `*` (inclui `design_doc`) para o Studio em modo edição.
-
-Isso mantém o fluxo Galeria → Editar → Studio funcionando (o `design_doc` é carregado sob demanda quando o usuário abre o post).
-
-### 3. Não mexer em
-
-- RLS / policies de `creations`;
-- schema de `creations` (colunas, índices já existem em `company_id`, `created_by`);
-- Studio, Post for Me, Blotato, Autopilot, company_configs, chaves de API, permissões, agendamento, aprovação;
-- `persistUrls` no save (já correto — previne regressão).
+### Fora de escopo
+- RLS, schema, Studio, Post for Me, Blotato, Autopilot, company_configs, chaves de API, agendamento, aprovação, permissões.
+- Não voltar `design_doc` para o `SELECT` da listagem (causaria o timeout de novo).
 
 ## Resultado esperado
 
-- `/gallery` carrega em < 1 s mesmo nos posts antigos;
-- thumbnails aparecem (URLs públicas do bucket `media`);
-- Editar continua abrindo Studio com `design_doc` completo;
-- Novos posts continuam salvando com URLs http (sem `data:`).
-
-## Verificação após implementar
-
-1. `SELECT id, octet_length(urls::text) FROM creations` → todas < 5 KB.
-2. Abrir `/gallery` no preview → cards aparecem com imagem.
-3. Clicar "Editar" em um post → Studio abre com o design carregado.
+- Galeria continua carregando rápido (payload pequeno).
+- Clicar em **Editar** em qualquer post abre o Studio com o `design_doc` original carregado, exatamente como antes.
+- Posts antigos sem `design_doc` seguem o fallback já existente (imagens como fundo).
