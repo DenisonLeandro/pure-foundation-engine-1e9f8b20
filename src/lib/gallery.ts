@@ -159,7 +159,9 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
 }
 
 export async function updateCreation(id: string, updates: Partial<Creation>): Promise<Creation | null> {
+  const { data: { user } } = await supabase.auth.getUser();
   const payload: Record<string, unknown> = {};
+  if (user) payload.updated_by = user.id;
   if (updates.published !== undefined) payload.published = updates.published;
   if (updates.urls) payload.urls = updates.urls;
   if (updates.prompt !== undefined) payload.prompt = updates.prompt;
