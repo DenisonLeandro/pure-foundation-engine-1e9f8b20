@@ -1,30 +1,36 @@
-# Restaurar edição da Galeria (sem reintroduzir o timeout)
+## Diagnóstico
 
-## O que quebrou
+As fotos voltaram a sumir porque novas criações estão sendo salvas novamente com URLs `data:image/png;base64...` enormes dentro da tabela `creations`.
 
-Na correção anterior eu removi `design_doc` do `SELECT` da listagem (`getCreations`) para baixar o payload. Acontece que `src/pages/Gallery.tsx` lia `creation.designDoc` direto do objeto da lista quando você clica em **Editar**. Como o campo agora vem `null`, o Studio abre sem o design original.
+Hoje já existem **4 criações recentes** nessa situação. Isso faz a Galeria carregar payloads gigantes e voltar a travar/mostrar vazio. A causa provável está no caminho de salvar edição/criação do Studio: `updateCreation` salva `urls` diretamente, enquanto `saveVisualToGallery` converte `data:` para arquivo no storage.
 
-`design_doc` precisa continuar fora da listagem (era 8–11 MB por linha somados às URLs — o que travava tudo). A solução é buscar o `design_doc` **sob demanda** no momento de editar.
+## Plano de correção definitiva
 
-## Correção
+1. **Blindar a camada da Galeria**
+   - Ajustar `updateCreation` para nunca persistir `data:` ou `blob:` em `urls`/`thumbnailUrl`.
+   - Antes de salvar, converter automaticamente qualquer `data:` para arquivo público no bucket `media`, igual já acontece no `saveVisualToGallery`.
+   - Manter `design_doc` fora da listagem para não reintroduzir timeout.
+   - Manter edição funcionando como hoje, buscando `design_doc` sob demanda.
 
-### `src/pages/Gallery.tsx`
-No `handleEdit` (linhas ~110–130), antes de navegar para `/studio`:
+2. **Corrigir os registros já afetados**
+   - Fazer backfill das 4 criações recentes que estão com base64 no banco.
+   - Enviar as imagens para `media/gallery/<user_id>/...` e substituir `urls` e `thumbnail_url` por URLs públicas permanentes.
+   - Não apagar posts, legendas, design editável, status ou ordem.
 
-1. Chamar `getCreation(creation.id)` (já existe em `src/lib/gallery.ts` e traz `*`, incluindo `design_doc`).
-2. Usar o `designDoc` do resultado completo no `navigate(..., { state: { designDoc, ... } })`.
-3. Fallback: se a busca falhar, manter o comportamento atual (abrir Studio com as imagens como fundo) para não bloquear.
-4. Pequeno feedback visual: desabilitar o botão durante o fetch (já há `editingId` no componente — reaproveitar).
+3. **Preservar comportamento atual do app**
+   - A tela da Galeria continua igual.
+   - O botão de editar continua abrindo o Studio como hoje.
+   - Salvar no Studio continua atualizando a mesma criação.
+   - Apenas muda o armazenamento interno das imagens para um formato estável.
 
-### `src/lib/gallery.ts`
-Sem mudança no schema/RLS. `getCreation(id)` já existe e retorna o design completo.
+4. **Validação**
+   - Conferir no banco que não sobrou nenhum `data:` em `creations.urls` ou `thumbnail_url`.
+   - Verificar que a consulta da Galeria retorna payload leve.
+   - Confirmar que as imagens têm URLs públicas e carregáveis.
 
-### Fora de escopo
-- RLS, schema, Studio, Post for Me, Blotato, Autopilot, company_configs, chaves de API, agendamento, aprovação, permissões.
-- Não voltar `design_doc` para o `SELECT` da listagem (causaria o timeout de novo).
+## Arquivos previstos
 
-## Resultado esperado
+- `src/lib/gallery.ts`
+  - centralizar normalização/persistência de URLs em `saveCreation` e `updateCreation`.
 
-- Galeria continua carregando rápido (payload pequeno).
-- Clicar em **Editar** em qualquer post abre o Studio com o `design_doc` original carregado, exatamente como antes.
-- Posts antigos sem `design_doc` seguem o fallback já existente (imagens como fundo).
+Sem alteração de layout, navegação, permissões, RLS, Studio visual ou fluxo de edição.

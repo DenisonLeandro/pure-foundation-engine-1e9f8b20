@@ -138,13 +138,23 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
     return null;
   }
 
+  // Blindagem: nunca persistir data:/blob: em urls/thumbnail — converte pra storage primeiro.
+  const safeUrls = await persistUrls(input.urls);
+  if (!safeUrls.length) {
+    console.warn("[gallery] saveCreation: nenhuma URL válida após persistUrls");
+    return null;
+  }
+  const safeThumb = input.thumbnailUrl && input.thumbnailUrl.startsWith("http")
+    ? input.thumbnailUrl
+    : safeUrls[0];
+
   const payload: Record<string, unknown> = {
     user_id: user.id,
     created_by: user.id,
     company_id: activeCompanyId,
     type: input.type,
-    urls: input.urls,
-    thumbnail_url: input.thumbnailUrl || input.urls[0] || null,
+    urls: safeUrls,
+    thumbnail_url: safeThumb,
     prompt: input.prompt || null,
     template_id: input.templateId || null,
     template_name: input.templateName || null,
@@ -176,10 +186,21 @@ export async function updateCreation(id: string, updates: Partial<Creation>): Pr
   const payload: Record<string, unknown> = {};
   if (user) payload.updated_by = user.id;
   if (updates.published !== undefined) payload.published = updates.published;
-  if (updates.urls) payload.urls = updates.urls;
+  // Blindagem: nunca persistir data:/blob: em urls/thumbnail — converte pra storage primeiro.
+  let persistedUrls: string[] | null = null;
+  if (updates.urls) {
+    persistedUrls = await persistUrls(updates.urls);
+    if (persistedUrls.length) payload.urls = persistedUrls;
+  }
   if (updates.prompt !== undefined) payload.prompt = updates.prompt;
   if (updates.type) payload.type = updates.type;
-  if (updates.thumbnailUrl !== undefined) payload.thumbnail_url = updates.thumbnailUrl;
+  if (updates.thumbnailUrl !== undefined) {
+    const t = updates.thumbnailUrl;
+    if (t && t.startsWith("http")) payload.thumbnail_url = t;
+    else if (persistedUrls && persistedUrls.length) payload.thumbnail_url = persistedUrls[0];
+    else if (t === null) payload.thumbnail_url = null;
+    // se t é data:/blob: sem urls válidas, ignora pra não corromper a linha
+  }
   if (updates.designDoc !== undefined) {
     payload.design_doc = updates.designDoc ? sanitizeDesignDoc(updates.designDoc) : null;
   }
