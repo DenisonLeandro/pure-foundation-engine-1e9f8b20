@@ -83,9 +83,15 @@ export default function Team() {
     else { toast({ title: "Membro removido" }); load(); }
   };
 
-  const copyLink = async (token: string) => {
-    const url = `${window.location.origin}/aceitar-convite?token=${token}`;
-    await navigator.clipboard.writeText(url);
+  const copyLink = async (inviteId: string) => {
+    const { data, error } = await supabase.functions.invoke("company-invite", {
+      body: { action: "get_link", inviteId },
+    });
+    if (error || data?.error || !data?.inviteUrl) {
+      toast({ title: "Erro ao obter link", description: error?.message || data?.error, variant: "destructive" });
+      return;
+    }
+    await navigator.clipboard.writeText(data.inviteUrl);
     toast({ title: "Link copiado" });
   };
 
