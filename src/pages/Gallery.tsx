@@ -144,7 +144,7 @@ export default function Gallery() {
       slideIndex,
       selectedUrl,
       hasDesignDoc: !!designDoc,
-      urlsLength: urls.length,
+      "urls.length": urls.length,
       thumbnailUrl,
     });
 
