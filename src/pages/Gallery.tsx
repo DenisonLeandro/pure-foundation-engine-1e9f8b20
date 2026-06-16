@@ -154,8 +154,8 @@ export default function Gallery() {
     }
     if (!designDoc) {
       toast({
-        title: "Item gerado como imagem estática",
-        description: "Vamos abrir o editor usando esta imagem como fundo. Você pode adicionar textos e salvar como versão editável.",
+        title: "Este post antigo não possui camadas editáveis.",
+        description: "Ele será aberto como imagem final.",
       });
     }
     navigate("/studio", {
@@ -168,6 +168,10 @@ export default function Gallery() {
         finalImageUrls,
         finalImageMeta,
         slideIndex,
+        selectedSlideIndex: slideIndex,
+        thumbnailUrl,
+        title: creation.templateName ?? null,
+        prompt: creation.prompt ?? null,
         caption: creation.caption ?? null,
         returnTo: "/gallery",
       },
