@@ -11,6 +11,7 @@ export interface El {
   // text
   text?: string;
   fontSize?: number;
+  fontFamily?: string;
   color?: string;
   weight?: number;
   align?: "left" | "center" | "right";
@@ -20,6 +21,8 @@ export interface El {
   stroke?: string;
   strokeWidth?: number;
   opacity?: number;
+  rotation?: number;
+  zIndex?: number;
   // image
   src?: string;
   radius?: number;
