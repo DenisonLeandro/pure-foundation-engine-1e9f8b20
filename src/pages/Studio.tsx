@@ -73,12 +73,12 @@ export function ensureDocHasVisualFallbacks(doc: StudioDoc, fallbackImageUrls?: 
   // 1) Preenche slides existentes que não têm visual.
   for (let i = 0; i < slides.length; i++) {
     if (!slideHasVisual(slides[i]) && fallbacks[i]) {
-      slides[i] = { ...slides[i], bgImage: fallbacks[i] };
+      slides[i] = { ...slides[i], bgImage: fallbacks[i], bgFit: "contain" };
     }
   }
   // 2) Cria slides extras se o fallback tiver mais imagens do que o doc.
   for (let i = slides.length; i < fallbacks.length; i++) {
-    slides.push({ bg: "#0b0b0f", bgImage: fallbacks[i], els: [] });
+    slides.push({ bg: "#0b0b0f", bgImage: fallbacks[i], bgFit: "contain", els: [] });
   }
   return { ...doc, slides };
 }
@@ -236,7 +236,7 @@ export default function Studio() {
         fallbackImageUrl={fallbackImageUrl}
         fallbackImageUrls={fallbackImageUrls}
         draftUserId={isEditFromGallery ? undefined : userId}
-        initialSlide={navInitial ? undefined : draft?.currentSlide}
+        initialSlide={navInitial ? nav?.slideIndex : draft?.currentSlide}
         initialStylePreset={navInitial ? undefined : draft?.stylePreset}
         onDraftDiscarded={handleDraftDiscarded}
         returnTo={nav?.returnTo}
