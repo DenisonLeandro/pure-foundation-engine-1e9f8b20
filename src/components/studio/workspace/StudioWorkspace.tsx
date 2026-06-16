@@ -252,11 +252,12 @@ function WorkspaceInner({
     try {
       const out = await composeAndExport();
       if (!out) { toast.error("Nada para salvar"); return false; }
+      const persistedDoc = (await persistDesignDoc(out.safeDoc)) ?? sanitizeDesignDoc(out.safeDoc);
       const created = await saveVisualToGallery({
         urls: out.urls,
         prompt: out.safeDoc.caption || undefined,
         templateName: "Studio",
-        designDoc: sanitizeDesignDoc(out.safeDoc),
+        designDoc: persistedDoc,
         caption: out.safeDoc.caption ?? "",
       });
       if (!created?.id) { toast.error("Falha ao salvar na Galeria"); return false; }
