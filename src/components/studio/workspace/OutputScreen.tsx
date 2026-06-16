@@ -174,7 +174,8 @@ export function OutputScreen({
         toast.error("Não foi possível preparar a mídia");
         return;
       }
-      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático", designDoc: sanitizeDesignDoc(doc) });
+      const persistedDoc = (await persistDesignDoc(doc)) ?? sanitizeDesignDoc(doc);
+      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático", designDoc: persistedDoc });
       if (!saved) {
         toast.error("Falha ao salvar na galeria");
         return;
