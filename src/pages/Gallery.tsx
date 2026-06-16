@@ -123,6 +123,13 @@ export default function Gallery() {
       }
     }
 
+    console.info("[gallery:edit]", {
+      creationId: creation.id,
+      hasDesignDoc: !!designDoc,
+      urlsLength: urls.length,
+      hasThumbnail: !!creation.thumbnailUrl,
+    });
+
     if (!designDoc && !fallback) {
       toast({ title: "Sem imagem para editar", variant: "destructive" });
       return;

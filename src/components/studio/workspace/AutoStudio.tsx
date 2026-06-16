@@ -15,7 +15,7 @@ import {
 } from "@/lib/api";
 import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/brand";
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
-import { saveVisualToGallery, sanitizeDesignDoc, persistUrls } from "@/lib/gallery";
+import { saveVisualToGallery, sanitizeDesignDoc, persistDesignDoc, persistUrls } from "@/lib/gallery";
 import { composeSlideWithText, SLIDE_TEMPLATES, preferredCleanArea, type SlideTemplate } from "@/lib/slide-compose";
 import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
@@ -153,7 +153,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         urls,
         prompt: mediaOrDoc.caption || prompt.trim(),
         templateName: "Studio · Automático",
-        designDoc: sanitizeDesignDoc(mediaOrDoc),
+        designDoc: (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc),
         caption: mediaOrDoc.caption ?? "",
       });
     } catch { /* best-effort */ }

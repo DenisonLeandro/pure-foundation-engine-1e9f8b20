@@ -44,13 +44,14 @@ export interface Creation {
 /**
  * Sanitiza um StudioDoc-like para persistir como design_doc:
  * - força schemaVersion
- * - remove strings `data:` / `blob:` (sem base64 dentro do JSON; só http/https)
+ * - descarta APENAS strings `blob:` (não recuperáveis); mantém `data:` e http(s).
+ * Use `persistDesignDoc` antes para subir `data:` ao storage e evitar JSON gigante.
  */
 export function sanitizeDesignDoc(input: unknown): EditableDesignDoc | null {
   if (!input || typeof input !== "object") return null;
   try {
     const clone = JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
-    stripDataUrls(clone);
+    stripBlobUrls(clone);
     clone.schemaVersion = DESIGN_DOC_SCHEMA_VERSION;
     return clone as EditableDesignDoc;
   } catch {
@@ -58,19 +59,55 @@ export function sanitizeDesignDoc(input: unknown): EditableDesignDoc | null {
   }
 }
 
-function stripDataUrls(node: unknown): void {
+function stripBlobUrls(node: unknown): void {
   if (!node || typeof node !== "object") return;
   if (Array.isArray(node)) {
-    for (const item of node) stripDataUrls(item);
+    for (const item of node) stripBlobUrls(item);
     return;
   }
   const obj = node as Record<string, unknown>;
   for (const key of Object.keys(obj)) {
     const v = obj[key];
-    if (typeof v === "string" && (v.startsWith("data:") || v.startsWith("blob:"))) {
+    if (typeof v === "string" && v.startsWith("blob:")) {
       delete obj[key];
     } else if (v && typeof v === "object") {
-      stripDataUrls(v);
+      stripBlobUrls(v);
+    }
+  }
+}
+
+/**
+ * Walk async: troca strings `data:` por URL pública do storage, preservando
+ * exatamente os demais campos (layout, texto, posições, cores).
+ * Indispensável antes de salvar `design_doc` para o Editar não perder bgImage.
+ */
+export async function persistDesignDoc(input: unknown): Promise<EditableDesignDoc | null> {
+  if (!input || typeof input !== "object") return null;
+  let clone: Record<string, unknown>;
+  try { clone = JSON.parse(JSON.stringify(input)) as Record<string, unknown>; } catch { return null; }
+  await walkPersist(clone);
+  clone.schemaVersion = DESIGN_DOC_SCHEMA_VERSION;
+  return clone as EditableDesignDoc;
+}
+
+async function walkPersist(node: unknown): Promise<void> {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (const item of node) await walkPersist(item);
+    return;
+  }
+  const obj = node as Record<string, unknown>;
+  for (const key of Object.keys(obj)) {
+    const v = obj[key];
+    if (typeof v === "string") {
+      if (v.startsWith("blob:")) { delete obj[key]; continue; }
+      if (v.startsWith("data:")) {
+        const [persisted] = await persistUrls([v]);
+        if (persisted) obj[key] = persisted;
+        else delete obj[key];
+      }
+    } else if (v && typeof v === "object") {
+      await walkPersist(v);
     }
   }
 }

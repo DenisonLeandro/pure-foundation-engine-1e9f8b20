@@ -23,7 +23,7 @@ import { usePfmAccounts, usePfmCreatePost } from "@/hooks/use-blotato";
 import { pfmCreateUploadUrl, aiAssist } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import { brandTextHint, type BrandProfile } from "@/lib/brand";
-import { saveVisualToGallery, saveUploadToGallery, markAsPublishedByUrls, sanitizeDesignDoc } from "@/lib/gallery";
+import { saveVisualToGallery, saveUploadToGallery, markAsPublishedByUrls, sanitizeDesignDoc, persistDesignDoc } from "@/lib/gallery";
 import type { Platform } from "@/types";
 import type { StudioDoc } from "./types";
 
@@ -174,7 +174,8 @@ export function OutputScreen({
         toast.error("Não foi possível preparar a mídia");
         return;
       }
-      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático", designDoc: sanitizeDesignDoc(doc) });
+      const persistedDoc = (await persistDesignDoc(doc)) ?? sanitizeDesignDoc(doc);
+      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático", designDoc: persistedDoc });
       if (!saved) {
         toast.error("Falha ao salvar na galeria");
         return;

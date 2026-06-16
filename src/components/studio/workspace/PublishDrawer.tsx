@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useBrands } from "@/hooks/use-brands";
 import { PublishPanel } from "@/components/studio/PublishPanel";
-import { saveVisualToGallery, sanitizeDesignDoc } from "@/lib/gallery";
+import { saveVisualToGallery, sanitizeDesignDoc, persistDesignDoc } from "@/lib/gallery";
 import { useStudio } from "./StudioProvider";
 
 export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
@@ -24,13 +24,16 @@ export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenCha
         if (alive) {
           setMedia(m);
           // saveVisualToGallery agora faz upload de data: URLs automaticamente
-          if (m.length) saveVisualToGallery({
-            urls: m,
-            prompt: doc.caption,
-            templateName: "Studio · Canvas",
-            designDoc: sanitizeDesignDoc(doc),
-            caption: doc.caption ?? "",
-          });
+          if (m.length) {
+            const persisted = (await persistDesignDoc(doc)) ?? sanitizeDesignDoc(doc);
+            saveVisualToGallery({
+              urls: m,
+              prompt: doc.caption,
+              templateName: "Studio · Canvas",
+              designDoc: persisted,
+              caption: doc.caption ?? "",
+            });
+          }
         }
       } finally {
         if (alive) setLoading(false);

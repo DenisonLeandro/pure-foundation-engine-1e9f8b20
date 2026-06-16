@@ -15,7 +15,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
-import { updateCreation, sanitizeDesignDoc, saveVisualToGallery, getGalleryActiveCompany } from "@/lib/gallery";
+import { updateCreation, sanitizeDesignDoc, persistDesignDoc, saveVisualToGallery, getGalleryActiveCompany } from "@/lib/gallery";
 import { StudioProvider, useStudio } from "./StudioProvider";
 import { DesignCanvas } from "./DesignCanvas";
 import { ElementInspector } from "./ElementInspector";
@@ -222,10 +222,11 @@ function WorkspaceInner({
         ? fallbackImageUrls
         : (fallbackImageUrl ? [fallbackImageUrl] : []);
       const docToPersist = ensureDocHasVisualFallbacks(out.safeDoc, fallbackList);
+      const persistedDoc = (await persistDesignDoc(docToPersist)) ?? sanitizeDesignDoc(docToPersist);
       const updated = await updateCreation(creationId, {
         urls: out.urls,
         thumbnailUrl: out.urls[0],
-        designDoc: sanitizeDesignDoc(docToPersist),
+        designDoc: persistedDoc,
         caption: out.safeDoc.caption ?? "",
       });
       if (!updated) { toast.error("Falha ao salvar alterações"); return false; }
@@ -251,11 +252,12 @@ function WorkspaceInner({
     try {
       const out = await composeAndExport();
       if (!out) { toast.error("Nada para salvar"); return false; }
+      const persistedDoc = (await persistDesignDoc(out.safeDoc)) ?? sanitizeDesignDoc(out.safeDoc);
       const created = await saveVisualToGallery({
         urls: out.urls,
         prompt: out.safeDoc.caption || undefined,
         templateName: "Studio",
-        designDoc: sanitizeDesignDoc(out.safeDoc),
+        designDoc: persistedDoc,
         caption: out.safeDoc.caption ?? "",
       });
       if (!created?.id) { toast.error("Falha ao salvar na Galeria"); return false; }
