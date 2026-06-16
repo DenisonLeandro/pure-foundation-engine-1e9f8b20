@@ -10,13 +10,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { StudioDoc, Slide } from "@/components/studio/workspace/types";
 
 interface NavState {
+  /** "edit" força o Studio a abrir o post existente (sem rascunho, sem tela inicial). */
+  mode?: "edit" | "new";
   sourceContent?: string;
   sourceTitle?: string;
   prompt?: string;
   mediaUrls?: string[];
   scheduleAt?: string;
   // Edição vinda da Galeria:
-  designDoc?: StudioDoc;
+  designDoc?: StudioDoc | null;
   creationId?: string;
   fallbackImageUrl?: string | null;
   fallbackImageUrls?: string[] | null;
