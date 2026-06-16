@@ -1,38 +1,61 @@
-## Problema
+# Galeria não carrega — diagnóstico e correção
 
-O botão "Sair da conta" (em `ManagePreferencesView`) não funciona porque:
+## Causa raiz
 
-1. `supabase.auth.signOut()` está fazendo uma chamada de rede ao backend que está retornando `TypeError: Failed to fetch` (visível nos logs do console agora — várias falhas de fetch para o Supabase).
-2. O `signOut` padrão usa `scope: 'global'`, que exige rede. Quando a rede falha, ele lança erro.
-3. O `catch` em `AuthContext.signOut` engole o erro, mas a chave de sessão do Supabase (`sb-<ref>-auth-token`) **nunca é removida do localStorage** — `userStorage.clearUser()` só limpa chaves com prefixo `app_u:` / `mega_u:`, não o token do Supabase.
-4. Resultado: o usuário continua logado, o `onAuthStateChange` não dispara `SIGNED_OUT`, e o `Navigate to="/login"` em `handleSignOut` pode nem rodar (a Promise pode ficar pendente antes do catch interno do GoTrue).
+O `SELECT` da Galeria está estourando o **statement timeout** do Postgres:
 
-## Correção (escopo mínimo, só logout)
+```
+Failed to load creations: canceling statement due to statement timeout (57014)
+```
 
-**`src/contexts/AuthContext.tsx` — `signOut`:**
-- Forçar limpeza local primeiro, sempre, independente de rede:
-  - `setSession(null); setUser(null);`
-  - Remover manualmente todas as chaves `sb-*-auth-token` do `localStorage` (cobre o caso de rede caída).
-  - Manter `userStorage.clearUser()` para chaves do app.
-- Em seguida, disparar `supabase.auth.signOut({ scope: 'local' })` dentro de try/catch — `scope: 'local'` não exige rede e apenas limpa o storage do client; serve como redundância e garante que o GoTrue interno dispare `SIGNED_OUT`.
-- Não aguardar nenhuma chamada de rede que possa travar.
+Apesar de só existirem **7 registros** em `creations`, a coluna `urls` (jsonb/array) de 6 deles contém **`data:` URLs em base64 inteiras**, totalizando entre 8 MB e 11 MB **por linha**. Listar a galeria transfere ~55 MB por requisição, passa do limite e o PostgREST aborta. Por isso:
 
-**`src/components/setup/ManagePreferencesView.tsx` — `handleSignOut`:**
-- Após `await signOut()`, usar `window.location.assign("/login")` em vez de `navigate("/login")`, para garantir um boot limpo (descarta contextos com estado obsoleto e evita ficar preso em `/criar-empresa` por causa de cache de `CompanyContext`).
+- a tela fica em "Carregando..." para sempre;
+- quando carrega parcial, vem sem foto (as `data:` URLs antigas nem renderizam de forma confiável);
+- "as fotos estão sumindo" — na prática nunca chegam ao cliente.
 
-## Fora de escopo (não mexer)
+A função `persistUrls` já evita gravar `data:` em criações novas, mas as linhas antigas ficaram contaminadas.
 
-- Studio, Galeria, integrações, RLS, company_configs, chaves, RPCs, schema do banco.
-- Não alterar `src/integrations/supabase/client.ts` (auto-gerado / fallback público já correto).
-- Não tentar "consertar" os outros `Failed to fetch` (CompanyContext, CreateCompany) — são sintoma de instabilidade externa do backend, fora do pedido.
+## Correção (escopo mínimo, só Galeria)
 
-## Arquivos alterados
+### 1. Backfill das linhas existentes (data migration, sem mexer em schema)
 
-- `src/contexts/AuthContext.tsx` (função `signOut`)
-- `src/components/setup/ManagePreferencesView.tsx` (função `handleSignOut`)
+Para cada `creation` cujo `urls`/`thumbnail_url` contém `data:`:
 
-## Verificação
+- decodificar o base64;
+- subir para o bucket `media` em `gallery/<created_by ou user_id>/<uuid>.<ext>`;
+- substituir a entrada em `urls` pelo `publicUrl`;
+- atualizar `thumbnail_url` (primeiro item) coerentemente;
+- se a string `data:` estiver truncada/ilegível, descartar essa entrada do array.
 
-1. Clicar em "Sair da conta" → confirmar → redireciona para `/login` mesmo com rede instável.
-2. Após logout, `localStorage` não contém mais chaves `sb-*-auth-token`.
-3. Recarregar a página em `/dashboard` → redireciona para `/login` (sessão realmente foi embora).
+Feito uma única vez via insert/update tool (sem alterar tabelas/RLS).
+
+### 2. Reduzir payload da listagem
+
+Em `src/lib/gallery.ts → getCreations`:
+
+- remover `design_doc` do `select` (campo pesado, usado só na edição);
+- continuar trazendo `caption`, `thumbnail_url`, `urls`, etc.
+- `getCreation(id)` continua trazendo `*` (inclui `design_doc`) para o Studio em modo edição.
+
+Isso mantém o fluxo Galeria → Editar → Studio funcionando (o `design_doc` é carregado sob demanda quando o usuário abre o post).
+
+### 3. Não mexer em
+
+- RLS / policies de `creations`;
+- schema de `creations` (colunas, índices já existem em `company_id`, `created_by`);
+- Studio, Post for Me, Blotato, Autopilot, company_configs, chaves de API, permissões, agendamento, aprovação;
+- `persistUrls` no save (já correto — previne regressão).
+
+## Resultado esperado
+
+- `/gallery` carrega em < 1 s mesmo nos posts antigos;
+- thumbnails aparecem (URLs públicas do bucket `media`);
+- Editar continua abrindo Studio com `design_doc` completo;
+- Novos posts continuam salvando com URLs http (sem `data:`).
+
+## Verificação após implementar
+
+1. `SELECT id, octet_length(urls::text) FROM creations` → todas < 5 KB.
+2. Abrir `/gallery` no preview → cards aparecem com imagem.
+3. Clicar "Editar" em um post → Studio abre com o design carregado.
