@@ -45,7 +45,7 @@ export interface StudioDoc {
   hashtags: string[];
   platforms: Platform[];
   schedule: { when: "now" | "schedule"; at?: string };
-  canvas?: { width: number; height: number; source?: "finalImage" | "designDoc" | "fallback" };
+  canvas?: { width: number; height: number; aspectRatio?: number; source?: "finalImage" | "designDoc" | "fallback" };
 }
 
 // Canvas 4:5 (1080×1350) — padrão Instagram 2026.
