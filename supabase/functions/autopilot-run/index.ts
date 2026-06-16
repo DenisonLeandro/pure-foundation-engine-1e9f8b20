@@ -41,8 +41,9 @@ function jsonResponse(data: unknown, status = 200) {
 }
 
 /**
- * Resolve API keys for a user, preferring the company they belong to (shared keys)
- * and falling back to their own user_configs row if no company config exists yet.
+ * Resolve API keys for a user from the company they belong to.
+ * Keys are stored exclusively in public.company_configs (deny-all to clients);
+ * the legacy per-user fallback was removed because user_configs no longer holds keys.
  */
 async function loadKeysForUser(
   sb: ReturnType<typeof createClient>,
@@ -50,13 +51,7 @@ async function loadKeysForUser(
 ): Promise<Record<string, string | null>> {
   const { data: companyKeys } = await sb.rpc("get_company_keys_for_user", { _user_id: userId });
   if (companyKeys && (companyKeys as any).id) return companyKeys as Record<string, string | null>;
-  const { data: userCfg } = await sb
-    .from("user_configs")
-    .select("blotato_api_key, postforme_api_key, anthropic_api_key, unsplash_api_key, pexels_api_key, apify_api_token, firecrawl_api_key, higgsfield_api_id, higgsfield_api_secret")
-    .eq("user_id", userId)
-    .maybeSingle();
-  return (userCfg ?? {}) as Record<string, string | null>;
-
+  return {};
 }
 
 function errorResponse(message: string, status = 500) {

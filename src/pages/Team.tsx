@@ -25,7 +25,6 @@ interface Invite {
   id: string;
   email: string;
   role: "admin" | "editor";
-  token: string;
   status: string;
   expires_at: string;
   created_at: string;
@@ -44,7 +43,7 @@ export default function Team() {
     setLoading(true);
     const [m, i] = await Promise.all([
       supabase.from("company_members").select("id, user_id, role, status, created_at").eq("company_id", activeCompanyId),
-      supabase.from("company_invites").select("id, email, role, token, status, expires_at, created_at").eq("company_id", activeCompanyId).eq("status", "pending").order("created_at", { ascending: false }),
+      supabase.from("company_invites").select("id, email, role, status, expires_at, created_at").eq("company_id", activeCompanyId).eq("status", "pending").order("created_at", { ascending: false }),
     ]);
     setMembers((m.data as Member[]) ?? []);
     setInvites((i.data as Invite[]) ?? []);
@@ -84,9 +83,15 @@ export default function Team() {
     else { toast({ title: "Membro removido" }); load(); }
   };
 
-  const copyLink = async (token: string) => {
-    const url = `${window.location.origin}/aceitar-convite?token=${token}`;
-    await navigator.clipboard.writeText(url);
+  const copyLink = async (inviteId: string) => {
+    const { data, error } = await supabase.functions.invoke("company-invite", {
+      body: { action: "get_link", inviteId },
+    });
+    if (error || data?.error || !data?.inviteUrl) {
+      toast({ title: "Erro ao obter link", description: error?.message || data?.error, variant: "destructive" });
+      return;
+    }
+    await navigator.clipboard.writeText(data.inviteUrl);
     toast({ title: "Link copiado" });
   };
 
@@ -171,7 +176,7 @@ export default function Team() {
                   <TableCell><Badge variant="secondary">{roleLabel(inv.role)}</Badge></TableCell>
                   <TableCell className="text-sm text-muted-foreground">{new Date(inv.expires_at).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right space-x-1">
-                    <Button size="sm" variant="ghost" onClick={() => copyLink(inv.token)} title="Copiar link">
+                    <Button size="sm" variant="ghost" onClick={() => copyLink(inv.id)} title="Copiar link">
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => revokeInvite(inv.id)} title="Revogar">
