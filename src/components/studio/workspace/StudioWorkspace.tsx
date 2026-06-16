@@ -222,10 +222,11 @@ function WorkspaceInner({
         ? fallbackImageUrls
         : (fallbackImageUrl ? [fallbackImageUrl] : []);
       const docToPersist = ensureDocHasVisualFallbacks(out.safeDoc, fallbackList);
+      const persistedDoc = (await persistDesignDoc(docToPersist)) ?? sanitizeDesignDoc(docToPersist);
       const updated = await updateCreation(creationId, {
         urls: out.urls,
         thumbnailUrl: out.urls[0],
-        designDoc: sanitizeDesignDoc(docToPersist),
+        designDoc: persistedDoc,
         caption: out.safeDoc.caption ?? "",
       });
       if (!updated) { toast.error("Falha ao salvar alterações"); return false; }
