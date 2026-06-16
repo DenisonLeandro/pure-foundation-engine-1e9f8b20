@@ -110,6 +110,22 @@ export default function Studio() {
   const userId = user?.id;
   const navInitial = useMemo(() => buildInitial(nav), [nav]);
 
+  useEffect(() => {
+    if (!nav) return;
+    const isEdit = nav.mode === "edit" || !!nav.creationId;
+    if (!isEdit) return;
+    const hasDoc = !!(nav.designDoc && typeof nav.designDoc === "object");
+    const slides = hasDoc && Array.isArray((nav.designDoc as { slides?: unknown[] }).slides)
+      ? (nav.designDoc as { slides: unknown[] }).slides.length : 0;
+    console.info("[studio:open]", {
+      mode: "edit",
+      creationId: nav.creationId,
+      loadedFrom: hasDoc ? "designDoc" : (nav.fallbackImageUrls?.length || nav.fallbackImageUrl ? "imageFallback" : "new"),
+      slides,
+      ignoredLocalDraft: true,
+    });
+  }, [nav]);
+
   // Rascunho local recuperado (quando não veio nada via navigation state).
   const [draft, setDraft] = useState<StudioDraft | null>(null);
   const [flowDraft, setFlowDraft] = useState<StudioFlowDraft | null>(null);
