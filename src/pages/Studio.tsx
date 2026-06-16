@@ -112,13 +112,20 @@ export default function Studio() {
   const [flowDraft, setFlowDraft] = useState<StudioFlowDraft | null>(null);
   const restoreTried = useRef(false);
 
+  // Edição vinda da Galeria força modo assistido e bloqueia restauração de rascunho.
+  const isEditFromGallery = nav?.mode === "edit" || !!nav?.creationId;
+
   // Deep-link com estado abre direto no modo assistido (canvas) pré-preenchido.
-  const [mode, setMode] = useState<"entry" | "auto" | "assisted">(navInitial ? "assisted" : "entry");
+  const [mode, setMode] = useState<"entry" | "auto" | "assisted">(
+    isEditFromGallery || navInitial ? "assisted" : "entry"
+  );
   const [handoffDoc, setHandoffDoc] = useState<StudioDoc | undefined>(undefined);
 
   // Restaura rascunho local ao abrir o Studio sem state — uma única vez, antes de o canvas montar.
   useEffect(() => {
     if (restoreTried.current || navInitial || !userId) return;
+    // Em modo edição (vindo da Galeria), nunca restaurar rascunho local.
+    if (isEditFromGallery) { restoreTried.current = true; return; }
     if (mode !== "entry") { restoreTried.current = true; return; }
     restoreTried.current = true;
 
@@ -138,7 +145,7 @@ export default function Studio() {
       setMode("assisted");
       toast.message("Rascunho recuperado automaticamente.");
     }
-  }, [userId, navInitial, mode]);
+  }, [userId, navInitial, mode, isEditFromGallery]);
 
   const draftInitial = useMemo(
     () => (draft ? ensureDocHasVisualFallbacks(draft.doc, draft.fallbackImageUrls) : undefined),
