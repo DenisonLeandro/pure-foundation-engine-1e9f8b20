@@ -77,19 +77,31 @@ function stripDataUrls(node: unknown): void {
 
 // ─── Public API ─────────────────────────────────────────────────
 
-export async function getCreations(filter?: "image" | "video" | "carousel"): Promise<Creation[]> {
+export async function getCreations(companyIdOrFilter?: string | "image" | "video" | "carousel", filter?: "image" | "video" | "carousel"): Promise<Creation[]> {
+  // Support both getCreations(companyId, filter?) and legacy getCreations(filter?)
+  let resolvedCompanyId: string | null;
+  let resolvedFilter: "image" | "video" | "carousel" | undefined;
+
+  if (companyIdOrFilter === "image" || companyIdOrFilter === "video" || companyIdOrFilter === "carousel" || companyIdOrFilter === undefined) {
+    resolvedCompanyId = activeCompanyId;
+    resolvedFilter = companyIdOrFilter as "image" | "video" | "carousel" | undefined;
+  } else {
+    resolvedCompanyId = companyIdOrFilter;
+    resolvedFilter = filter;
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
-  if (!activeCompanyId) return [];
+  if (!resolvedCompanyId) return [];
 
   let query = supabase
     .from("creations")
     .select("id,user_id,company_id,created_by,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,design_doc,caption")
-    .eq("company_id", activeCompanyId)
+    .eq("company_id", resolvedCompanyId)
     .order("created_at", { ascending: false });
 
-  if (filter) {
-    query = query.eq("type", filter);
+  if (resolvedFilter) {
+    query = query.eq("type", resolvedFilter);
   }
 
   const { data, error } = await query;
