@@ -243,6 +243,10 @@ function WorkspaceInner({
   /** Cria nova entrada na Galeria a partir do design atual. */
   const handleSaveToGallery = async (): Promise<boolean> => {
     if (creationId) return handleSaveDesign();
+    if (!getGalleryActiveCompany()) {
+      toast.error("Selecione uma empresa antes de salvar.");
+      return false;
+    }
     setSavingDesign(true);
     try {
       const out = await composeAndExport();
