@@ -153,7 +153,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         urls,
         prompt: mediaOrDoc.caption || prompt.trim(),
         templateName: "Studio · Automático",
-        designDoc: sanitizeDesignDoc(mediaOrDoc),
+        designDoc: (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc),
         caption: mediaOrDoc.caption ?? "",
       });
     } catch { /* best-effort */ }
