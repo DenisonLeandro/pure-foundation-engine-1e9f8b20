@@ -10,13 +10,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { StudioDoc, Slide } from "@/components/studio/workspace/types";
 
 interface NavState {
+  /** "edit" força o Studio a abrir o post existente (sem rascunho, sem tela inicial). */
+  mode?: "edit" | "new";
   sourceContent?: string;
   sourceTitle?: string;
   prompt?: string;
   mediaUrls?: string[];
   scheduleAt?: string;
   // Edição vinda da Galeria:
-  designDoc?: StudioDoc;
+  designDoc?: StudioDoc | null;
   creationId?: string;
   fallbackImageUrl?: string | null;
   fallbackImageUrls?: string[] | null;
@@ -64,6 +66,7 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
   if (!nav) return undefined;
   const fallbacks: string[] = (nav.fallbackImageUrls ?? []).filter(isHttpUrl);
   if (!fallbacks.length && isHttpUrl(nav.fallbackImageUrl)) fallbacks.push(nav.fallbackImageUrl);
+  const isEdit = nav.mode === "edit" || !!nav.creationId;
 
   // 1) Doc editável vindo da Galeria — prioridade máxima, com fallback visual por slide.
   if (nav.designDoc && typeof nav.designDoc === "object" && Array.isArray(nav.designDoc.slides)) {
@@ -80,7 +83,13 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
       caption: typeof nav.caption === "string" ? nav.caption : base.caption,
     };
   }
-  // 3) Fluxo legado (deep-link de fonte/post).
+  // 3) Edição sem designDoc nem imagens — ainda assim NÃO mostrar tela inicial.
+  //    Abre um doc vazio editável vinculado ao creationId.
+  if (isEdit) {
+    const base = emptyDoc("post", null);
+    return typeof nav.caption === "string" ? { ...base, caption: nav.caption } : base;
+  }
+  // 4) Fluxo legado (deep-link de fonte/post).
   const has = nav.sourceContent || nav.prompt || nav.sourceTitle || (nav.mediaUrls?.length ?? 0) > 0;
   if (!has) return undefined;
   const base = emptyDoc("post", null);
@@ -103,13 +112,20 @@ export default function Studio() {
   const [flowDraft, setFlowDraft] = useState<StudioFlowDraft | null>(null);
   const restoreTried = useRef(false);
 
+  // Edição vinda da Galeria força modo assistido e bloqueia restauração de rascunho.
+  const isEditFromGallery = nav?.mode === "edit" || !!nav?.creationId;
+
   // Deep-link com estado abre direto no modo assistido (canvas) pré-preenchido.
-  const [mode, setMode] = useState<"entry" | "auto" | "assisted">(navInitial ? "assisted" : "entry");
+  const [mode, setMode] = useState<"entry" | "auto" | "assisted">(
+    isEditFromGallery || navInitial ? "assisted" : "entry"
+  );
   const [handoffDoc, setHandoffDoc] = useState<StudioDoc | undefined>(undefined);
 
   // Restaura rascunho local ao abrir o Studio sem state — uma única vez, antes de o canvas montar.
   useEffect(() => {
     if (restoreTried.current || navInitial || !userId) return;
+    // Em modo edição (vindo da Galeria), nunca restaurar rascunho local.
+    if (isEditFromGallery) { restoreTried.current = true; return; }
     if (mode !== "entry") { restoreTried.current = true; return; }
     restoreTried.current = true;
 
@@ -129,7 +145,7 @@ export default function Studio() {
       setMode("assisted");
       toast.message("Rascunho recuperado automaticamente.");
     }
-  }, [userId, navInitial, mode]);
+  }, [userId, navInitial, mode, isEditFromGallery]);
 
   const draftInitial = useMemo(
     () => (draft ? ensureDocHasVisualFallbacks(draft.doc, draft.fallbackImageUrls) : undefined),
