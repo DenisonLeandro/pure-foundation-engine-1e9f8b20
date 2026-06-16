@@ -134,7 +134,7 @@ export async function getCreations(companyIdOrFilter?: string | "image" | "video
   // NOTE: design_doc é pesado e usado só na edição — carregado sob demanda via getCreation(id).
   let query = supabase
     .from("creations")
-    .select("id,user_id,company_id,created_by,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,caption")
+    .select("id,user_id,company_id,created_by,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,caption,design_doc")
     .eq("company_id", resolvedCompanyId)
     .order("created_at", { ascending: false });
 

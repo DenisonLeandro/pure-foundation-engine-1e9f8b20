@@ -29,6 +29,7 @@ export function DesignCanvas() {
   const accent = brand?.colors?.[2] || "#ffffff";
   const canvas = getCanvasSize(doc);
   const exportSize = getExportSize(doc);
+  const staticFallback = doc.canvas?.source === "fallback" && doc.slides.every((s) => (s.els?.length ?? 0) === 0 && !!s.bgImage);
 
   const [exporting, setExporting] = useState(false);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -223,10 +224,10 @@ export function DesignCanvas() {
           key={e.id}
           onMouseDown={(ev) => !exportMode && startDrag(ev, e)}
           className={`absolute ${exportMode ? "" : "cursor-move"} ${!exportMode && selectedElId === e.id ? "ring-2 ring-violet-400" : ""}`}
-          style={{ left: e.x, top: e.y, width: e.w, height: e.h }}
+          style={{ left: e.x, top: e.y, width: e.w, height: e.h, transform: e.rotation ? `rotate(${e.rotation}deg)` : undefined, zIndex: e.zIndex }}
         >
           {e.type === "text" && (
-            <span style={{ fontSize: e.fontSize, color: e.color, fontWeight: e.weight, textAlign: e.align, display: "block", width: "100%", lineHeight: e.lineHeight ?? 1.15, letterSpacing: e.letterSpacing, textShadow: e.shadow, WebkitTextStroke: e.stroke ? `${e.strokeWidth ?? 1}px ${e.stroke}` : undefined, whiteSpace: "pre-wrap", opacity: e.opacity }}>{e.text}</span>
+            <span style={{ fontSize: e.fontSize, fontFamily: e.fontFamily, color: e.color, fontWeight: e.weight, textAlign: e.align, display: "block", width: "100%", lineHeight: e.lineHeight ?? 1.15, letterSpacing: e.letterSpacing, textShadow: e.shadow, WebkitTextStroke: e.stroke ? `${e.strokeWidth ?? 1}px ${e.stroke}` : undefined, whiteSpace: "pre-wrap", opacity: e.opacity }}>{e.text}</span>
           )}
           {e.type === "image" && (e.src
             ? <img src={e.src} crossOrigin="anonymous" alt="" style={{ width: "100%", height: "100%", objectFit: e.objectFit ?? "cover", borderRadius: e.radius, opacity: e.opacity }} />
@@ -249,8 +250,10 @@ export function DesignCanvas() {
 
   return (
     <div className="flex h-full w-full flex-col items-center gap-4 overflow-auto p-6">
-      {/* presets */}
-      <div className="flex flex-wrap items-center justify-center gap-1.5">
+      {staticFallback && (
+        <p className="text-xs text-muted-foreground">Este post antigo não possui camadas editáveis. Ele será aberto como imagem final.</p>
+      )}
+      {!staticFallback && <div className="flex flex-wrap items-center justify-center gap-1.5">
         <span className="text-[11px] text-muted-foreground">Tema:</span>
         {PRESETS.map((p) => (
           <Button key={p.name} variant="outline" size="sm" className="h-7 text-xs" onClick={() => applyTheme(p.theme)}>{p.name}</Button>
@@ -259,7 +262,7 @@ export function DesignCanvas() {
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("text")}><Type className="mr-1 h-3.5 w-3.5" />Texto</Button>
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("image")}><ImageIcon className="mr-1 h-3.5 w-3.5" />Imagem</Button>
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => addElement("shape")}><Square className="mr-1 h-3.5 w-3.5" />Forma</Button>
-      </div>
+      </div>}
 
       {/* canvas */}
       <div className="relative" style={{ width: canvas.width, height: canvas.height }}>
