@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useBrands } from "@/hooks/use-brands";
 import { PublishPanel } from "@/components/studio/PublishPanel";
-import { saveVisualToGallery, sanitizeDesignDoc } from "@/lib/gallery";
+import { saveVisualToGallery, sanitizeDesignDoc, persistDesignDoc } from "@/lib/gallery";
 import { useStudio } from "./StudioProvider";
 
 export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
