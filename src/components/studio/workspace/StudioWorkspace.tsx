@@ -324,15 +324,17 @@ function WorkspaceInner({
           </Button>
         )}
         {/* mobile: abrir rail de ferramentas */}
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9 lg:hidden"><PanelLeft className="h-4 w-4" /></Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-72 overflow-y-auto">
-            <SheetHeader><SheetTitle>Ferramentas</SheetTitle></SheetHeader>
-            <div className="mt-4"><LeftRailContent brandName={brand?.name} brandHandle={brand?.handle} /></div>
-          </SheetContent>
-        </Sheet>
+        {!staticFallback && (
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 lg:hidden"><PanelLeft className="h-4 w-4" /></Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-72 overflow-y-auto">
+              <SheetHeader><SheetTitle>Ferramentas</SheetTitle></SheetHeader>
+              <div className="mt-4"><LeftRailContent brandName={brand?.name} brandHandle={brand?.handle} /></div>
+            </SheetContent>
+          </Sheet>
+        )}
 
         <div className="flex items-center gap-2 font-semibold">
           <Sparkles className="h-5 w-5 text-violet-500" /> <span className="hidden sm:inline">Studio</span>
@@ -355,7 +357,7 @@ function WorkspaceInner({
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={undo} disabled={!canUndo} title="Desfazer"><Undo2 className="h-4 w-4" /></Button>
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={redo} disabled={!canRedo} title="Refazer"><Redo2 className="h-4 w-4" /></Button>
           {/* mobile: abrir copiloto */}
-          <Sheet>
+          {!staticFallback && <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="h-9 w-9 xl:hidden"><Sparkles className="h-4 w-4 text-violet-500" /></Button>
             </SheetTrigger>
@@ -363,15 +365,15 @@ function WorkspaceInner({
               <SheetHeader><SheetTitle>Copiloto IA</SheetTitle></SheetHeader>
               <div className="mt-4"><RightRailContent /></div>
             </SheetContent>
-          </Sheet>
-          <Select value={stylePreset} onValueChange={(v) => handleApplyStyle(v as StylePreset)}>
+          </Sheet>}
+          {!staticFallback && <Select value={stylePreset} onValueChange={(v) => handleApplyStyle(v as StylePreset)}>
             <SelectTrigger className="hidden h-9 w-[170px] md:flex" title="Estilo visual">
               <SelectValue placeholder="Estilo visual" />
             </SelectTrigger>
             <SelectContent>
               {STYLE_PRESETS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
-          </Select>
+          </Select>}
           {draftUserId && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
