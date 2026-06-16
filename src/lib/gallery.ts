@@ -186,10 +186,21 @@ export async function updateCreation(id: string, updates: Partial<Creation>): Pr
   const payload: Record<string, unknown> = {};
   if (user) payload.updated_by = user.id;
   if (updates.published !== undefined) payload.published = updates.published;
-  if (updates.urls) payload.urls = updates.urls;
+  // Blindagem: nunca persistir data:/blob: em urls/thumbnail — converte pra storage primeiro.
+  let persistedUrls: string[] | null = null;
+  if (updates.urls) {
+    persistedUrls = await persistUrls(updates.urls);
+    if (persistedUrls.length) payload.urls = persistedUrls;
+  }
   if (updates.prompt !== undefined) payload.prompt = updates.prompt;
   if (updates.type) payload.type = updates.type;
-  if (updates.thumbnailUrl !== undefined) payload.thumbnail_url = updates.thumbnailUrl;
+  if (updates.thumbnailUrl !== undefined) {
+    const t = updates.thumbnailUrl;
+    if (t && t.startsWith("http")) payload.thumbnail_url = t;
+    else if (persistedUrls && persistedUrls.length) payload.thumbnail_url = persistedUrls[0];
+    else if (t === null) payload.thumbnail_url = null;
+    // se t é data:/blob: sem urls válidas, ignora pra não corromper a linha
+  }
   if (updates.designDoc !== undefined) {
     payload.design_doc = updates.designDoc ? sanitizeDesignDoc(updates.designDoc) : null;
   }
