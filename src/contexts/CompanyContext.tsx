@@ -97,6 +97,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     setFirecrawlActiveCompany(activeCompanyId);
     setHiggsfieldActiveCompany(activeCompanyId);
     setApifyActiveCompany(activeCompanyId);
+    setGalleryActiveCompany(activeCompanyId);
   }, [activeCompanyId]);
 
 
