@@ -108,14 +108,26 @@ export default function Gallery() {
     });
   }
 
-  function handleEditDesign(creation: Creation) {
+  async function handleEditDesign(creation: Creation) {
     const urls = creation.urls ?? [];
     const fallback = urls[0] ?? creation.thumbnailUrl ?? null;
-    if (!creation.designDoc && !fallback) {
+
+    // design_doc não vem na listagem (payload pesado) — buscar sob demanda.
+    let designDoc = creation.designDoc ?? null;
+    if (!designDoc) {
+      try {
+        const full = await getCreation(creation.id);
+        designDoc = full?.designDoc ?? null;
+      } catch {
+        // segue com fallback abaixo
+      }
+    }
+
+    if (!designDoc && !fallback) {
       toast({ title: "Sem imagem para editar", variant: "destructive" });
       return;
     }
-    if (!creation.designDoc) {
+    if (!designDoc) {
       toast({
         title: "Item gerado como imagem estática",
         description: "Vamos abrir o editor usando esta imagem como fundo. Você pode adicionar textos e salvar como versão editável.",
@@ -124,7 +136,7 @@ export default function Gallery() {
     navigate("/studio", {
       state: {
         mode: "edit",
-        designDoc: creation.designDoc ?? null,
+        designDoc,
         creationId: creation.id,
         fallbackImageUrl: fallback,
         fallbackImageUrls: urls,
