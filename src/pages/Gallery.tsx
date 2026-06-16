@@ -53,17 +53,32 @@ export default function Gallery() {
   const [captionDraft, setCaptionDraft] = useState("");
   const [captionSaving, setCaptionSaving] = useState(false);
 
-  const loadCreations = useCallback(async () => {
+  const { activeCompanyId } = useCompany();
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeCompanyId) {
+      setCreations([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const data = await getCreations();
+    getCreations(activeCompanyId).then((data) => {
+      if (!cancelled) {
+        setCreations(data);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [activeCompanyId]);
+
+  const loadCreations = useCallback(async () => {
+    if (!activeCompanyId) { setCreations([]); return; }
+    setLoading(true);
+    const data = await getCreations(activeCompanyId);
     setCreations(data);
     setLoading(false);
-  }, []);
-
-  const { activeCompanyId } = useCompany();
-  useEffect(() => {
-    loadCreations();
-  }, [loadCreations, activeCompanyId]);
+  }, [activeCompanyId]);
 
   const handleDelete = useCallback(async (id: string) => {
     await deleteCreation(id);

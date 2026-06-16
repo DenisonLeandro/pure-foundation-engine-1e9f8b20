@@ -41,6 +41,7 @@ export default function Login() {
       setError(err === "Invalid login credentials" ? "Email ou senha incorretos" : err);
       setLoading(false);
     } else {
+      setLoading(false);
       navigate("/dashboard", { replace: true });
     }
   };
