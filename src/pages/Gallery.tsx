@@ -55,21 +55,30 @@ export default function Gallery() {
 
   const { activeCompanyId } = useCompany();
 
-  const loadCreations = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
     if (!activeCompanyId) {
       setCreations([]);
       setLoading(false);
       return;
     }
     setLoading(true);
+    getCreations(activeCompanyId).then((data) => {
+      if (!cancelled) {
+        setCreations(data);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [activeCompanyId]);
+
+  const loadCreations = useCallback(async () => {
+    if (!activeCompanyId) { setCreations([]); return; }
+    setLoading(true);
     const data = await getCreations(activeCompanyId);
     setCreations(data);
     setLoading(false);
   }, [activeCompanyId]);
-
-  useEffect(() => {
-    loadCreations();
-  }, [loadCreations]);
 
   const handleDelete = useCallback(async (id: string) => {
     await deleteCreation(id);
