@@ -25,7 +25,6 @@ interface Invite {
   id: string;
   email: string;
   role: "admin" | "editor";
-  token: string;
   status: string;
   expires_at: string;
   created_at: string;
