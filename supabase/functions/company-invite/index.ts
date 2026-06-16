@@ -112,6 +112,29 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === "get_link") {
+      const { inviteId } = body as { inviteId: string };
+      if (!inviteId) return json({ error: "inviteId faltando" }, 400);
+      const { data: inv } = await admin
+        .from("company_invites")
+        .select("company_id, token, status")
+        .eq("id", inviteId)
+        .maybeSingle();
+      if (!inv) return json({ error: "Convite não encontrado" }, 404);
+      if (inv.status !== "pending") return json({ error: "Convite não está pendente" }, 400);
+      const { data: me } = await admin
+        .from("company_members")
+        .select("role, status")
+        .eq("company_id", inv.company_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!me || me.status !== "active" || !["owner", "admin"].includes(me.role)) {
+        return json({ error: "Sem permissão" }, 403);
+      }
+      const origin = req.headers.get("origin") || "";
+      return json({ inviteUrl: `${origin}/aceitar-convite?token=${inv.token}` });
+    }
+
     if (action === "accept") {
       const { token } = body as { token: string };
       if (!token) return json({ error: "Token faltando" }, 400);
