@@ -25,7 +25,7 @@ interface NavState {
   fallbackImageUrl?: string | null;
   fallbackImageUrls?: string[] | null;
   finalImageUrls?: string[] | null;
-  finalImageMeta?: ImageMeta[] | null;
+  finalImageMeta?: (ImageMeta | null)[] | null;
   slideIndex?: number;
   /** Rota para a qual "Salvar e voltar" / "Voltar para Galeria" deve navegar. */
   returnTo?: string;
@@ -235,7 +235,7 @@ export default function Studio() {
         editingCreationId={editingCreationId}
         fallbackImageUrl={fallbackImageUrl}
         fallbackImageUrls={fallbackImageUrls}
-        draftUserId={userId}
+        draftUserId={isEditFromGallery ? undefined : userId}
         initialSlide={navInitial ? undefined : draft?.currentSlide}
         initialStylePreset={navInitial ? undefined : draft?.stylePreset}
         onDraftDiscarded={handleDraftDiscarded}
