@@ -43,7 +43,7 @@ export default function Team() {
     setLoading(true);
     const [m, i] = await Promise.all([
       supabase.from("company_members").select("id, user_id, role, status, created_at").eq("company_id", activeCompanyId),
-      supabase.from("company_invites").select("id, email, role, token, status, expires_at, created_at").eq("company_id", activeCompanyId).eq("status", "pending").order("created_at", { ascending: false }),
+      supabase.from("company_invites").select("id, email, role, status, expires_at, created_at").eq("company_id", activeCompanyId).eq("status", "pending").order("created_at", { ascending: false }),
     ]);
     setMembers((m.data as Member[]) ?? []);
     setInvites((i.data as Invite[]) ?? []);
