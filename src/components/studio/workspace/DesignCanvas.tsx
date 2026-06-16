@@ -5,7 +5,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useBrands } from "@/hooks/use-brands";
 import { useStudio, blankSlide } from "./StudioProvider";
-import { CANVAS_W, CANVAS_H, EXPORT_W, EXPORT_H, uid, type El, type Slide } from "./types";
+import { CANVAS_W, CANVAS_H, getCanvasSize, getExportSize, uid, type El, type Slide } from "./types";
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [head, b64] = dataUrl.split(",");
@@ -27,6 +27,8 @@ export function DesignCanvas() {
   const c1 = brand?.colors?.[0] || "#8b5cf6";
   const c2 = brand?.colors?.[1] || "#d946ef";
   const accent = brand?.colors?.[2] || "#ffffff";
+  const canvas = getCanvasSize(doc);
+  const exportSize = getExportSize(doc);
 
   const [exporting, setExporting] = useState(false);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -86,25 +88,25 @@ export function DesignCanvas() {
         // Antes passávamos EXPORT_W/EXPORT_H como width/height, o que fazia o
         // html2canvas recortar uma área 1080×1350 CSS do nó (que tem só 360×450),
         // gerando um PNG enorme com a arte pequena no canto superior esquerdo.
-        const canvas = await html2canvas(node, {
+        const rendered = await html2canvas(node, {
           useCORS: true,
           backgroundColor: null,
-          width: CANVAS_W,
-          height: CANVAS_H,
-          windowWidth: CANVAS_W,
-          windowHeight: CANVAS_H,
-          scale: EXPORT_W / CANVAS_W, // 3x → 1080×1350 final
+          width: canvas.width,
+          height: canvas.height,
+          windowWidth: canvas.width,
+          windowHeight: canvas.height,
+          scale: exportSize.scale,
         });
         // Validação: descarta export quebrado (canvas vazio / dimensão inesperada).
-        if (!canvas.width || !canvas.height) continue;
-        const url = canvas.toDataURL("image/png");
+        if (!rendered.width || !rendered.height) continue;
+        const url = rendered.toDataURL("image/png");
         if (url && url.length > 100) urls.push(url);
       }
     } finally {
       setExporting(false);
     }
     return urls;
-  }, [isVideo, doc.videoUrl]);
+  }, [isVideo, doc.videoUrl, canvas.width, canvas.height, exportSize.scale]);
 
   useEffect(() => {
     registerExporter(exporter);
@@ -166,7 +168,7 @@ export function DesignCanvas() {
         const overlay: El = {
           id: `${THEME_OVERLAY_PREFIX}_${uid()}`,
           type: "shape",
-          x: 0, y: 0, w: CANVAS_W, h: CANVAS_H,
+          x: 0, y: 0, w: canvas.width, h: canvas.height,
           bg: "#000000", radius: 0, opacity: 0.35,
         };
         els = [overlay, ...els];
@@ -210,12 +212,12 @@ export function DesignCanvas() {
       onMouseDown={() => select(null)}
       className={`relative overflow-hidden rounded-xl ${exportMode ? "absolute left-0 top-0" : "shadow-lg"}`}
       style={{
-        width: CANVAS_W, height: CANVAS_H,
-        background: s.bgImage ? undefined : s.bg,
+        width: canvas.width, height: canvas.height,
+        background: s.bgImage && s.bgFit !== "contain" ? undefined : s.bg,
         display: exportMode ? "block" : i === currentSlide ? "block" : "none",
       }}
     >
-      {s.bgImage && <img src={s.bgImage} crossOrigin="anonymous" alt="" className="absolute inset-0 h-full w-full object-cover" />}
+      {s.bgImage && <img src={s.bgImage} crossOrigin="anonymous" alt="" className="absolute inset-0 h-full w-full" style={{ objectFit: s.bgFit ?? "cover" }} />}
       {s.els.map((e) => (
         <div
           key={e.id}
@@ -224,10 +226,10 @@ export function DesignCanvas() {
           style={{ left: e.x, top: e.y, width: e.w, height: e.h }}
         >
           {e.type === "text" && (
-            <span style={{ fontSize: e.fontSize, color: e.color, fontWeight: e.weight, textAlign: e.align, display: "block", width: "100%", lineHeight: 1.15 }}>{e.text}</span>
+            <span style={{ fontSize: e.fontSize, color: e.color, fontWeight: e.weight, textAlign: e.align, display: "block", width: "100%", lineHeight: e.lineHeight ?? 1.15, letterSpacing: e.letterSpacing, textShadow: e.shadow, WebkitTextStroke: e.stroke ? `${e.strokeWidth ?? 1}px ${e.stroke}` : undefined, whiteSpace: "pre-wrap", opacity: e.opacity }}>{e.text}</span>
           )}
           {e.type === "image" && (e.src
-            ? <img src={e.src} crossOrigin="anonymous" alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: e.radius }} />
+            ? <img src={e.src} crossOrigin="anonymous" alt="" style={{ width: "100%", height: "100%", objectFit: e.objectFit ?? "cover", borderRadius: e.radius, opacity: e.opacity }} />
             : <div className="flex h-full w-full items-center justify-center rounded bg-black/20 text-[10px] text-white/70">imagem</div>)}
           {e.type === "shape" && <div style={{ width: "100%", height: "100%", background: e.bg, borderRadius: e.radius, opacity: e.opacity }} />}
         </div>
@@ -260,7 +262,7 @@ export function DesignCanvas() {
       </div>
 
       {/* canvas */}
-      <div className="relative" style={{ width: CANVAS_W, height: CANVAS_H }}>
+      <div className="relative" style={{ width: canvas.width, height: canvas.height }}>
         {doc.slides.map((s, i) => renderSlide(s, i, exporting))}
         {selectedElId && !exporting && (
           <div className="absolute -bottom-9 left-0 right-0 flex justify-center">
