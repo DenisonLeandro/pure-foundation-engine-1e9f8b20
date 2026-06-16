@@ -213,7 +213,7 @@ export function DesignCanvas() {
       className={`relative overflow-hidden rounded-xl ${exportMode ? "absolute left-0 top-0" : "shadow-lg"}`}
       style={{
         width: canvas.width, height: canvas.height,
-        background: s.bgImage ? undefined : s.bg,
+        background: s.bgImage && s.bgFit !== "contain" ? undefined : s.bg,
         display: exportMode ? "block" : i === currentSlide ? "block" : "none",
       }}
     >
