@@ -224,10 +224,10 @@ export function DesignCanvas() {
           key={e.id}
           onMouseDown={(ev) => !exportMode && startDrag(ev, e)}
           className={`absolute ${exportMode ? "" : "cursor-move"} ${!exportMode && selectedElId === e.id ? "ring-2 ring-violet-400" : ""}`}
-          style={{ left: e.x, top: e.y, width: e.w, height: e.h }}
+          style={{ left: e.x, top: e.y, width: e.w, height: e.h, transform: e.rotation ? `rotate(${e.rotation}deg)` : undefined, zIndex: e.zIndex }}
         >
           {e.type === "text" && (
-            <span style={{ fontSize: e.fontSize, color: e.color, fontWeight: e.weight, textAlign: e.align, display: "block", width: "100%", lineHeight: e.lineHeight ?? 1.15, letterSpacing: e.letterSpacing, textShadow: e.shadow, WebkitTextStroke: e.stroke ? `${e.strokeWidth ?? 1}px ${e.stroke}` : undefined, whiteSpace: "pre-wrap", opacity: e.opacity }}>{e.text}</span>
+            <span style={{ fontSize: e.fontSize, fontFamily: e.fontFamily, color: e.color, fontWeight: e.weight, textAlign: e.align, display: "block", width: "100%", lineHeight: e.lineHeight ?? 1.15, letterSpacing: e.letterSpacing, textShadow: e.shadow, WebkitTextStroke: e.stroke ? `${e.strokeWidth ?? 1}px ${e.stroke}` : undefined, whiteSpace: "pre-wrap", opacity: e.opacity }}>{e.text}</span>
           )}
           {e.type === "image" && (e.src
             ? <img src={e.src} crossOrigin="anonymous" alt="" style={{ width: "100%", height: "100%", objectFit: e.objectFit ?? "cover", borderRadius: e.radius, opacity: e.opacity }} />
