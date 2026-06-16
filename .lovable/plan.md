@@ -1,50 +1,38 @@
-Diagnóstico encontrado:
+## Problema
 
-- O domínio publicado em uso é `https://pure-foundation-engine.lovable.app`.
-- O site publicado ainda está servindo um bundle antigo: `/assets/index-DS6PpvZD.js`.
-- Esse bundle publicado não contém o fallback público que foi adicionado no código atual.
-- Dentro do bundle publicado, o cliente de autenticação ainda está assim:
-  - URL: `https://placeholder.supabase.co`
-  - chave: `placeholder-key`
-  - `supabaseConfigured = false` porque `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` não chegaram no build publicado.
-- Resultado: no publicado, o app acha que o backend não está configurado e o login não autentica corretamente.
-- O backend está saudável; não encontrei sinal de indisponibilidade no backend.
-- Os logs recentes de auth mostram chamadas `/user` com status 200, mas não mostram tentativa válida de login por senha vinda do domínio publicado no período consultado, o que combina com o frontend usando placeholder/cliente inválido antes de autenticar.
-- Há também indício de publicação desatualizada pelo HTML: o `<title>` publicado ainda aparece como `Lovable App`, ou seja, nem a correção anterior de metadata nem a correção do cliente chegaram ao site publicado.
+O botão "Sair da conta" (em `ManagePreferencesView`) não funciona porque:
 
-Plano para corrigir somente o login publicado:
+1. `supabase.auth.signOut()` está fazendo uma chamada de rede ao backend que está retornando `TypeError: Failed to fetch` (visível nos logs do console agora — várias falhas de fetch para o Supabase).
+2. O `signOut` padrão usa `scope: 'global'`, que exige rede. Quando a rede falha, ele lança erro.
+3. O `catch` em `AuthContext.signOut` engole o erro, mas a chave de sessão do Supabase (`sb-<ref>-auth-token`) **nunca é removida do localStorage** — `userStorage.clearUser()` só limpa chaves com prefixo `app_u:` / `mega_u:`, não o token do Supabase.
+4. Resultado: o usuário continua logado, o `onAuthStateChange` não dispara `SIGNED_OUT`, e o `Navigate to="/login"` em `handleSignOut` pode nem rodar (a Promise pode ficar pendente antes do catch interno do GoTrue).
 
-1. Garantir que o código atual de autenticação esteja consistente
-   - Manter o cliente de auth usando URL/chave pública reais quando as variáveis do build não forem injetadas.
-   - Não mexer em Studio, Galeria, `company_configs`, integrações, permissões de empresa, marcas, chaves, agendamento, Autopilot ou aprovação.
+## Correção (escopo mínimo, só logout)
 
-2. Corrigir a detecção de backend configurado
-   - Remover a dependência de `import.meta.env` para decidir se auth está habilitado.
-   - Como o cliente passa a ter fallback público válido, `supabaseConfigured` deve permanecer verdadeiro, exceto no bypass de testes.
+**`src/contexts/AuthContext.tsx` — `signOut`:**
+- Forçar limpeza local primeiro, sempre, independente de rede:
+  - `setSession(null); setUser(null);`
+  - Remover manualmente todas as chaves `sb-*-auth-token` do `localStorage` (cobre o caso de rede caída).
+  - Manter `userStorage.clearUser()` para chaves do app.
+- Em seguida, disparar `supabase.auth.signOut({ scope: 'local' })` dentro de try/catch — `scope: 'local'` não exige rede e apenas limpa o storage do client; serve como redundância e garante que o GoTrue interno dispare `SIGNED_OUT`.
+- Não aguardar nenhuma chamada de rede que possa travar.
 
-3. Ajustar o redirecionamento pós-login
-   - O login não deve forçar `/setup` sempre.
-   - Após autenticar, enviar para `/dashboard`; as guards existentes redirecionam para `/criar-empresa` quando o usuário não tiver empresa.
+**`src/components/setup/ManagePreferencesView.tsx` — `handleSignOut`:**
+- Após `await signOut()`, usar `window.location.assign("/login")` em vez de `navigate("/login")`, para garantir um boot limpo (descarta contextos com estado obsoleto e evita ficar preso em `/criar-empresa` por causa de cache de `CompanyContext`).
 
-4. Verificar links de reset/convite no domínio publicado
-   - Confirmar que reset usa `window.location.origin`.
-   - Confirmar convite não está fixando domínio de preview.
+## Fora de escopo (não mexer)
 
-5. Publicar novamente a versão corrigida
-   - A causa principal agora é que o publicado está desatualizado.
-   - Depois da publicação, verificar se o novo bundle contém `pgimbjfdxwefahxmpdpc` e `sb_publishable_...`, e não contém `placeholder.supabase.co` como cliente ativo.
+- Studio, Galeria, integrações, RLS, company_configs, chaves, RPCs, schema do banco.
+- Não alterar `src/integrations/supabase/client.ts` (auto-gerado / fallback público já correto).
+- Não tentar "consertar" os outros `Failed to fetch` (CompanyContext, CreateCompany) — são sintoma de instabilidade externa do backend, fora do pedido.
 
-6. Validar no domínio publicado
-   - Abrir `https://pure-foundation-engine.lovable.app/login` em sessão limpa.
-   - Verificar console: sem erro de placeholder e sem erro de rede de auth.
-   - Tentar login com credenciais reais fornecidas/testáveis.
-   - Confirmar destino final: `/dashboard` ou `/criar-empresa` conforme o usuário.
-   - Recarregar a página e confirmar que a sessão persiste.
-   - Fazer logout e confirmar retorno para `/login`.
+## Arquivos alterados
 
-Arquivos previstos para alteração:
+- `src/contexts/AuthContext.tsx` (função `signOut`)
+- `src/components/setup/ManagePreferencesView.tsx` (função `handleSignOut`)
 
-- `src/pages/Login.tsx`: ajustar o destino pós-login de `/setup` para `/dashboard`.
-- Se necessário, revisar apenas `src/lib/supabase.ts` e `src/integrations/supabase/client.ts` para garantir que a versão atual realmente contém o fallback válido e a flag correta.
+## Verificação
 
-Nada será alterado nas áreas proibidas.
+1. Clicar em "Sair da conta" → confirmar → redireciona para `/login` mesmo com rede instável.
+2. Após logout, `localStorage` não contém mais chaves `sb-*-auth-token`.
+3. Recarregar a página em `/dashboard` → redireciona para `/login` (sessão realmente foi embora).
