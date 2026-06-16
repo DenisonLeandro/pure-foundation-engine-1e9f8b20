@@ -7,9 +7,10 @@ import { StudioWorkspace } from "@/components/studio/workspace/StudioWorkspace";
 import { emptyDoc } from "@/components/studio/workspace/StudioProvider";
 import { loadLatestStudioDraft, loadStudioFlowDraft, type StudioDraft, type StudioFlowDraft } from "@/components/studio/workspace/studioDraft";
 import { useAuth } from "@/contexts/AuthContext";
-import type { StudioDoc, Slide } from "@/components/studio/workspace/types";
+import { CANVAS_H, CANVAS_W, type StudioDoc, type Slide } from "@/components/studio/workspace/types";
 
 type ImageMeta = { width: number; height: number };
+const fallbackCanvas = { width: CANVAS_W, height: CANVAS_H, aspectRatio: CANVAS_W / CANVAS_H, source: "fallback" as const };
 
 interface NavState {
   /** "edit" força o Studio a abrir o post existente (sem rascunho, sem tela inicial). */
@@ -65,7 +66,7 @@ function prepareDesignDocForEdit(nav: NavState, doc: StudioDoc): StudioDoc {
   const canvas = doc.canvas ?? canvasFromImageMeta(firstMeta, "designDoc");
   return {
     ...doc,
-    canvas: canvas ? { ...canvas, source: "designDoc" } : { source: "designDoc" },
+    canvas: canvas ? { ...canvas, source: "designDoc" } : { ...fallbackCanvas, source: "designDoc" },
     caption: typeof nav.caption === "string" ? nav.caption : doc.caption,
   };
 }
@@ -76,7 +77,7 @@ function buildStaticFallbackDoc(nav: NavState, urls: string[]): StudioDoc {
   const firstMeta = nav.finalImageMeta?.[0] ?? null;
   return {
     ...base,
-    canvas: canvasFromImageMeta(firstMeta, "fallback") ?? { source: "fallback" },
+    canvas: canvasFromImageMeta(firstMeta, "fallback") ?? fallbackCanvas,
     slides: urls.map((url) => ({ bg: "#0b0b0f", bgImage: url, bgFit: "contain", els: [] })),
     caption: typeof nav.caption === "string" ? nav.caption : base.caption,
   };
@@ -129,7 +130,7 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
   //    Abre um doc vazio editável vinculado ao creationId.
   if (isEdit) {
     const base = emptyDoc("post", null);
-    return typeof nav.caption === "string" ? { ...base, canvas: { source: "fallback" }, caption: nav.caption } : { ...base, canvas: { source: "fallback" } };
+    return typeof nav.caption === "string" ? { ...base, canvas: fallbackCanvas, caption: nav.caption } : { ...base, canvas: fallbackCanvas };
   }
   // 4) Fluxo legado (deep-link de fonte/post).
   const has = nav.sourceContent || nav.prompt || nav.sourceTitle || (nav.mediaUrls?.length ?? 0) > 0;
