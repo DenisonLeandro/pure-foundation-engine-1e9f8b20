@@ -549,7 +549,9 @@ export type Database = {
       creations: {
         Row: {
           caption: string | null
+          company_id: string | null
           created_at: string
+          created_by: string | null
           design_doc: Json | null
           doc: Json | null
           id: string
@@ -561,12 +563,15 @@ export type Database = {
           template_name: string | null
           thumbnail_url: string | null
           type: string
+          updated_by: string | null
           urls: string[]
           user_id: string | null
         }
         Insert: {
           caption?: string | null
+          company_id?: string | null
           created_at?: string
+          created_by?: string | null
           design_doc?: Json | null
           doc?: Json | null
           id?: string
@@ -578,12 +583,15 @@ export type Database = {
           template_name?: string | null
           thumbnail_url?: string | null
           type?: string
+          updated_by?: string | null
           urls?: string[]
           user_id?: string | null
         }
         Update: {
           caption?: string | null
+          company_id?: string | null
           created_at?: string
+          created_by?: string | null
           design_doc?: Json | null
           doc?: Json | null
           id?: string
@@ -595,10 +603,19 @@ export type Database = {
           template_name?: string | null
           thumbnail_url?: string | null
           type?: string
+          updated_by?: string | null
           urls?: string[]
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "creations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       post_history: {
         Row: {

@@ -1,8 +1,20 @@
 /**
- * Gallery Service — persists creations in Supabase `creations` table
+ * Gallery Service — persists creations in Supabase `creations` table.
+ * Posts pertencem à empresa ativa (company_id); created_by mantém autoria.
  */
 
 import { supabase } from "@/integrations/supabase/client";
+
+let activeCompanyId: string | null = null;
+
+/** Chamado pelo CompanyContext sempre que a empresa ativa muda. */
+export function setGalleryActiveCompany(companyId: string | null) {
+  activeCompanyId = companyId;
+}
+
+export function getGalleryActiveCompany(): string | null {
+  return activeCompanyId;
+}
 
 export const DESIGN_DOC_SCHEMA_VERSION = 1;
 
@@ -68,11 +80,12 @@ function stripDataUrls(node: unknown): void {
 export async function getCreations(filter?: "image" | "video" | "carousel"): Promise<Creation[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
+  if (!activeCompanyId) return [];
 
   let query = supabase
     .from("creations")
-    .select("id,user_id,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,design_doc,caption")
-    .eq("user_id", user.id)
+    .select("id,user_id,company_id,created_by,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,design_doc,caption")
+    .eq("company_id", activeCompanyId)
     .order("created_at", { ascending: false });
 
   if (filter) {
@@ -107,9 +120,15 @@ export async function getCreation(id: string): Promise<Creation | null> {
 export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): Promise<Creation | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+  if (!activeCompanyId) {
+    console.warn("[gallery] saveCreation bloqueado: nenhuma empresa ativa selecionada.");
+    return null;
+  }
 
   const payload: Record<string, unknown> = {
     user_id: user.id,
+    created_by: user.id,
+    company_id: activeCompanyId,
     type: input.type,
     urls: input.urls,
     thumbnail_url: input.thumbnailUrl || input.urls[0] || null,
@@ -140,7 +159,9 @@ export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): P
 }
 
 export async function updateCreation(id: string, updates: Partial<Creation>): Promise<Creation | null> {
+  const { data: { user } } = await supabase.auth.getUser();
   const payload: Record<string, unknown> = {};
+  if (user) payload.updated_by = user.id;
   if (updates.published !== undefined) payload.published = updates.published;
   if (updates.urls) payload.urls = updates.urls;
   if (updates.prompt !== undefined) payload.prompt = updates.prompt;

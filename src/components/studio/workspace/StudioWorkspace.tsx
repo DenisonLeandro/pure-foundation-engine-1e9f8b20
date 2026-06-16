@@ -15,7 +15,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
-import { updateCreation, sanitizeDesignDoc, saveVisualToGallery } from "@/lib/gallery";
+import { updateCreation, sanitizeDesignDoc, saveVisualToGallery, getGalleryActiveCompany } from "@/lib/gallery";
 import { StudioProvider, useStudio } from "./StudioProvider";
 import { DesignCanvas } from "./DesignCanvas";
 import { ElementInspector } from "./ElementInspector";
@@ -243,6 +243,10 @@ function WorkspaceInner({
   /** Cria nova entrada na Galeria a partir do design atual. */
   const handleSaveToGallery = async (): Promise<boolean> => {
     if (creationId) return handleSaveDesign();
+    if (!getGalleryActiveCompany()) {
+      toast.error("Selecione uma empresa antes de salvar.");
+      return false;
+    }
     setSavingDesign(true);
     try {
       const out = await composeAndExport();

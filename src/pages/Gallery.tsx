@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
 import { getCreations, deleteCreation, updateCreation, type Creation } from "@/lib/gallery";
+import { useCompany } from "@/contexts/CompanyContext";
 
 // ─── Filter types ───────────────────────────────────────────────
 
@@ -59,9 +60,10 @@ export default function Gallery() {
     setLoading(false);
   }, []);
 
+  const { activeCompanyId } = useCompany();
   useEffect(() => {
     loadCreations();
-  }, [loadCreations]);
+  }, [loadCreations, activeCompanyId]);
 
   const handleDelete = useCallback(async (id: string) => {
     await deleteCreation(id);
