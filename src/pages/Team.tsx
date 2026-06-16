@@ -176,7 +176,7 @@ export default function Team() {
                   <TableCell><Badge variant="secondary">{roleLabel(inv.role)}</Badge></TableCell>
                   <TableCell className="text-sm text-muted-foreground">{new Date(inv.expires_at).toLocaleDateString("pt-BR")}</TableCell>
                   <TableCell className="text-right space-x-1">
-                    <Button size="sm" variant="ghost" onClick={() => copyLink(inv.token)} title="Copiar link">
+                    <Button size="sm" variant="ghost" onClick={() => copyLink(inv.id)} title="Copiar link">
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => revokeInvite(inv.id)} title="Revogar">
