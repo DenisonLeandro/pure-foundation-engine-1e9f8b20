@@ -9,6 +9,8 @@ import { loadLatestStudioDraft, loadStudioFlowDraft, type StudioDraft, type Stud
 import { useAuth } from "@/contexts/AuthContext";
 import type { StudioDoc, Slide } from "@/components/studio/workspace/types";
 
+type ImageMeta = { width: number; height: number };
+
 interface NavState {
   /** "edit" força o Studio a abrir o post existente (sem rascunho, sem tela inicial). */
   mode?: "edit" | "new";
@@ -22,6 +24,9 @@ interface NavState {
   creationId?: string;
   fallbackImageUrl?: string | null;
   fallbackImageUrls?: string[] | null;
+  finalImageUrls?: string[] | null;
+  finalImageMeta?: ImageMeta[] | null;
+  slideIndex?: number;
   /** Rota para a qual "Salvar e voltar" / "Voltar para Galeria" deve navegar. */
   returnTo?: string;
   /** Legenda persistida na Galeria — sobrescreve doc.caption ao abrir. */
@@ -36,6 +41,27 @@ function slideHasVisual(s?: Slide): boolean {
   if (!s) return false;
   if (isHttpUrl(s.bgImage)) return true;
   return (s.els || []).some((e) => e.type === "image" && isHttpUrl(e.src));
+}
+
+function canvasFromImageMeta(meta?: ImageMeta | null) {
+  if (!meta?.width || !meta?.height) return undefined;
+  const ratio = meta.width / meta.height;
+  if (!Number.isFinite(ratio) || ratio <= 0) return undefined;
+  const width = 360;
+  const height = Math.max(180, Math.round(width / ratio));
+  return { width, height, source: "finalImage" as const };
+}
+
+function buildFinalImageDoc(nav: NavState, urls: string[]): StudioDoc {
+  const isCarousel = urls.length > 1;
+  const base = emptyDoc(isCarousel ? "carousel" : "post", null);
+  const firstMeta = nav.finalImageMeta?.[0] ?? null;
+  return {
+    ...base,
+    canvas: canvasFromImageMeta(firstMeta),
+    slides: urls.map((url) => ({ bg: "#0b0b0f", bgImage: url, bgFit: "contain", els: [] })),
+    caption: typeof nav.caption === "string" ? nav.caption : base.caption,
+  };
 }
 
 /** Aplica fallback de imagem por slide (índice). Não duplica se o slide já tiver visual. */
@@ -64,9 +90,16 @@ export function ensureDocHasVisualFallback(doc: StudioDoc, fallbackImageUrl?: st
 
 function buildInitial(nav: NavState | null): StudioDoc | undefined {
   if (!nav) return undefined;
+  const finalUrls = (nav.finalImageUrls ?? []).filter(isHttpUrl);
   const fallbacks: string[] = (nav.fallbackImageUrls ?? []).filter(isHttpUrl);
   if (!fallbacks.length && isHttpUrl(nav.fallbackImageUrl)) fallbacks.push(nav.fallbackImageUrl);
   const isEdit = nav.mode === "edit" || !!nav.creationId;
+
+  // Edição vinda da Galeria prioriza a imagem FINAL salva para garantir pixel visual igual.
+  // Não reconstrói layout, não aplica preset e não usa rascunho/template antigo.
+  if (isEdit && finalUrls.length) {
+    return buildFinalImageDoc(nav, finalUrls);
+  }
 
   // 1) Doc editável vindo da Galeria — usa EXATAMENTE como salvo.
   //    Só aplica fallback visual em slides que realmente não têm visual
@@ -78,13 +111,7 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
   }
   // 2) Item antigo sem designDoc — construir doc inicial com cada imagem como fundo.
   if (fallbacks.length) {
-    const isCarousel = fallbacks.length > 1;
-    const base = emptyDoc(isCarousel ? "carousel" : "post", null);
-    return {
-      ...base,
-      slides: fallbacks.map((url) => ({ bg: base.slides[0].bg, bgImage: url, els: [] })),
-      caption: typeof nav.caption === "string" ? nav.caption : base.caption,
-    };
+    return buildFinalImageDoc(nav, fallbacks);
   }
   // 3) Edição sem designDoc nem imagens — ainda assim NÃO mostrar tela inicial.
   //    Abre um doc vazio editável vinculado ao creationId.
@@ -120,11 +147,13 @@ export default function Studio() {
     console.info("[studio:open]", {
       mode: "edit",
       creationId: nav.creationId,
-      loadedFrom: hasDoc ? "designDoc" : (nav.fallbackImageUrls?.length || nav.fallbackImageUrl ? "imageFallback" : "new"),
+      loadedFrom: nav.finalImageUrls?.length ? "finalImage" : hasDoc ? "designDoc" : (nav.fallbackImageUrls?.length || nav.fallbackImageUrl ? "fallback" : "new"),
       slides,
+      canvasAspectRatio: navInitial?.canvas ? `${navInitial.canvas.width}:${navInitial.canvas.height}` : "360:450",
+      imageAspectRatio: nav.finalImageMeta?.[0] ? `${nav.finalImageMeta[0].width}:${nav.finalImageMeta[0].height}` : null,
       ignoredLocalDraft: true,
     });
-  }, [nav]);
+  }, [nav, navInitial]);
 
   // Rascunho local recuperado (quando não veio nada via navigation state).
   const [draft, setDraft] = useState<StudioDraft | null>(null);
