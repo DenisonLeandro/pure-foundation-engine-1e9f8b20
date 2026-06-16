@@ -59,9 +59,10 @@ export default function Gallery() {
     setLoading(false);
   }, []);
 
+  const { activeCompanyId } = useCompany();
   useEffect(() => {
     loadCreations();
-  }, [loadCreations]);
+  }, [loadCreations, activeCompanyId]);
 
   const handleDelete = useCallback(async (id: string) => {
     await deleteCreation(id);
