@@ -90,8 +90,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    userStorage.clearUser();
-    try { await supabase.auth.signOut(); } catch (err) { console.warn("[auth] signOut falhou:", err); }
+    // 1) Limpa estado local primeiro — não depende de rede.
+    try { userStorage.clearUser(); } catch (e) { console.warn("[auth] clearUser falhou:", e); }
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith("sb-") && k.endsWith("-auth-token"))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch (e) { console.warn("[auth] limpar token supabase falhou:", e); }
+    setSession(null);
+    setUser(null);
+    // 2) signOut local (não faz request de rede) — apenas para disparar SIGNED_OUT.
+    try { await supabase.auth.signOut({ scope: "local" }); }
+    catch (err) { console.warn("[auth] signOut falhou:", err); }
   };
 
   const resetPassword = async (email: string) => {
