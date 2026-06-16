@@ -80,11 +80,12 @@ function stripDataUrls(node: unknown): void {
 export async function getCreations(filter?: "image" | "video" | "carousel"): Promise<Creation[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
+  if (!activeCompanyId) return [];
 
   let query = supabase
     .from("creations")
-    .select("id,user_id,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,design_doc,caption")
-    .eq("user_id", user.id)
+    .select("id,user_id,company_id,created_by,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,design_doc,caption")
+    .eq("company_id", activeCompanyId)
     .order("created_at", { ascending: false });
 
   if (filter) {
@@ -119,9 +120,15 @@ export async function getCreation(id: string): Promise<Creation | null> {
 export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): Promise<Creation | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
+  if (!activeCompanyId) {
+    console.warn("[gallery] saveCreation bloqueado: nenhuma empresa ativa selecionada.");
+    return null;
+  }
 
   const payload: Record<string, unknown> = {
     user_id: user.id,
+    created_by: user.id,
+    company_id: activeCompanyId,
     type: input.type,
     urls: input.urls,
     thumbnail_url: input.thumbnailUrl || input.urls[0] || null,
