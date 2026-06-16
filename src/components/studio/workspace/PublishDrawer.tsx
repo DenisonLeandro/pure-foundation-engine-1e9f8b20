@@ -24,13 +24,16 @@ export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenCha
         if (alive) {
           setMedia(m);
           // saveVisualToGallery agora faz upload de data: URLs automaticamente
-          if (m.length) saveVisualToGallery({
-            urls: m,
-            prompt: doc.caption,
-            templateName: "Studio · Canvas",
-            designDoc: sanitizeDesignDoc(doc),
-            caption: doc.caption ?? "",
-          });
+          if (m.length) {
+            const persisted = (await persistDesignDoc(doc)) ?? sanitizeDesignDoc(doc);
+            saveVisualToGallery({
+              urls: m,
+              prompt: doc.caption,
+              templateName: "Studio · Canvas",
+              designDoc: persisted,
+              caption: doc.caption ?? "",
+            });
+          }
         }
       } finally {
         if (alive) setLoading(false);
