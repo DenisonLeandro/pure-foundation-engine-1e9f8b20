@@ -68,10 +68,13 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
   if (!fallbacks.length && isHttpUrl(nav.fallbackImageUrl)) fallbacks.push(nav.fallbackImageUrl);
   const isEdit = nav.mode === "edit" || !!nav.creationId;
 
-  // 1) Doc editável vindo da Galeria — prioridade máxima, com fallback visual por slide.
+  // 1) Doc editável vindo da Galeria — usa EXATAMENTE como salvo.
+  //    Só aplica fallback visual em slides que realmente não têm visual
+  //    (item legado salvo antes da persistência de bgImage).
   if (nav.designDoc && typeof nav.designDoc === "object" && Array.isArray(nav.designDoc.slides)) {
-    const withFallbacks = ensureDocHasVisualFallbacks(nav.designDoc, fallbacks);
-    return typeof nav.caption === "string" ? { ...withFallbacks, caption: nav.caption } : withFallbacks;
+    const allHaveVisual = nav.designDoc.slides.every((s) => slideHasVisual(s));
+    const docToUse = allHaveVisual ? nav.designDoc : ensureDocHasVisualFallbacks(nav.designDoc, fallbacks);
+    return typeof nav.caption === "string" ? { ...docToUse, caption: nav.caption } : docToUse;
   }
   // 2) Item antigo sem designDoc — construir doc inicial com cada imagem como fundo.
   if (fallbacks.length) {
