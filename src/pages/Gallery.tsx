@@ -106,11 +106,13 @@ export default function Gallery() {
     }
     navigate("/studio", {
       state: {
+        mode: "edit",
         designDoc: creation.designDoc ?? null,
         creationId: creation.id,
         fallbackImageUrl: fallback,
         fallbackImageUrls: urls,
         caption: creation.caption ?? null,
+        returnTo: "/gallery",
       },
     });
   }
