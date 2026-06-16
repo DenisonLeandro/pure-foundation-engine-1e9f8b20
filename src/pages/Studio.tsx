@@ -249,7 +249,7 @@ export default function Studio() {
         fallbackImageUrl={fallbackImageUrl}
         fallbackImageUrls={fallbackImageUrls}
         draftUserId={isEditFromGallery ? undefined : userId}
-        initialSlide={navInitial ? nav?.slideIndex : draft?.currentSlide}
+        initialSlide={navInitial ? (nav?.selectedSlideIndex ?? nav?.slideIndex) : draft?.currentSlide}
         initialStylePreset={navInitial ? undefined : draft?.stylePreset}
         onDraftDiscarded={handleDraftDiscarded}
         returnTo={nav?.returnTo}
