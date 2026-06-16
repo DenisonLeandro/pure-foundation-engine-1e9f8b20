@@ -66,6 +66,7 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
   if (!nav) return undefined;
   const fallbacks: string[] = (nav.fallbackImageUrls ?? []).filter(isHttpUrl);
   if (!fallbacks.length && isHttpUrl(nav.fallbackImageUrl)) fallbacks.push(nav.fallbackImageUrl);
+  const isEdit = nav.mode === "edit" || !!nav.creationId;
 
   // 1) Doc editável vindo da Galeria — prioridade máxima, com fallback visual por slide.
   if (nav.designDoc && typeof nav.designDoc === "object" && Array.isArray(nav.designDoc.slides)) {
@@ -82,7 +83,13 @@ function buildInitial(nav: NavState | null): StudioDoc | undefined {
       caption: typeof nav.caption === "string" ? nav.caption : base.caption,
     };
   }
-  // 3) Fluxo legado (deep-link de fonte/post).
+  // 3) Edição sem designDoc nem imagens — ainda assim NÃO mostrar tela inicial.
+  //    Abre um doc vazio editável vinculado ao creationId.
+  if (isEdit) {
+    const base = emptyDoc("post", null);
+    return typeof nav.caption === "string" ? { ...base, caption: nav.caption } : base;
+  }
+  // 4) Fluxo legado (deep-link de fonte/post).
   const has = nav.sourceContent || nav.prompt || nav.sourceTitle || (nav.mediaUrls?.length ?? 0) > 0;
   if (!has) return undefined;
   const base = emptyDoc("post", null);
