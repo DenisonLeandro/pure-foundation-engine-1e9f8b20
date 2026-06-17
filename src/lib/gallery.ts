@@ -87,6 +87,14 @@ export async function persistDesignDoc(input: unknown): Promise<EditableDesignDo
   try { clone = JSON.parse(JSON.stringify(input)) as Record<string, unknown>; } catch { return null; }
   await walkPersist(clone);
   clone.schemaVersion = DESIGN_DOC_SCHEMA_VERSION;
+  // Registrar canvas autorado: em qual base x/y/w/h/fontSize foram desenhados.
+  // Permite reescalar fielmente ao reabrir num canvas com aspect ratio diferente.
+  const canvas = clone.canvas as { width?: number; height?: number } | undefined;
+  if (!clone.authoredCanvas && canvas?.width && canvas?.height) {
+    clone.authoredCanvas = { width: canvas.width, height: canvas.height };
+  } else if (!clone.authoredCanvas) {
+    clone.authoredCanvas = { width: 360, height: 450 };
+  }
   return clone as EditableDesignDoc;
 }
 
