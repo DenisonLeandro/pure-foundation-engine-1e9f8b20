@@ -470,11 +470,8 @@ function renderQuote(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const margin = 88;
   const maxW = W - margin * 2 - 60;
 
-  // Vinheta central
-  const rg = ctx.createRadialGradient(W / 2, H / 2, 200, W / 2, H / 2, W);
-  rg.addColorStop(0, "rgba(10,15,30,0.25)");
-  rg.addColorStop(1, "rgba(10,15,30,0.85)");
-  ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  // Tom uniforme (sem vinheta/gradiente) — contraste vem da sombra do texto.
+  ctx.fillStyle = "rgba(10,15,30,0.42)"; ctx.fillRect(0, 0, W, H);
 
   drawChrome(ctx, brandHandle, index, total, margin);
 

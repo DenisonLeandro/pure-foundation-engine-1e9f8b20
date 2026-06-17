@@ -119,19 +119,18 @@ function restyleOverlay(e: El, preset: StylePreset, accent: string): El {
   // baixa): mantém como está, não troca cor nem aplica preset.
   if (e.id.startsWith("rb-bg-halo-")) return e;
 
-  // Regra geral: NUNCA tarja chapada grande. Se o overlay for grande OU ocupar
-  // a largura inteira, convertemos em GRADIENTE vertical vindo da base/topo.
+  // Regra geral: NUNCA tarja chapada grande E NUNCA gradiente — fica feio e
+  // datado. Se o overlay for grande/largura inteira, vira um tom uniforme e
+  // sutil atrás do texto (sem degradê).
   if (isLargeOverlay(e) || isFullWidth(e)) {
     const fromBottom = e.y + e.h / 2 > CANVAS_H / 2;
     const stretched = stretchToBand(e, fromBottom ? "bottom" : "top");
-    const dir = fromBottom ? "0deg" : "180deg";
-    const tint = preset === "modern" ? withAlpha(accent, 0.25) : "rgba(8,10,20,0.78)";
+    const tint = preset === "modern" ? withAlpha(accent, 0.3) : "rgba(8,10,20,0.5)";
     return {
       ...stretched,
       radius: 0,
       opacity: 1,
-      // gradiente: transparente em cima → leve → escuro na base (e vice-versa)
-      bg: `linear-gradient(${dir}, rgba(8,10,20,0) 0%, rgba(8,10,20,0.18) 35%, rgba(8,10,20,0.55) 75%, ${tint} 100%)`,
+      bg: tint,
     };
   }
 
@@ -145,12 +144,7 @@ function restyleOverlay(e: El, preset: StylePreset, accent: string): El {
     case "translucent":
       return { ...e, radius: 24, opacity: 1, bg: "rgba(15,20,35,0.32)" };
     case "modern":
-      return {
-        ...e,
-        radius: 22,
-        opacity: 1,
-        bg: `linear-gradient(180deg, rgba(10,12,24,0.22) 0%, ${withAlpha(accent, 0.32)} 100%)`,
-      };
+      return { ...e, radius: 22, opacity: 1, bg: withAlpha(accent, 0.28) };
     case "institutional":
       // card sóbrio mas não pesado
       return { ...e, radius: 12, opacity: 1, bg: "rgba(8,12,24,0.42)" };
@@ -164,23 +158,33 @@ function restyleOverlay(e: El, preset: StylePreset, accent: string): El {
   }
 }
 
+/** Topo do bloco de texto do slide (menor `y` entre os elementos de texto). */
+function textBlockTop(slide: Slide): number | null {
+  const ys = slide.els.filter((e) => e.type === "text").map((e) => e.y);
+  return ys.length ? Math.min(...ys) : null;
+}
+
 function buildAccents(slide: Slide, preset: StylePreset, accent: string): El[] {
   // só adiciona acentos quando há textos no slide
-  const hasText = slide.els.some((e) => e.type === "text");
-  if (!hasText) return [];
+  const top = textBlockTop(slide);
+  if (top === null) return [];
+
+  // Ancora a barra IMEDIATAMENTE ACIMA do bloco de texto real do slide —
+  // nunca numa coordenada fixa, senão ela "flutua" sozinha quando o
+  // template põe o texto no topo/centro em vez do rodapé.
+  const gap = 10;
+  const barH = 2;
+  const y = Math.max(0, top - gap - barH);
 
   switch (preset) {
     case "sidebar":
     case "institutional":
       return [accentBar({ x: 0, y: 0, w: 6, h: CANVAS_H, color: accent })];
     case "editorial":
-    case "auto": {
-      // Marca de acento entre a legenda e o handle (zona livre nos templates).
-      // Linha fina e curta — "assinatura" discreta, sem cobrir texto.
-      return [accentBar({ x: 24, y: CANVAS_H - 26, w: 28, h: 2, color: accent })];
-    }
+    case "auto":
+      return [accentBar({ x: 24, y, w: 28, h: barH, color: accent })];
     case "modern":
-      return [accentBar({ x: 24, y: CANVAS_H - 26, w: 44, h: 2, color: accent })];
+      return [accentBar({ x: 24, y, w: 44, h: barH, color: accent })];
     default:
       return [];
   }

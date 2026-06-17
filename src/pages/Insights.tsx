@@ -28,27 +28,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { PLATFORMS } from "@/lib/platforms";
 import type { Platform } from "@/types";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 function markdownToHtml(md: string): string {
-  return md
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/__(.+?)__/g, "<strong>$1</strong>")
-    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>")
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    .replace(/^\d+\.\s+(.+)$/gm, "<li>$1</li>")
-    .replace(/^[-*]\s+(.+)$/gm, "<li>$1</li>")
-    .replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>$1</ul>")
-    .replace(/\n{2,}/g, "</p><p>")
-    .replace(/\n/g, "<br/>")
-    .replace(/^(.+)$/, "<p>$1</p>")
-    .replace(/<p><\/p>/g, "")
-    .replace(/<p>(<h[123]>)/g, "$1")
-    .replace(/(<\/h[123]>)<\/p>/g, "$1")
-    .replace(/<p>(<ul>)/g, "$1")
-    .replace(/(<\/ul>)<\/p>/g, "$1");
+  return DOMPurify.sanitize(marked.parse(md, { async: false }) as string);
 }
 
 interface AnalyticsSnapshot {
