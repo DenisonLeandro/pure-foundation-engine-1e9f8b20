@@ -162,6 +162,37 @@ function WorkspaceInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Logo da marca como camada do design ───────────────────────
+  // Em criações NOVAS, aplica automaticamente quando a marca tem logo.
+  // Em edições (creationId presente), só aplica via toggle (não toca em posts antigos).
+  const logoAutoAppliedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const logo = currentBrand?.logo_url || "";
+    if (editingCreationId) return;
+    if (!logo) return;
+    if (docHasBrandLogo(doc)) return;
+    const key = `${doc.brandId ?? "none"}|${logo}|${doc.slides.length}`;
+    if (logoAutoAppliedRef.current === key) return;
+    logoAutoAppliedRef.current = key;
+    replaceDoc(applyBrandLogo(doc, logo));
+  }, [currentBrand?.logo_url, doc, editingCreationId, replaceDoc]);
+
+  const logoVisible = docHasBrandLogo(doc);
+  const toggleBrandLogo = () => {
+    if (logoVisible) {
+      replaceDoc(removeBrandLogo(doc));
+      toast.success("Logo ocultada");
+      return;
+    }
+    const logo = currentBrand?.logo_url || "";
+    if (!logo) {
+      toast.message("Cadastre uma logo no perfil da marca para aplicá-la aos posts.");
+      return;
+    }
+    replaceDoc(applyBrandLogo(doc, logo));
+    toast.success("Logo aplicada em todos os slides");
+  };
+
   // Autosave com debounce (700ms) sempre que doc/slide/estilo mudarem.
   useEffect(() => {
     if (!draftUserId || discardedRef.current) return;
