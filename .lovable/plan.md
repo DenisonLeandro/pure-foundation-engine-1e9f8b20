@@ -1,35 +1,39 @@
-## O que mudar
+## Diagnóstico
 
-Dois problemas diferentes no mesmo arquivo/fluxo de templates editoriais.
+A galeria renderiza via `renderDocOffscreen` (1080×1350, baseado no StudioDoc). O que controla onde o texto cai:
+- `src/components/studio/workspace/editableEls.ts` (posições/alturas dos elementos)
+- `src/components/studio/workspace/designAesthetics.ts` (acentos decorativos)
 
-### 1) Legibilidade sem gradiente — sombra "escondida"
+Problemas visíveis nos slides anexados:
 
-Hoje o texto usa um `text-shadow` único e relativamente duro (`0 2px 10px rgba(0,0,0,.55)`), que parece um halo escuro atrás do texto. Vou trocar por uma **sombra em camadas, suave e quase invisível**, que escurece só o suficiente embaixo das letras sem gerar mancha:
+1. **Legenda cortada no rodapé** (slides 1, 3, 4, 6) — `body` tem `h: 24` (1 linha), mas o texto quebra em 2-3 linhas → só a primeira aparece.
+2. **Título "Tarefas impossíveis" estoura à direita** no template `kicker` — fonte 32/800 não cabe nos 312px.
+3. **Risquinho laranja em cima da legenda** — `buildAccents` posiciona em `y=CANVAS_H-28` (≈y=422 num canvas de 450), exatamente onde a legenda fica.
+4. **Título do `bottom` colado no meio da foto** (slide 1) — `y=240` cedo demais pra título de 2 linhas + legenda embaixo.
 
-- Nova sombra padrão (editor + raster):
-  `0 1px 1px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.28)`
-- Versão "strong" pro título: mesma fórmula com blurs um pouco maiores, sem aumentar opacidade total.
-- Remover os pequenos traços brancos decorativos (`top` e `kicker`) que ficam parecendo "régua" no meio da foto — substituir por uma única linha de 1px, 30% branco, opcional.
-- Garantir que **nenhum overlay/gradiente** seja injetado: confirmar que `ensureReadableTextLayers` continue pulando elementos com `shadow` (já pula), e que `refineDesignAesthetics` não estique nada quando não houver overlays de readability (já é o caso).
+## Mudanças
 
-### 2) Texto sobrepondo texto
+### `src/components/studio/workspace/editableEls.ts`
 
-Causado por posições fixas em `editableEls.ts`: quando o título quebra em mais linhas que o `h` reservado, ele invade a área da legenda/handle.
+Realocar os 4 templates pra dar altura à legenda e baixar o título:
 
-Vou recalcular o layout dos 4 templates dando mais altura ao bloco do título e empurrando legenda/handle pra fora:
+- **bottom**: título `y=276, h=120` (era 240/170); legenda `y=394, h=44` (3 linhas); handle/contador inalterados.
+- **top**: título `y=56, h=130`; legenda `y=200, h=72` (4 linhas).
+- **center-card**: título `y=146, h=140`; legenda `y=296, h=80`.
+- **kicker**: kicker label `y=208, h=12`; título `y=228, h=130` com `fontSize: 28` (era 32) e `lineHeight: 1.05` (evita estouro lateral em palavras longas); legenda `y=384, h=56` (3 linhas).
 
-- **bottom**: título `y=240, h=170` (era 268/130). Legenda `y=414, h=24`. Handle vai pra `y=H-14` com fontSize 8 e opacidade menor.
-- **top**: título `y=64, h=170`. Legenda `y=242, h=70` (era 208/50). Contador/handle ficam no rodapé sem colidir.
-- **center-card**: título `y=150, h=150`, legenda `y=308, h=70`.
-- **kicker**: kicker label `y=240`, título `y=262, h=150`, legenda `y=420, h=24`. Antes a legenda começava em 396 e o título reservava 110 a partir de 280 — qualquer quebra extra de linha já colidia.
+### `src/components/studio/workspace/designAesthetics.ts`
 
-Mesmas reduções de fonte e espaçamento espelhadas no `slide-compose.ts` (gallery rasterizada) pra editor e galeria continuarem visualmente idênticos. O renderizador raster já mede texto, então só preciso garantir margens consistentes e o mesmo `applyTextShadow` novo.
+Manter o risquinho laranja, só tirar ele de cima da legenda — subir pro canto inferior esquerdo, em uma zona livre. No `accentBar` dos presets `auto`/`editorial`/`modern`, mudar `y` de `CANVAS_H - 28` para `CANVAS_H - 14` (cola na borda inferior, abaixo da legenda — fica como uma "assinatura" visual sem competir com texto).
 
-### Arquivos tocados
+Alternativa equivalente caso a borda fique apertada: posicionar como traço vertical à esquerda (`x: 0, y: CANVAS_H - 80, w: 3, h: 60`) — uma "vírgula" da marca em vez de uma régua horizontal embaixo do texto.
 
-- `src/components/studio/workspace/editableEls.ts` — nova constante `SHADOW`, novas coordenadas dos 4 templates, remover linhas brancas duras.
-- `src/lib/slide-compose.ts` — `applyTextShadow`/`applyTextShadow(strong)` reescritos pra mesma fórmula em camadas, remover o `fillRect` da linha branca em `renderTop` e `renderKicker`, espaçamento `y` ajustado pra bater com o editor.
+Vou adotar a primeira opção (`y = CANVAS_H - 14`), mais discreta e fiel ao que já existe.
 
-### Fora de escopo
+### `src/lib/slide-compose.ts`
 
-Sem mexer em geração de imagem, IA de copy, banco, publicação ou no fluxo `designAesthetics`/`designReadability` (eles já estão neutros pra texto com shadow).
+Espelhar a redução de fonte do título no `renderKicker` (font inicial 96 → 88) pra evitar overflow no fallback rasterizado. Sem mudança de layout, só fit mais conservador.
+
+## Fora de escopo
+
+Sem mexer em IA, geração de imagem, backend, publicação, gradientes (já removidos) nem na sombra em camadas (já aplicada).
