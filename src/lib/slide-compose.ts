@@ -167,66 +167,79 @@ export async function composeSlideWithText(opts: ComposeOpts): Promise<string> {
 // Templates
 // ============================================================================
 
+/** Sombra forte mas suave aplicada em qualquer texto sobre foto sem overlay. */
+function applyTextShadow(ctx: CanvasRenderingContext2D, strong = false) {
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.65)" : "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = strong ? 22 : 14;
+  ctx.shadowOffsetY = 2;
+}
+function clearShadow(ctx: CanvasRenderingContext2D) {
+  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+}
+
+function drawCounter(
+  ctx: CanvasRenderingContext2D, index: number | undefined, total: number | undefined,
+  position: "top-right" | "bottom-right", margin: number,
+) {
+  if (typeof index !== "number" || typeof total !== "number" || total <= 1) return;
+  applyTextShadow(ctx);
+  ctx.textBaseline = position === "top-right" ? "top" : "alphabetic";
+  ctx.font = `600 26px ${FONT}`;
+  ctx.fillStyle = "rgba(255,255,255,0.94)";
+  ctx.textAlign = "right";
+  const y = position === "top-right" ? margin : H - margin;
+  ctx.fillText(`${index + 1} / ${total}`, W - margin, y);
+  clearShadow(ctx);
+}
+
+function drawHandle(ctx: CanvasRenderingContext2D, brandHandle: string | undefined, margin: number) {
+  if (!brandHandle) return;
+  applyTextShadow(ctx);
+  ctx.font = `500 22px ${FONT}`;
+  ctx.fillStyle = "rgba(255,255,255,0.78)";
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  ctx.fillText(brandHandle, margin, H - margin);
+  clearShadow(ctx);
+}
+
 function renderBottom(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const { heading, body, brandHandle, index, total } = opts;
   const margin = 88;
   const maxW = W - margin * 2;
 
-  // Gradiente editorial: limpo no topo, escurece suavemente na metade inferior
-  // para garantir leitura do texto sem competir com a foto.
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, "rgba(0,0,0,0)");
-  grad.addColorStop(0.45, "rgba(0,0,0,0.05)");
-  grad.addColorStop(0.75, "rgba(0,0,0,0.55)");
-  grad.addColorStop(1, "rgba(0,0,0,0.88)");
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  // SEM gradiente sobre a foto. Legibilidade vem só da sombra do texto.
+  drawCounter(ctx, index, total, "top-right", margin);
 
-  // Contador discreto no topo direito (sem handle no topo)
-  ctx.textBaseline = "top";
-  if (typeof index === "number" && typeof total === "number" && total > 1) {
-    ctx.font = `600 26px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.textAlign = "right";
-    ctx.fillText(`${index + 1} / ${total}`, W - margin, margin);
-  }
-
-  // Heading enorme, branco, alinhado embaixo à esquerda
-  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 132, 72);
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 124, 64);
   const lineHeight = Math.round(headingSize * 1.02);
   const bodyText = (body || "").trim();
-  const bodySize = Math.max(32, Math.round(headingSize * 0.32));
+  const bodySize = Math.max(30, Math.round(headingSize * 0.32));
   const bodyLineHeight = Math.round(bodySize * 1.4);
 
   ctx.font = `400 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
-  const gap = 36;
+  const gap = 32;
   const totalBlockH = lines.length * lineHeight + (bodyLines.length ? gap + bodyLines.length * bodyLineHeight : 0);
   let y = H - margin - totalBlockH;
-  if (brandHandle) y -= 48; // espaço pro handle no rodapé
+  if (brandHandle) y -= 48;
 
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = 18; ctx.shadowOffsetY = 2;
+  applyTextShadow(ctx, true);
   for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
 
   if (bodyLines.length) {
     y += gap;
     ctx.font = `400 ${bodySize}px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.88)"; ctx.shadowBlur = 10;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    applyTextShadow(ctx);
     for (const line of bodyLines) { ctx.fillText(line, margin, y); y += bodyLineHeight; }
   }
-
-  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-
-  // Handle discreto no rodapé esquerdo, abaixo do bloco de texto
-  if (brandHandle) {
-    ctx.font = `500 24px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    ctx.fillText(brandHandle, margin, H - margin + 6);
-  }
+  clearShadow(ctx);
+  drawHandle(ctx, brandHandle, margin);
 }
+
 
 function renderTop(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
