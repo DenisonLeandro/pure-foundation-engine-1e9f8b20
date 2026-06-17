@@ -167,11 +167,39 @@ export async function composeSlideWithText(opts: ComposeOpts): Promise<string> {
 // Templates
 // ============================================================================
 
-/** Sombra forte mas suave aplicada em qualquer texto sobre foto sem overlay. */
-function applyTextShadow(ctx: CanvasRenderingContext2D, strong = false) {
-  ctx.shadowColor = strong ? "rgba(0,0,0,0.65)" : "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = strong ? 22 : 14;
+/** Sombra em camadas: densa rente à letra + halo amplo diluído. Quase
+ *  invisível como mancha, mas dá leitura forte sobre qualquer foto.
+ *  Canvas 2D só aceita uma sombra por draw — então pintamos o texto duas
+ *  vezes: uma com halo amplo e outra com a sombra densa por cima. */
+function paintTextWithShadow(
+  ctx: CanvasRenderingContext2D,
+  draw: () => void,
+  strong = false,
+) {
+  ctx.save();
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.32)" : "rgba(0,0,0,0.28)";
+  ctx.shadowBlur = strong ? 32 : 24;
+  ctx.shadowOffsetY = strong ? 12 : 8;
+  draw();
+  ctx.restore();
+  ctx.save();
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.38)" : "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = strong ? 10 : 6;
   ctx.shadowOffsetY = 2;
+  draw();
+  ctx.restore();
+  ctx.save();
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 1;
+  ctx.shadowOffsetY = 1;
+  draw();
+  ctx.restore();
+}
+
+function applyTextShadow(ctx: CanvasRenderingContext2D, strong = false) {
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = strong ? 4 : 2;
+  ctx.shadowOffsetY = 1;
 }
 function clearShadow(ctx: CanvasRenderingContext2D) {
   ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
@@ -226,8 +254,13 @@ function renderBottom(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  applyTextShadow(ctx, true);
-  for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
+  let yTitle = y;
+  for (const line of lines) {
+    const lineY = yTitle;
+    paintTextWithShadow(ctx, () => ctx.fillText(line, margin, lineY), true);
+    yTitle += lineHeight;
+  }
+  y = yTitle;
 
   if (bodyLines.length) {
     y += gap;
@@ -246,19 +279,19 @@ function renderTop(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const margin = 88;
   const maxW = W - margin * 2;
 
-  // Sem overlay. Pequeno traço acima do título.
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.fillRect(margin, margin + 30, 80, 4);
-
+  // Sem overlay, sem régua branca. Só texto sobre a foto.
   const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 108, 56);
   const lineHeight = Math.round(headingSize * 1.04);
-  let y = margin + 60;
+  let y = margin + 40;
 
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  applyTextShadow(ctx, true);
-  for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
+  for (const line of lines) {
+    const lineY = y;
+    paintTextWithShadow(ctx, () => ctx.fillText(line, margin, lineY), true);
+    y += lineHeight;
+  }
 
   const bodyText = (body || "").trim();
   if (bodyText) {
@@ -298,8 +331,11 @@ function renderCenterCard(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   ctx.textAlign = "center"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  applyTextShadow(ctx, true);
-  for (const line of lines) { ctx.fillText(line, W / 2, y); y += lineHeight; }
+  for (const line of lines) {
+    const lineY = y;
+    paintTextWithShadow(ctx, () => ctx.fillText(line, W / 2, lineY), true);
+    y += lineHeight;
+  }
 
   if (bodyLines.length) {
     y += gap;
@@ -385,25 +421,26 @@ function renderKicker(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   ctx.font = `400 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
 
-  const kickerH = 56;
+  const kickerH = 36;
   const totalBlockH = kickerH + lines.length * lineHeight + (bodyLines.length ? 28 + bodyLines.length * Math.round(bodySize * 1.4) : 0);
   let y = Math.max(Math.round(H * 0.46), H - margin - totalBlockH - 40);
   if (brandHandle) y -= 32;
 
-  // Traço fino + rótulo caps
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.fillRect(margin, y + 6, 36, 3);
+  // Rótulo caps, sem régua branca atrás.
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `700 22px ${FONT}`;
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
-  applyTextShadow(ctx);
-  ctx.fillText(kickerText, margin + 48, y);
+  ctx.fillStyle = "rgba(255,255,255,0.88)";
+  const kickerY = y;
+  paintTextWithShadow(ctx, () => ctx.fillText(kickerText, margin, kickerY));
   y += kickerH;
 
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  applyTextShadow(ctx, true);
-  for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
+  for (const line of lines) {
+    const lineY = y;
+    paintTextWithShadow(ctx, () => ctx.fillText(line, margin, lineY), true);
+    y += lineHeight;
+  }
 
   if (bodyLines.length) {
     y += 28;
