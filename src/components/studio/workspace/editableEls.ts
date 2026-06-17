@@ -3,8 +3,8 @@
  * com posições aproximadas baseadas no template. Coordenadas usam o sistema
  * do preview do canvas (CANVAS_W=360 × CANVAS_H=450).
  *
- * Não busca pixel-perfect com o composeSlideWithText (que renderiza em 1024×1536):
- * o objetivo é que o usuário consiga selecionar, editar, mover e re-exportar.
+ * Padrão editorial leve: sem gradiente cobrindo a foto, só text-shadow sutil
+ * pra leitura. Templates: bottom, top, center-card, kicker.
  */
 
 import type { El } from "./types";
@@ -24,74 +24,173 @@ export interface BuildElsOpts {
 const W = 360;
 const H = 450;
 const MARGIN = 24;
+const SHADOW = "0 2px 10px rgba(0,0,0,0.55), 0 1px 2px rgba(0,0,0,0.5)";
+
+function counterEl(index: number | undefined, total: number | undefined, position: "top-right" | "bottom-right"): El | null {
+  if (typeof index !== "number" || typeof total !== "number" || total <= 1) return null;
+  return {
+    id: uid(), type: "text",
+    x: W - MARGIN - 60,
+    y: position === "top-right" ? 18 : H - 24,
+    w: 60, h: 16,
+    text: `${index + 1} / ${total}`,
+    fontSize: 10, color: "rgba(255,255,255,0.92)",
+    weight: 600, align: "right",
+    shadow: SHADOW,
+    zIndex: 5,
+  };
+}
+
+function handleEl(brandHandle: string | undefined, position: "bottom-left" | "top-left"): El | null {
+  if (!brandHandle) return null;
+  return {
+    id: uid(), type: "text",
+    x: MARGIN,
+    y: position === "bottom-left" ? H - 22 : 18,
+    w: 200, h: 16,
+    text: brandHandle,
+    fontSize: 9, color: "rgba(255,255,255,0.72)",
+    weight: 500, align: "left",
+    shadow: SHADOW,
+    zIndex: 5,
+  };
+}
 
 export function buildEditableEls(opts: BuildElsOpts): El[] {
-  const { heading, body, brandHandle, index, total } = opts;
+  const { heading, body, brandHandle, index, total, template } = opts;
   const els: El[] = [];
-
-  // Gradiente inferior pra leitura — não-editável visualmente, mas existe como shape.
-  els.push({
-    id: uid(), type: "shape",
-    x: 0, y: Math.round(H * 0.42), w: W, h: H - Math.round(H * 0.42),
-    bg: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.88) 100%)",
-    opacity: 1,
-    zIndex: 1,
-  });
-
-  // Contador discreto no topo direito
-  if (typeof index === "number" && typeof total === "number" && total > 1) {
-    els.push({
-      id: uid(), type: "text",
-      x: W - MARGIN - 60, y: 18, w: 60, h: 18,
-      text: `${index + 1} / ${total}`,
-      fontSize: 10, color: "rgba(255,255,255,0.92)",
-      weight: 600, align: "right",
-      zIndex: 5,
-    });
-  }
-
   const head = (heading || "").trim();
   const bodyText = (body || "").trim();
 
-  // Heading grande, branco, embaixo à esquerda
-  els.push({
-    id: uid(), type: "text",
-    x: MARGIN, y: 268, w: W - MARGIN * 2, h: 130,
-    text: head,
-    fontSize: 38, weight: 800,
-    align: "left",
-    color: "#ffffff",
-    lineHeight: 1.02,
-    letterSpacing: -0.4,
-    shadow: "0 2px 14px rgba(0,0,0,0.45)",
-    zIndex: 3,
-  });
+  switch (template) {
+    case "top": {
+      // Pequeno traço acima do título
+      els.push({
+        id: uid(), type: "shape",
+        x: MARGIN, y: 56, w: 28, h: 2,
+        bg: "rgba(255,255,255,0.7)", opacity: 1, zIndex: 2,
+      });
+      els.push({
+        id: uid(), type: "text",
+        x: MARGIN, y: 70, w: W - MARGIN * 2, h: 130,
+        text: head,
+        fontSize: 36, weight: 800, align: "left", color: "#ffffff",
+        lineHeight: 1.02, letterSpacing: -0.4, shadow: SHADOW, zIndex: 3,
+      });
+      if (bodyText) {
+        els.push({
+          id: uid(), type: "text",
+          x: MARGIN, y: 208, w: W - MARGIN * 2, h: 50,
+          text: bodyText,
+          fontSize: 12, weight: 400, align: "left",
+          color: "rgba(255,255,255,0.92)",
+          lineHeight: 1.35, shadow: SHADOW, zIndex: 3,
+        });
+      }
+      const c = counterEl(index, total, "bottom-right"); if (c) els.push(c);
+      const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
+      break;
+    }
 
-  if (bodyText) {
-    els.push({
-      id: uid(), type: "text",
-      x: MARGIN, y: 398, w: W - MARGIN * 2, h: 40,
-      text: bodyText,
-      fontSize: 12, weight: 400,
-      align: "left",
-      color: "rgba(255,255,255,0.88)",
-      lineHeight: 1.35,
-      zIndex: 3,
-    });
-  }
+    case "center-card": {
+      // Cartão escuro translúcido localizado no centro
+      els.push({
+        id: uid(), type: "shape",
+        x: MARGIN, y: 150, w: W - MARGIN * 2, h: 170,
+        bg: "rgba(15,20,35,0.55)", opacity: 1,
+        radius: 14, zIndex: 2,
+      });
+      els.push({
+        id: uid(), type: "shape",
+        x: MARGIN + 18, y: 168, w: 22, h: 2,
+        bg: "rgba(255,255,255,0.7)", opacity: 1, zIndex: 3,
+      });
+      els.push({
+        id: uid(), type: "text",
+        x: MARGIN + 18, y: 180, w: W - (MARGIN + 18) * 2, h: 100,
+        text: head,
+        fontSize: 26, weight: 800, align: "left", color: "#ffffff",
+        lineHeight: 1.05, letterSpacing: -0.3, zIndex: 4,
+      });
+      if (bodyText) {
+        els.push({
+          id: uid(), type: "text",
+          x: MARGIN + 18, y: 268, w: W - (MARGIN + 18) * 2, h: 44,
+          text: bodyText,
+          fontSize: 11, weight: 400, align: "left",
+          color: "rgba(255,255,255,0.9)",
+          lineHeight: 1.35, zIndex: 4,
+        });
+      }
+      const c = counterEl(index, total, "top-right"); if (c) els.push(c);
+      const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
+      break;
+    }
 
-  // Handle discreto no rodapé esquerdo
-  if (brandHandle) {
-    els.push({
-      id: uid(), type: "text",
-      x: MARGIN, y: H - 22, w: 200, h: 16,
-      text: brandHandle,
-      fontSize: 9, color: "rgba(255,255,255,0.7)",
-      weight: 500, align: "left",
-      zIndex: 5,
-    });
+    case "kicker": {
+      const kickerText = typeof index === "number" && typeof total === "number" && total > 1
+        ? `PARTE ${String(index + 1).padStart(2, "0")}`
+        : "DESTAQUE";
+      els.push({
+        id: uid(), type: "shape",
+        x: MARGIN, y: 248, w: 22, h: 2,
+        bg: "rgba(255,255,255,0.7)", opacity: 1, zIndex: 2,
+      });
+      els.push({
+        id: uid(), type: "text",
+        x: MARGIN, y: 258, w: W - MARGIN * 2, h: 14,
+        text: kickerText,
+        fontSize: 9, weight: 700, align: "left",
+        color: "rgba(255,255,255,0.92)",
+        letterSpacing: 1.4, shadow: SHADOW, zIndex: 3,
+      });
+      els.push({
+        id: uid(), type: "text",
+        x: MARGIN, y: 280, w: W - MARGIN * 2, h: 110,
+        text: head,
+        fontSize: 34, weight: 800, align: "left", color: "#ffffff",
+        lineHeight: 1.04, letterSpacing: -0.4, shadow: SHADOW, zIndex: 3,
+      });
+      if (bodyText) {
+        els.push({
+          id: uid(), type: "text",
+          x: MARGIN, y: 396, w: W - MARGIN * 2, h: 40,
+          text: bodyText,
+          fontSize: 11, weight: 400, align: "left",
+          color: "rgba(255,255,255,0.9)",
+          lineHeight: 1.35, shadow: SHADOW, zIndex: 3,
+        });
+      }
+      const c = counterEl(index, total, "top-right"); if (c) els.push(c);
+      const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
+      break;
+    }
+
+    case "bottom":
+    default: {
+      // SEM gradiente. Só text-shadow forte pra leitura.
+      els.push({
+        id: uid(), type: "text",
+        x: MARGIN, y: 268, w: W - MARGIN * 2, h: 130,
+        text: head,
+        fontSize: 38, weight: 800, align: "left", color: "#ffffff",
+        lineHeight: 1.02, letterSpacing: -0.4, shadow: SHADOW, zIndex: 3,
+      });
+      if (bodyText) {
+        els.push({
+          id: uid(), type: "text",
+          x: MARGIN, y: 398, w: W - MARGIN * 2, h: 40,
+          text: bodyText,
+          fontSize: 12, weight: 400, align: "left",
+          color: "rgba(255,255,255,0.92)",
+          lineHeight: 1.35, shadow: SHADOW, zIndex: 3,
+        });
+      }
+      const c = counterEl(index, total, "top-right"); if (c) els.push(c);
+      const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
+      break;
+    }
   }
 
   return els;
 }
-

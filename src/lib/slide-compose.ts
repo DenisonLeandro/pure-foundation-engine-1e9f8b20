@@ -167,182 +167,160 @@ export async function composeSlideWithText(opts: ComposeOpts): Promise<string> {
 // Templates
 // ============================================================================
 
+/** Sombra forte mas suave aplicada em qualquer texto sobre foto sem overlay. */
+function applyTextShadow(ctx: CanvasRenderingContext2D, strong = false) {
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.65)" : "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = strong ? 22 : 14;
+  ctx.shadowOffsetY = 2;
+}
+function clearShadow(ctx: CanvasRenderingContext2D) {
+  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+}
+
+function drawCounter(
+  ctx: CanvasRenderingContext2D, index: number | undefined, total: number | undefined,
+  position: "top-right" | "bottom-right", margin: number,
+) {
+  if (typeof index !== "number" || typeof total !== "number" || total <= 1) return;
+  applyTextShadow(ctx);
+  ctx.textBaseline = position === "top-right" ? "top" : "alphabetic";
+  ctx.font = `600 26px ${FONT}`;
+  ctx.fillStyle = "rgba(255,255,255,0.94)";
+  ctx.textAlign = "right";
+  const y = position === "top-right" ? margin : H - margin;
+  ctx.fillText(`${index + 1} / ${total}`, W - margin, y);
+  clearShadow(ctx);
+}
+
+function drawHandle(ctx: CanvasRenderingContext2D, brandHandle: string | undefined, margin: number) {
+  if (!brandHandle) return;
+  applyTextShadow(ctx);
+  ctx.font = `500 22px ${FONT}`;
+  ctx.fillStyle = "rgba(255,255,255,0.78)";
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  ctx.fillText(brandHandle, margin, H - margin);
+  clearShadow(ctx);
+}
+
 function renderBottom(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const { heading, body, brandHandle, index, total } = opts;
   const margin = 88;
   const maxW = W - margin * 2;
 
-  // Gradiente editorial: limpo no topo, escurece suavemente na metade inferior
-  // para garantir leitura do texto sem competir com a foto.
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, "rgba(0,0,0,0)");
-  grad.addColorStop(0.45, "rgba(0,0,0,0.05)");
-  grad.addColorStop(0.75, "rgba(0,0,0,0.55)");
-  grad.addColorStop(1, "rgba(0,0,0,0.88)");
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  // SEM gradiente sobre a foto. Legibilidade vem só da sombra do texto.
+  drawCounter(ctx, index, total, "top-right", margin);
 
-  // Contador discreto no topo direito (sem handle no topo)
-  ctx.textBaseline = "top";
-  if (typeof index === "number" && typeof total === "number" && total > 1) {
-    ctx.font = `600 26px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.textAlign = "right";
-    ctx.fillText(`${index + 1} / ${total}`, W - margin, margin);
-  }
-
-  // Heading enorme, branco, alinhado embaixo à esquerda
-  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 132, 72);
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 124, 64);
   const lineHeight = Math.round(headingSize * 1.02);
   const bodyText = (body || "").trim();
-  const bodySize = Math.max(32, Math.round(headingSize * 0.32));
+  const bodySize = Math.max(30, Math.round(headingSize * 0.32));
   const bodyLineHeight = Math.round(bodySize * 1.4);
 
   ctx.font = `400 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
-  const gap = 36;
+  const gap = 32;
   const totalBlockH = lines.length * lineHeight + (bodyLines.length ? gap + bodyLines.length * bodyLineHeight : 0);
   let y = H - margin - totalBlockH;
-  if (brandHandle) y -= 48; // espaço pro handle no rodapé
+  if (brandHandle) y -= 48;
 
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = 18; ctx.shadowOffsetY = 2;
+  applyTextShadow(ctx, true);
   for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
 
   if (bodyLines.length) {
     y += gap;
     ctx.font = `400 ${bodySize}px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.88)"; ctx.shadowBlur = 10;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    applyTextShadow(ctx);
     for (const line of bodyLines) { ctx.fillText(line, margin, y); y += bodyLineHeight; }
   }
-
-  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-
-  // Handle discreto no rodapé esquerdo, abaixo do bloco de texto
-  if (brandHandle) {
-    ctx.font = `500 24px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    ctx.fillText(brandHandle, margin, H - margin + 6);
-  }
+  clearShadow(ctx);
+  drawHandle(ctx, brandHandle, margin);
 }
 
+
 function renderTop(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
-  const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const { heading, body, brandHandle, index, total } = opts;
   const margin = 88;
   const maxW = W - margin * 2;
 
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, "rgba(10,15,30,0.88)");
-  grad.addColorStop(0.5, "rgba(10,15,30,0.25)");
-  grad.addColorStop(1, "rgba(10,15,30,0.15)");
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  // Sem overlay. Pequeno traço acima do título.
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.fillRect(margin, margin + 30, 80, 4);
 
-  // Chrome no rodapé (oposto do padrão)
-  ctx.textBaseline = "alphabetic";
-  if (typeof index === "number" && typeof total === "number" && total > 1) {
-    ctx.font = `600 26px ${FONT}`; ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.textAlign = "right"; ctx.fillText(`${index + 1} / ${total}`, W - margin, H - margin);
-  }
-  if (brandHandle) {
-    ctx.font = `500 24px ${FONT}`; ctx.fillStyle = "rgba(255,255,255,0.7)";
-    ctx.textAlign = "left"; ctx.fillText(brandHandle, margin, H - margin);
-  }
-
-  // Barra horizontal de marca no topo
-  ctx.fillStyle = brandColor; ctx.fillRect(margin, margin + 60, 120, 4);
-
-  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 84, 44);
-  const lineHeight = Math.round(headingSize * 1.08);
-  let y = margin + 100;
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 108, 56);
+  const lineHeight = Math.round(headingSize * 1.04);
+  let y = margin + 60;
 
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
-  ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 14;
-
-  const first = heading.trim().split(/\s+/)[0] || "";
-  for (const line of lines) {
-    let x = margin;
-    const words = line.split(" ");
-    for (let i = 0; i < words.length; i++) {
-      const w = words[i];
-      ctx.fillStyle = w === first ? brandColor : "#ffffff";
-      ctx.fillText(w, x, y);
-      x += ctx.measureText(w + (i < words.length - 1 ? " " : "")).width;
-    }
-    y += lineHeight;
-  }
+  ctx.fillStyle = "#ffffff";
+  applyTextShadow(ctx, true);
+  for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
 
   const bodyText = (body || "").trim();
   if (bodyText) {
-    const bodySize = Math.max(28, Math.round(headingSize * 0.38));
-    ctx.font = `500 ${bodySize}px ${FONT}`;
+    const bodySize = Math.max(28, Math.round(headingSize * 0.34));
+    ctx.font = `400 ${bodySize}px ${FONT}`;
     const bodyLines = wrapLines(ctx, bodyText, maxW);
-    ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.shadowBlur = 8;
-    y += 24;
-    for (const line of bodyLines) { ctx.fillText(line, margin, y); y += Math.round(bodySize * 1.35); }
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    applyTextShadow(ctx);
+    y += 28;
+    for (const line of bodyLines) { ctx.fillText(line, margin, y); y += Math.round(bodySize * 1.4); }
   }
-  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+  clearShadow(ctx);
+
+  drawCounter(ctx, index, total, "bottom-right", margin);
+  drawHandle(ctx, brandHandle, margin);
 }
 
 function renderCenterCard(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
-  const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const { heading, body, brandHandle, index, total } = opts;
   const margin = 88;
 
-  // Overlay neutro suave
-  ctx.fillStyle = "rgba(10,15,30,0.35)"; ctx.fillRect(0, 0, W, H);
+  // Sem overlay global. Só o cartão translúcido localizado.
+  drawCounter(ctx, index, total, "top-right", margin);
 
-  drawChrome(ctx, brandHandle, index, total, margin);
-
-  const cardPad = 56;
+  const cardPad = 52;
   const cardW = W - margin * 2;
   const maxW = cardW - cardPad * 2;
 
-  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 76, 44);
-  const lineHeight = Math.round(headingSize * 1.1);
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 72, 40);
+  const lineHeight = Math.round(headingSize * 1.06);
   const bodyText = (body || "").trim();
   const bodySize = Math.max(26, Math.round(headingSize * 0.4));
-  ctx.font = `500 ${bodySize}px ${FONT}`;
+  ctx.font = `400 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
 
-  const cardH = cardPad * 2 + lines.length * lineHeight + (bodyLines.length ? 28 + bodyLines.length * Math.round(bodySize * 1.35) : 0);
+  const tickH = 24;
+  const cardH = cardPad * 2 + tickH + lines.length * lineHeight + (bodyLines.length ? 24 + bodyLines.length * Math.round(bodySize * 1.4) : 0);
   const cardX = margin;
   const cardY = Math.round((H - cardH) / 2);
 
-  // Card translúcido
-  ctx.fillStyle = "rgba(10,15,30,0.72)";
-  roundRect(ctx, cardX, cardY, cardW, cardH, 24); ctx.fill();
-  // Borda de marca fina
-  ctx.strokeStyle = rgba(brandColor, 0.55); ctx.lineWidth = 2;
-  roundRect(ctx, cardX, cardY, cardW, cardH, 24); ctx.stroke();
+  // Card translúcido elegante, sem borda colorida
+  ctx.fillStyle = "rgba(15,20,35,0.58)";
+  roundRect(ctx, cardX, cardY, cardW, cardH, 28); ctx.fill();
 
-  // Linha de marca no canto superior do card
-  ctx.fillStyle = brandColor; ctx.fillRect(cardX + cardPad, cardY + cardPad - 18, 64, 4);
+  // Traço fino branco no topo do card
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.fillRect(cardX + cardPad, cardY + cardPad, 48, 3);
 
-  let y = cardY + cardPad;
+  let y = cardY + cardPad + tickH;
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
-
-  const first = heading.trim().split(/\s+/)[0] || "";
-  for (const line of lines) {
-    let x = cardX + cardPad;
-    const words = line.split(" ");
-    for (let i = 0; i < words.length; i++) {
-      const w = words[i];
-      ctx.fillStyle = w === first ? brandColor : "#ffffff";
-      ctx.fillText(w, x, y);
-      x += ctx.measureText(w + (i < words.length - 1 ? " " : "")).width;
-    }
-    y += lineHeight;
-  }
+  ctx.fillStyle = "#ffffff";
+  for (const line of lines) { ctx.fillText(line, cardX + cardPad, y); y += lineHeight; }
 
   if (bodyLines.length) {
-    y += 28;
-    ctx.font = `500 ${bodySize}px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.88)";
-    for (const line of bodyLines) { ctx.fillText(line, cardX + cardPad, y); y += Math.round(bodySize * 1.35); }
+    y += 24;
+    ctx.font = `400 ${bodySize}px ${FONT}`;
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    for (const line of bodyLines) { ctx.fillText(line, cardX + cardPad, y); y += Math.round(bodySize * 1.4); }
   }
+
+  drawHandle(ctx, brandHandle, margin);
 }
 
 function renderSideBar(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
@@ -398,57 +376,56 @@ function renderSideBar(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
 }
 
 function renderKicker(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
-  const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const { heading, body, brandHandle, index, total } = opts;
   const margin = 88;
   const maxW = W - margin * 2;
 
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, "rgba(10,15,30,0.30)");
-  grad.addColorStop(0.5, "rgba(10,15,30,0.20)");
-  grad.addColorStop(1, "rgba(10,15,30,0.90)");
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  // Sem gradiente sobre a foto.
+  drawCounter(ctx, index, total, "top-right", margin);
 
-  drawChrome(ctx, brandHandle, index, total, margin);
-
-  // Kicker (etiqueta caps com bolinha)
   const kickerText = typeof index === "number" && typeof total === "number" && total > 1
-    ? `CAPÍTULO ${String(index + 1).padStart(2, "0")}`
+    ? `PARTE ${String(index + 1).padStart(2, "0")}`
     : "DESTAQUE";
 
-  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 88, 46);
-  const lineHeight = Math.round(headingSize * 1.08);
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 104, 52);
+  const lineHeight = Math.round(headingSize * 1.04);
   const bodyText = (body || "").trim();
-  const bodySize = Math.max(28, Math.round(headingSize * 0.38));
-  ctx.font = `500 ${bodySize}px ${FONT}`;
+  const bodySize = Math.max(28, Math.round(headingSize * 0.34));
+  ctx.font = `400 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
 
-  const kickerH = 60;
-  const totalBlockH = kickerH + lines.length * lineHeight + (bodyLines.length ? 32 + bodyLines.length * Math.round(bodySize * 1.35) : 0);
-  let y = Math.max(H * 0.42, H - margin - totalBlockH - 40);
+  const kickerH = 56;
+  const totalBlockH = kickerH + lines.length * lineHeight + (bodyLines.length ? 28 + bodyLines.length * Math.round(bodySize * 1.4) : 0);
+  let y = Math.max(Math.round(H * 0.46), H - margin - totalBlockH - 40);
+  if (brandHandle) y -= 32;
 
-  // Kicker
-  ctx.textAlign = "left"; ctx.textBaseline = "middle";
-  ctx.fillStyle = brandColor;
-  ctx.beginPath(); ctx.arc(margin + 8, y + 18, 8, 0, Math.PI * 2); ctx.fill();
+  // Traço fino + rótulo caps
+  ctx.fillStyle = "rgba(255,255,255,0.7)";
+  ctx.fillRect(margin, y + 6, 36, 3);
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `700 22px ${FONT}`;
   ctx.fillStyle = "rgba(255,255,255,0.92)";
-  ctx.fillText(kickerText, margin + 32, y + 18);
+  applyTextShadow(ctx);
+  ctx.fillText(kickerText, margin + 48, y);
   y += kickerH;
 
-  ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
-  ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 14;
   ctx.fillStyle = "#ffffff";
+  applyTextShadow(ctx, true);
   for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
 
   if (bodyLines.length) {
-    y += 32;
-    ctx.font = `500 ${bodySize}px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.shadowBlur = 8;
-    for (const line of bodyLines) { ctx.fillText(line, margin, y); y += Math.round(bodySize * 1.35); }
+    y += 28;
+    ctx.font = `400 ${bodySize}px ${FONT}`;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    applyTextShadow(ctx);
+    for (const line of bodyLines) { ctx.fillText(line, margin, y); y += Math.round(bodySize * 1.4); }
   }
-  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0;
+  clearShadow(ctx);
+
+  drawHandle(ctx, brandHandle, margin);
 }
+
 
 function renderQuote(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const { heading, brandColor = "#f59e0b", brandHandle, index, total } = opts;
