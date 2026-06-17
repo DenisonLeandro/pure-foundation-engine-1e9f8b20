@@ -28,6 +28,7 @@ import type { StudioDoc, StudioFormat } from "./types";
 import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
+import { applyBrandLogo, removeBrandLogo, docHasBrandLogo } from "./brandLogo";
 import { saveStudioDraft, clearStudioDrafts, type StudioDraftInput } from "./studioDraft";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
