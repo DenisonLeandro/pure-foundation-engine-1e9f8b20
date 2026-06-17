@@ -69,6 +69,7 @@ export function DesignCanvas() {
   const startDrag = (ev: React.MouseEvent, e: El) => {
     ev.stopPropagation();
     select(e.id);
+    if (e.locked) return; // camadas travadas (ex.: logo de marca) não arrastam
     pushHistory();
     drag.current = { id: e.id, sx: ev.clientX, sy: ev.clientY, ex: e.x, ey: e.y };
   };
