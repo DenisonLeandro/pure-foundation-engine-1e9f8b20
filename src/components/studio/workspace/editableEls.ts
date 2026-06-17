@@ -27,9 +27,30 @@ const MARGIN = 24;
 // Sombra em camadas: densa rente à letra, depois um halo amplo e diluído.
 // Quase invisível como "tarja", mas garante leitura sobre qualquer foto.
 const SHADOW =
-  "0 1px 1px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.28)";
+  "0 1px 0 rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.7), 0 2px 6px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.35)";
 const SHADOW_STRONG =
-  "0 1px 1px rgba(0,0,0,0.6), 0 3px 10px rgba(0,0,0,0.38), 0 12px 32px rgba(0,0,0,0.32)";
+  "0 1px 0 rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.55), 0 10px 28px rgba(0,0,0,0.4)";
+
+// Halo radial MUITO discreto atrás do título — 18% de opacidade, pílula
+// totalmente arredondada. Quase invisível sobre fotos médias/escuras, dá só
+// um respiro extra onde a foto é clara demais.
+const HALO_PREFIX = "rb-bg-halo-";
+function titleHalo(x: number, y: number, w: number, h: number): El {
+  const padX = 24, padY = 16;
+  return {
+    id: HALO_PREFIX + uid(),
+    type: "shape",
+    x: Math.max(0, x - padX),
+    y: Math.max(0, y - padY),
+    w: w + padX * 2,
+    h: h + padY * 2,
+    bg: "rgba(0,0,0,0.18)",
+    opacity: 1,
+    radius: 999,
+    zIndex: 1,
+  };
+}
+
 
 function counterEl(index: number | undefined, total: number | undefined, position: "top-right" | "bottom-right"): El | null {
   if (typeof index !== "number" || typeof total !== "number" || total <= 1) return null;
