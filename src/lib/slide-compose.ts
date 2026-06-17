@@ -254,8 +254,13 @@ function renderBottom(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  applyTextShadow(ctx, true);
-  for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
+  let yTitle = y;
+  for (const line of lines) {
+    const lineY = yTitle;
+    paintTextWithShadow(ctx, () => ctx.fillText(line, margin, lineY), true);
+    yTitle += lineHeight;
+  }
+  y = yTitle;
 
   if (bodyLines.length) {
     y += gap;
@@ -274,19 +279,19 @@ function renderTop(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const margin = 88;
   const maxW = W - margin * 2;
 
-  // Sem overlay. Pequeno traço acima do título.
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.fillRect(margin, margin + 30, 80, 4);
-
+  // Sem overlay, sem régua branca. Só texto sobre a foto.
   const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 108, 56);
   const lineHeight = Math.round(headingSize * 1.04);
-  let y = margin + 60;
+  let y = margin + 40;
 
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  applyTextShadow(ctx, true);
-  for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
+  for (const line of lines) {
+    const lineY = y;
+    paintTextWithShadow(ctx, () => ctx.fillText(line, margin, lineY), true);
+    y += lineHeight;
+  }
 
   const bodyText = (body || "").trim();
   if (bodyText) {
@@ -326,8 +331,11 @@ function renderCenterCard(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   ctx.textAlign = "center"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  applyTextShadow(ctx, true);
-  for (const line of lines) { ctx.fillText(line, W / 2, y); y += lineHeight; }
+  for (const line of lines) {
+    const lineY = y;
+    paintTextWithShadow(ctx, () => ctx.fillText(line, W / 2, lineY), true);
+    y += lineHeight;
+  }
 
   if (bodyLines.length) {
     y += gap;
