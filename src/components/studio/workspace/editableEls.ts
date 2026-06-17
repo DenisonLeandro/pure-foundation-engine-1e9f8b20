@@ -148,6 +148,7 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
         color: "rgba(255,255,255,0.88)",
         letterSpacing: 1.6, shadow: SHADOW, zIndex: 3,
       });
+      els.push(titleHalo(MARGIN, 228, W - MARGIN * 2, 130));
       els.push({
         id: uid(), type: "text",
         x: MARGIN, y: 228, w: W - MARGIN * 2, h: 130,
