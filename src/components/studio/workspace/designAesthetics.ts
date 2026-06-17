@@ -21,6 +21,7 @@ import { parseHex, getRelativeLuminance } from "./designReadability";
 
 const READABILITY_PREFIX = "rb-bg-";
 const AESTHETIC_PREFIX = "rb-aes-";
+const META_PREFIX = "rb-meta-";
 
 export type StylePreset =
   | "auto"
@@ -160,7 +161,12 @@ function restyleOverlay(e: El, preset: StylePreset, accent: string): El {
 
 /** Topo do bloco de texto do slide (menor `y` entre os elementos de texto). */
 function textBlockTop(slide: Slide): number | null {
-  const ys = slide.els.filter((e) => e.type === "text").map((e) => e.y);
+  // ignora contador ("3/7") e handle da marca — são metadados no topo/rodapé,
+  // não o título; se entrassem no cálculo, a barra de acento "subiria" pro
+  // canto superior e colidiria com o selo da logo.
+  const ys = slide.els
+    .filter((e) => e.type === "text" && !e.id.startsWith(META_PREFIX))
+    .map((e) => e.y);
   return ys.length ? Math.min(...ys) : null;
 }
 
