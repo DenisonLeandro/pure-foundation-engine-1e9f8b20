@@ -1,80 +1,50 @@
-## Problema
+O motivo de eu não conseguir fazer “exatamente igual e editável” com o ajuste anterior é este:
 
-Ao clicar em **Editar** na Galeria, o Studio reabre o `design_doc` salvo, mas o resultado fica diferente da imagem na Galeria: texto maior, quebrando em mais linhas, e fora de posição.
+Hoje existem duas artes diferentes:
 
-**Causa raiz (confirmada lendo `src/pages/Studio.tsx` + `src/components/studio/workspace/types.ts`):**
+1. A imagem da Galeria é uma imagem final já rasterizada, criada por `composeSlideWithText` em canvas 1024×1536.
+2. O editor reabre um `design_doc` com camadas recriadas por `buildEditableEls`, que o próprio código diz serem posições aproximadas, não pixel-perfect.
 
-1. O `design_doc` foi autorado num canvas (ex.: 360×450 — padrão `CANVAS_W/CANVAS_H`) e a imagem final foi exportada desse mesmo canvas via `html2canvas` no `DesignCanvas.tsx`.
-2. Hoje, ao abrir para editar, `prepareDesignDocForEdit` mantém `doc.canvas` se ele existir, ou cria um novo canvas a partir das dimensões da imagem final (`canvasFromImageMeta`) — **sem reposicionar/reescalar os elementos**.
-3. Quando o canvas atual ≠ canvas em que o design foi autorado, todos os `x/y/w/h/fontSize` dos elementos passam a estar "errados" em relação ao novo canvas → texto desalinhado, quebra de linha diferente, tamanho aparente diferente.
-4. Além disso, hoje a imagem final salva **não é usada como fundo** quando há `design_doc`, então o fundo também pode divergir (foto recortada de forma diferente do export).
+Então o Studio não está abrindo a mesma criação; ele está abrindo uma aproximação editável da imagem final. Quando tentei colocar a imagem final como fundo + camadas por cima, ficou visualmente igual por baixo, mas duplicou texto porque o texto já estava queimado na imagem final.
 
-## Objetivo
+A solução correta é parar de ter dois renderizadores.
 
-Quando o usuário clica **Editar** na Galeria, o Studio abre:
-- com a **imagem final da Galeria como fundo do canvas**, no mesmo aspect ratio do export, e
-- com **todas as camadas do `design_doc` por cima, alinhadas exatamente** sobre o texto/elementos "queimados" da imagem,
-- **tudo continua editável** (texto, posição, cor, fonte, imagem, forma, fundo).
+Plano de correção robusta:
 
-Sem chamar IA, sem regerar imagem, sem gastar créditos, sem duplicar post.
+1. Criar um renderizador único de slide do Studio.
+   - Extrair o desenho atual do `DesignCanvas` para um componente compartilhado, por exemplo `StudioSlideRenderer`.
+   - Esse renderer será usado tanto no editor quanto na exportação/salvamento.
+   - Fundo, imagem, overlay, texto, fonte, cor, tamanho, quebra de linha, shapes e imagens passam a sair de uma única fonte.
 
-## Mudanças
+2. Parar de salvar na Galeria a imagem composta por `composeSlideWithText` quando existir `design_doc`.
+   - O fluxo automático pode continuar usando IA para criar fundo e conteúdo inicial.
+   - Mas a imagem final salva na Galeria deve ser exportada a partir do próprio `design_doc` editável.
+   - Assim, a Galeria mostra exatamente o que o editor renderiza.
 
-### 1. `src/components/studio/workspace/types.ts`
-Acrescentar um campo opcional `authoredCanvas?: { width: number; height: number }` em `StudioDoc` para guardar o canvas em que o `design_doc` foi originalmente desenhado. Não muda nada existente.
+3. Ajustar o AutoStudio.
+   - Hoje ele cria `composedUrls` separados e salva esses URLs na Galeria.
+   - Vou mudar para salvar/exportar a arte gerada pelo mesmo renderizador do Studio.
+   - `composedUrls` deixam de ser a fonte visual principal quando houver camadas editáveis.
 
-### 2. `src/components/studio/workspace/StudioProvider.tsx` (e pontos de save)
-No momento de **salvar** (`saveCreation` / `updateCreation`, em `OutputScreen.tsx`, `PublishDrawer.tsx`, `StudioWorkspace.tsx`, `AutoStudio.tsx`), antes de mandar `designDoc`, garantir que ele leva:
-- `canvas: { width, height, aspectRatio }` do canvas atual;
-- `authoredCanvas: { width, height }` igual ao canvas usado para gerar a imagem final (mesmo valor — o que importa é registrar com qual base os `x/y/w/h/fontSize` foram autorados).
+4. Corrigir o fluxo Galeria → Editar.
+   - Se existir `design_doc`, abrir somente o documento por camadas.
+   - Não aplicar a imagem final como fundo por cima.
+   - Não reescalar se o documento já tiver canvas válido.
+   - Não aplicar tema/refinamento/readability automaticamente na abertura.
 
-Isso resolve o problema **para sempre, em novos posts**.
+5. Manter fallback para posts antigos.
+   - Posts antigos sem `design_doc` continuam abrindo como imagem estática.
+   - Posts antigos com `design_doc` aproximado podem ficar melhores, mas talvez não fiquem 100% iguais ao raster antigo porque o dado original pixel-perfect nunca foi salvo.
+   - Para esses casos, posso manter uma opção técnica segura: “usar imagem final como referência bloqueada” apenas quando o usuário quiser comparar, mas não como camada padrão para não duplicar texto.
 
-### 3. `src/pages/Studio.tsx` — `prepareDesignDocForEdit`
+6. Garantias anti-IA/créditos.
+   - O fluxo Editar não chamará `generateOpenAiImage`, `generateContent`, `aiAssist`, Higgsfield, Pexels ou qualquer geração.
+   - Só lerá o registro salvo, montará o `design_doc` e salvará via `updateCreation`.
 
-Reescrever a função para fazer **três coisas**, nesta ordem:
+Resultado esperado:
 
-1. **Definir o canvas alvo** = aspect ratio da imagem final da Galeria (`finalImageMeta[0]`). Se não houver, cai no `doc.canvas` salvo. Se nem isso, no fallback 360×450.
-
-2. **Reescalar os elementos** do `design_doc` proporcionalmente do `authoredCanvas` (ou `doc.canvas` legado, ou fallback 360×450 para posts antigos sem registro) para o canvas alvo:
-   - `sx = target.width / authored.width`
-   - `sy = target.height / authored.height`
-   - aplica em `x, y, w, h` de cada `El`;
-   - aplica `min(sx, sy)` em `fontSize`, `letterSpacing`, `strokeWidth`, `radius` (escala uniforme para não distorcer tipografia).
-   - Não toca em cor, texto, fonte, peso, alinhamento, rotação, opacidade.
-
-3. **Colar a imagem final como fundo** de cada slide:
-   - `slide.bgImage = finalImageUrls[i]` (se existir);
-   - `slide.bgFit = "cover"` no aspect ratio do próprio export → fica visualmente pixel-perfect com a Galeria;
-   - Mantém `slide.els` (já reescalados) por cima. Como as posições agora batem com o canvas, as camadas editáveis ficam exatamente sobre o conteúdo "queimado" da imagem. Visualmente: idêntico à Galeria.
-
-> Resultado prático: o usuário vê a foto da Galeria, com o texto editável posicionado exatamente sobre o texto da foto. Quando edita uma frase, o novo texto cobre o antigo. Pequeno trade-off conhecido: se o texto novo for **mais curto** que o antigo, pode aparecer um leve "fantasma" do texto antigo aparecendo nas bordas. Aceitável dado o pedido (editável + idêntico), e some assim que salvar/re-exportar.
-
-### 4. `src/pages/Gallery.tsx`
-Já passa `finalImageUrls` e `finalImageMeta` — apenas garantir que continua passando para **todos** os posts (inclusive os que têm `design_doc`), não só para fallback.
-
-### 5. Compatibilidade com posts antigos
-- Posts **com `design_doc` mas sem `authoredCanvas`**: assume `authoredCanvas = doc.canvas ?? { 360, 450 }`. Resolve a maioria dos casos legados.
-- Posts **sem `design_doc`**: continua no fallback estático já existente (imagem final como `bgImage`, sem camadas).
-- Posts novos salvos após esse fix: sempre com `authoredCanvas` correto → fidelidade perfeita.
-
-### 6. Logs de diagnóstico
-Manter / ajustar `[studio:open]` para imprimir: `authoredCanvas`, `targetCanvas`, `scaleX`, `scaleY`, `loadedFrom`, `bgImageApplied`. Sem dados sensíveis.
-
-## Garantias
-
-- ❌ Nenhuma chamada a API de IA, Pexels, OpenAI, Higgsfield, etc.
-- ❌ Nenhum crédito gasto.
-- ❌ Nenhum post duplicado — `Salvar` continua usando `updateCreation(creationId, …)`.
-- ✅ Camadas continuam 100% editáveis (texto, fonte, cor, posição, tamanho, fundo, imagem, forma).
-- ✅ Fallback estático preservado para posts antigos sem `design_doc`.
-
-## Arquivos afetados
-
-- `src/pages/Studio.tsx` (lógica de reescala + bgImage)
-- `src/components/studio/workspace/types.ts` (campo `authoredCanvas`)
-- `src/components/studio/workspace/StudioWorkspace.tsx`
-- `src/components/studio/workspace/OutputScreen.tsx`
-- `src/components/studio/workspace/PublishDrawer.tsx`
-- `src/components/studio/workspace/AutoStudio.tsx`
-- `src/pages/Gallery.tsx` (garantir passagem de `finalImageUrls`/`Meta` sempre)
+- Novas criações salvas depois da correção abrem no editor visualmente iguais à Galeria e com textos/editáveis.
+- O botão Editar não duplica texto.
+- O botão Salvar atualiza o mesmo post.
+- Posts antigos sem camadas continuam como imagem estática.
+- Posts antigos feitos pelo pipeline antigo podem não ser 100% recuperáveis, porque a imagem final e o `design_doc` nasceram de renderizadores diferentes; a correção impede que isso continue acontecendo daqui para frente.

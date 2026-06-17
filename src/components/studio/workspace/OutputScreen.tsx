@@ -39,12 +39,15 @@ function dataUrlToBlob(dataUrl: string): Blob {
 }
 
 export function OutputScreen({
-  doc, brand, onRestart, onEditInCanvas,
+  doc, brand, onRestart, onEditInCanvas, renderedUrls,
 }: {
   doc: StudioDoc;
   brand: BrandProfile | null;
   onRestart: () => void;
   onEditInCanvas: (doc: StudioDoc) => void;
+  /** URLs renderizadas pelo MESMO renderer que salva na Galeria. Quando presente,
+   *  são usadas como preview/upload em vez de `slide.bgImage` (que é o fundo limpo). */
+  renderedUrls?: string[];
 }) {
   const { user } = useAuth();
   const { data: accounts = [], isLoading: acctLoading } = usePfmAccounts();
@@ -62,7 +65,11 @@ export function OutputScreen({
   const [saving, setSaving] = useState(false);
 
   const isVideo = !!doc.videoUrl;
-  const media = isVideo ? [doc.videoUrl!] : doc.slides.map((s) => s.bgImage).filter((u): u is string => !!u);
+  const media = isVideo
+    ? [doc.videoUrl!]
+    : (renderedUrls && renderedUrls.length
+        ? renderedUrls
+        : doc.slides.map((s) => s.bgImage).filter((u): u is string => !!u));
   const hasIg = selected.some((id) => accounts.find((a) => a.id === id)?.platform === "instagram");
 
   const toggle = (id: string) => setSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));

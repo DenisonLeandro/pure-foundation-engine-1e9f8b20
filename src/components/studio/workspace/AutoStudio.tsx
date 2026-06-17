@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
 import { buildEditableEls } from "./editableEls";
+import { renderDocOffscreen } from "./renderDocOffscreen";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
@@ -93,6 +94,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(initialDoc ?? null);
+  const [renderedUrls, setRenderedUrls] = useState<string[] | null>(null);
   const [sources, setSources] = useState<SourceRow[]>([]);
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(initialForm?.selectedSourceIds ?? []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -139,16 +141,18 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const c2 = brand?.colors?.[1] || "#d946ef";
   const grad = `linear-gradient(135deg, ${c1}, ${c2})`;
 
-  // Auto-save na galeria. As `urls` finais já vêm compostas (com texto rasterizado)
-  // para preservar publicação/agendamento exatamente como antes. O `design_doc`
-  // guarda o fundo limpo + camadas de texto editáveis.
-  const autoSave = async (mediaOrDoc: StudioDoc, composedUrls?: string[]) => {
+  // Auto-save na galeria. As `urls` finais são geradas pelo MESMO renderer do
+  // editor (renderDocOffscreen), garantindo que abrir o post no Editar mostre
+  // exatamente a mesma arte da Galeria — sem duplicar texto e sem mismatch.
+  const autoSave = async (mediaOrDoc: StudioDoc): Promise<string[]> => {
     try {
-      const urls = mediaOrDoc.videoUrl
-        ? [mediaOrDoc.videoUrl]
-        : (composedUrls && composedUrls.length
-            ? composedUrls
-            : (mediaOrDoc.slides.map((s) => s.bgImage).filter(Boolean) as string[]));
+      let urls: string[] = [];
+      if (mediaOrDoc.videoUrl) {
+        urls = [mediaOrDoc.videoUrl];
+      } else {
+        const rendered = await renderDocOffscreen(mediaOrDoc, brand);
+        urls = rendered.length ? await persistUrls(rendered) : [];
+      }
       if (urls.length) await saveVisualToGallery({
         urls,
         prompt: mediaOrDoc.caption || prompt.trim(),
@@ -156,7 +160,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         designDoc: (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc),
         caption: mediaOrDoc.caption ?? "",
       });
-    } catch { /* best-effort */ }
+      return urls;
+    } catch (e) { console.warn("[autoSave] falhou", e); return []; }
   };
 
   const parseBrief = async (text: string): Promise<Brief> => {
@@ -429,7 +434,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, stylePreset);
       setDoc(finalDoc);
       toast.success("Criação pronta!");
-      autoSave(finalDoc, composedUrls);
+      autoSave(finalDoc).then((urls) => { if (urls.length) setRenderedUrls(urls); });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar");
     } finally {
@@ -441,7 +446,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
     <OutputScreen
       doc={doc}
       brand={brand}
-      onRestart={() => { setDoc(null); setPrompt(""); if (userId) clearStudioFlowDraft(userId); }}
+      renderedUrls={renderedUrls ?? undefined}
+      onRestart={() => { setDoc(null); setPrompt(""); setRenderedUrls(null); if (userId) clearStudioFlowDraft(userId); }}
       onEditInCanvas={onEditInCanvas}
     />
   ) : (

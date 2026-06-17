@@ -7,7 +7,7 @@ import { StudioWorkspace } from "@/components/studio/workspace/StudioWorkspace";
 import { emptyDoc } from "@/components/studio/workspace/StudioProvider";
 import { loadLatestStudioDraft, loadStudioFlowDraft, type StudioDraft, type StudioFlowDraft } from "@/components/studio/workspace/studioDraft";
 import { useAuth } from "@/contexts/AuthContext";
-import { CANVAS_H, CANVAS_W, type StudioDoc, type Slide, type El } from "@/components/studio/workspace/types";
+import { CANVAS_H, CANVAS_W, type StudioDoc, type Slide } from "@/components/studio/workspace/types";
 
 type ImageMeta = { width: number; height: number };
 const fallbackCanvas = { width: CANVAS_W, height: CANVAS_H, aspectRatio: CANVAS_W / CANVAS_H, source: "fallback" as const };
@@ -61,56 +61,18 @@ function hasValidDesignDoc(doc: NavState["designDoc"]): doc is StudioDoc {
     && doc.slides.every((s) => s && typeof s === "object" && Array.isArray((s as Slide).els));
 }
 
-/** Reescala um elemento de um canvas autorado para um canvas alvo. */
-function rescaleEl(el: El, sx: number, sy: number): El {
-  const s = Math.min(sx, sy); // escala uniforme p/ tipografia/raio (não distorce)
-  return {
-    ...el,
-    x: Math.round(el.x * sx),
-    y: Math.round(el.y * sy),
-    w: Math.round(el.w * sx),
-    h: Math.round(el.h * sy),
-    fontSize: typeof el.fontSize === "number" ? Math.max(6, Math.round(el.fontSize * s)) : el.fontSize,
-    letterSpacing: typeof el.letterSpacing === "number" ? el.letterSpacing * s : el.letterSpacing,
-    strokeWidth: typeof el.strokeWidth === "number" ? el.strokeWidth * s : el.strokeWidth,
-    radius: typeof el.radius === "number" ? Math.round(el.radius * s) : el.radius,
-  };
-}
-
 function prepareDesignDocForEdit(nav: NavState, doc: StudioDoc): StudioDoc {
-  const firstMeta = nav.finalImageMeta?.[0] ?? null;
-  const finalUrls = (nav.finalImageUrls ?? []).filter(isHttpUrl);
-
-  // 1) Canvas alvo: prioriza aspect ratio da imagem final salva (Galeria),
-  //    senão o canvas salvo do doc, senão fallback 4:5.
-  const targetCanvas =
-    canvasFromImageMeta(firstMeta, "designDoc") ??
-    (doc.canvas ? { ...doc.canvas, source: "designDoc" as const } : { ...fallbackCanvas, source: "designDoc" as const });
-
-  // 2) Canvas autorado: registrado no save (authoredCanvas) ou doc.canvas legado ou fallback.
-  const authored = doc.authoredCanvas ?? (doc.canvas ? { width: doc.canvas.width, height: doc.canvas.height } : { width: CANVAS_W, height: CANVAS_H });
-  const sx = targetCanvas.width / Math.max(1, authored.width);
-  const sy = targetCanvas.height / Math.max(1, authored.height);
-  const needsRescale = Math.abs(sx - 1) > 0.001 || Math.abs(sy - 1) > 0.001;
-
-  // 3) Reescala todos os elementos + cola imagem final como bgImage do slide,
-  //    garantindo identidade visual com a Galeria.
-  const slides: Slide[] = (doc.slides ?? []).map((s, i) => {
-    const els = needsRescale ? (s.els ?? []).map((e) => rescaleEl(e, sx, sy)) : (s.els ?? []);
-    const bgImage = finalUrls[i] ?? s.bgImage;
-    return {
-      ...s,
-      els,
-      bgImage,
-      bgFit: bgImage === finalUrls[i] ? "cover" : (s.bgFit ?? "cover"),
-    };
-  });
+  // Abre o design_doc EXATAMENTE como foi salvo — sem reescalar, sem injetar
+  // bgImage da Galeria por cima (isso duplicaria o texto rasterizado).
+  // A imagem da Galeria é gerada pelo mesmo renderer (renderDocOffscreen),
+  // então abrir o doc puro já produz a mesma arte visualmente.
+  const targetCanvas = doc.canvas
+    ? { ...doc.canvas, source: "designDoc" as const }
+    : { ...fallbackCanvas, source: "designDoc" as const };
 
   return {
     ...doc,
     canvas: targetCanvas,
-    authoredCanvas: { width: targetCanvas.width, height: targetCanvas.height },
-    slides,
     caption: typeof nav.caption === "string" ? nav.caption : doc.caption,
   };
 }
