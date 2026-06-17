@@ -349,11 +349,13 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const styleHint = ART_STYLES.find((s) => s.value === artStyle)?.hint || "";
       const direction = artDirection.trim();
 
-      // Padrão unificado: todos os slides usam o template "bottom" (editorial
-      // grande embaixo). Layout fixo escolhido pelo usuário continua respeitado.
-      const pickTemplate = (_i: number): SlideTemplate => {
+      // Rotação editorial entre 4 templates leves; capa sempre "bottom".
+      const rotation: SlideTemplate[] = ["top", "center-card", "kicker", "bottom"];
+      const offset = Math.floor(Math.random() * rotation.length);
+      const pickTemplate = (i: number): SlideTemplate => {
         if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
-        return "bottom";
+        if (i === 0) return "bottom";
+        return rotation[(i + offset) % rotation.length];
       };
 
       let slides: Slide[];
