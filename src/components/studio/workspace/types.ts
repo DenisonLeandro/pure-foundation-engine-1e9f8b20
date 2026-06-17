@@ -29,6 +29,10 @@ export interface El {
   objectFit?: "cover" | "contain";
   // shape
   bg?: string;
+  // metadata opcional — usado p/ camadas semânticas (ex.: "brand_logo")
+  // e para travar movimentação acidental.
+  role?: string;
+  locked?: boolean;
 }
 
 export interface Slide {

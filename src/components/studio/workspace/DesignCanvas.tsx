@@ -69,6 +69,7 @@ export function DesignCanvas() {
   const startDrag = (ev: React.MouseEvent, e: El) => {
     ev.stopPropagation();
     select(e.id);
+    if (e.locked) return; // camadas travadas (ex.: logo de marca) não arrastam
     pushHistory();
     drag.current = { id: e.id, sx: ev.clientX, sy: ev.clientY, ex: e.x, ey: e.y };
   };
@@ -235,8 +236,9 @@ export function DesignCanvas() {
           {e.type === "shape" && <div style={{ width: "100%", height: "100%", background: e.bg, borderRadius: e.radius, opacity: e.opacity }} />}
         </div>
       ))}
-      {/* logo da marca: selo discreto no canto superior esquerdo, em todos os slides. */}
-      {brand?.logo_url && (
+      {/* logo da marca: selo discreto no canto superior esquerdo, em todos os slides.
+          Não duplica se já existir uma camada brand_logo editável no slide. */}
+      {brand?.logo_url && !s.els.some((e) => e.role === "brand_logo") && (
         <div
           className="absolute left-[10px] top-[10px] flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border"
           style={{ background: "rgba(10,12,20,0.32)", borderColor: "rgba(255,255,255,0.35)", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", backdropFilter: "blur(2px)" }}
