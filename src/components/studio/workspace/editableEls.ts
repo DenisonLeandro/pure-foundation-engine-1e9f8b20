@@ -173,6 +173,7 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
 
     case "bottom":
     default: {
+      els.push(titleHalo(MARGIN, 232, W - MARGIN * 2, 125));
       els.push({
         id: uid(), type: "text",
         x: MARGIN, y: 232, w: W - MARGIN * 2, h: 125,
