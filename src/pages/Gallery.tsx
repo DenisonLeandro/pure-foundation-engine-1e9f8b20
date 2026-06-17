@@ -22,12 +22,13 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
-import { getCreations, deleteCreation, updateCreation, type Creation } from "@/lib/gallery";
+import { getCreations, getCreation, deleteCreation, updateCreation, type Creation } from "@/lib/gallery";
 import { useCompany } from "@/contexts/CompanyContext";
 
 // ─── Filter types ───────────────────────────────────────────────
 
 type FilterType = "all" | "image" | "video" | "carousel";
+type ImageMeta = { width: number; height: number };
 
 const FILTERS: { value: FilterType; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -35,6 +36,16 @@ const FILTERS: { value: FilterType; label: string }[] = [
   { value: "video", label: "Vídeos" },
   { value: "carousel", label: "Carroséis" },
 ];
+
+function readImageMeta(url: string): Promise<ImageMeta | null> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    const done = () => resolve(img.naturalWidth && img.naturalHeight ? { width: img.naturalWidth, height: img.naturalHeight } : null);
+    img.onload = done;
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
 
 // ─── Component ──────────────────────────────────────────────────
 
@@ -108,26 +119,59 @@ export default function Gallery() {
     });
   }
 
-  function handleEditDesign(creation: Creation) {
-    const urls = creation.urls ?? [];
-    const fallback = urls[0] ?? creation.thumbnailUrl ?? null;
-    if (!creation.designDoc && !fallback) {
+  async function handleEditDesign(creation: Creation) {
+    const slideIndex = 0;
+
+    // design_doc não vem na listagem (payload pesado) — buscar sob demanda.
+    let designDoc = creation.designDoc ?? null;
+    let fullCreation: Creation | null = null;
+    try {
+      fullCreation = await getCreation(creation.id);
+      designDoc = fullCreation?.designDoc ?? designDoc;
+    } catch {
+      // segue com fallback abaixo
+    }
+
+    const urls = fullCreation?.urls?.length ? fullCreation.urls : (creation.urls ?? []);
+    const thumbnailUrl = fullCreation?.thumbnailUrl ?? creation.thumbnailUrl ?? null;
+    const selectedUrl = urls[slideIndex] ?? thumbnailUrl ?? null;
+    const fallback = selectedUrl ?? urls[0] ?? thumbnailUrl;
+    const finalImageUrls = urls.length ? urls : (fallback ? [fallback] : []);
+    const finalImageMeta = await Promise.all(finalImageUrls.map(readImageMeta));
+
+    console.info("[gallery:edit]", {
+      creationId: creation.id,
+      slideIndex,
+      selectedUrl,
+      hasDesignDoc: !!designDoc,
+      "urls.length": urls.length,
+      thumbnailUrl,
+    });
+
+    if (!designDoc && !fallback) {
       toast({ title: "Sem imagem para editar", variant: "destructive" });
       return;
     }
-    if (!creation.designDoc) {
+    if (!designDoc) {
       toast({
-        title: "Item gerado como imagem estática",
-        description: "Vamos abrir o editor usando esta imagem como fundo. Você pode adicionar textos e salvar como versão editável.",
+        title: "Este post antigo não possui camadas editáveis.",
+        description: "Ele será aberto como imagem final.",
       });
     }
     navigate("/studio", {
       state: {
         mode: "edit",
-        designDoc: creation.designDoc ?? null,
+        designDoc,
         creationId: creation.id,
         fallbackImageUrl: fallback,
         fallbackImageUrls: urls,
+        finalImageUrls,
+        finalImageMeta,
+        slideIndex,
+        selectedSlideIndex: slideIndex,
+        thumbnailUrl,
+        title: creation.templateName ?? null,
+        prompt: creation.prompt ?? null,
         caption: creation.caption ?? null,
         returnTo: "/gallery",
       },

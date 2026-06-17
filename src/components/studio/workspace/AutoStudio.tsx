@@ -15,12 +15,13 @@ import {
 } from "@/lib/api";
 import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/brand";
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
-import { saveVisualToGallery, sanitizeDesignDoc, persistUrls } from "@/lib/gallery";
+import { saveVisualToGallery, sanitizeDesignDoc, persistDesignDoc, persistUrls } from "@/lib/gallery";
 import { composeSlideWithText, SLIDE_TEMPLATES, preferredCleanArea, type SlideTemplate } from "@/lib/slide-compose";
 import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
 import { buildEditableEls } from "./editableEls";
+import { renderDocOffscreen } from "./renderDocOffscreen";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
@@ -93,6 +94,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(initialDoc ?? null);
+  const [renderedUrls, setRenderedUrls] = useState<string[] | null>(null);
   const [sources, setSources] = useState<SourceRow[]>([]);
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(initialForm?.selectedSourceIds ?? []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -139,24 +141,27 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const c2 = brand?.colors?.[1] || "#d946ef";
   const grad = `linear-gradient(135deg, ${c1}, ${c2})`;
 
-  // Auto-save na galeria. As `urls` finais já vêm compostas (com texto rasterizado)
-  // para preservar publicação/agendamento exatamente como antes. O `design_doc`
-  // guarda o fundo limpo + camadas de texto editáveis.
-  const autoSave = async (mediaOrDoc: StudioDoc, composedUrls?: string[]) => {
+  // Auto-save na galeria. As `urls` finais são geradas pelo MESMO renderer do
+  // editor (renderDocOffscreen), garantindo que abrir o post no Editar mostre
+  // exatamente a mesma arte da Galeria — sem duplicar texto e sem mismatch.
+  const autoSave = async (mediaOrDoc: StudioDoc): Promise<string[]> => {
     try {
-      const urls = mediaOrDoc.videoUrl
-        ? [mediaOrDoc.videoUrl]
-        : (composedUrls && composedUrls.length
-            ? composedUrls
-            : (mediaOrDoc.slides.map((s) => s.bgImage).filter(Boolean) as string[]));
+      let urls: string[] = [];
+      if (mediaOrDoc.videoUrl) {
+        urls = [mediaOrDoc.videoUrl];
+      } else {
+        const rendered = await renderDocOffscreen(mediaOrDoc, brand);
+        urls = rendered.length ? await persistUrls(rendered) : [];
+      }
       if (urls.length) await saveVisualToGallery({
         urls,
         prompt: mediaOrDoc.caption || prompt.trim(),
         templateName: "Studio · Automático",
-        designDoc: sanitizeDesignDoc(mediaOrDoc),
+        designDoc: (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc),
         caption: mediaOrDoc.caption ?? "",
       });
-    } catch { /* best-effort */ }
+      return urls;
+    } catch (e) { console.warn("[autoSave] falhou", e); return []; }
   };
 
   const parseBrief = async (text: string): Promise<Brief> => {
@@ -344,12 +349,11 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const styleHint = ART_STYLES.find((s) => s.value === artStyle)?.hint || "";
       const direction = artDirection.trim();
 
-      // Resolve o template por slide. "auto" rotaciona; qualquer outro valor fixa.
-      const rotation = SLIDE_TEMPLATES;
+      // Rotação editorial entre 4 templates leves; capa sempre "bottom".
+      const rotation: SlideTemplate[] = ["top", "center-card", "kicker", "bottom"];
       const offset = Math.floor(Math.random() * rotation.length);
       const pickTemplate = (i: number): SlideTemplate => {
         if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
-        // capa sempre num template "forte"
         if (i === 0) return "bottom";
         return rotation[(i + offset) % rotation.length];
       };
@@ -395,7 +399,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint);
         const soloTemplate: SlideTemplate = layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)
           ? (layoutMode as SlideTemplate)
-          : (["bottom", "side-bar", "kicker", "center-card"] as SlideTemplate[])[Math.floor(Math.random() * 4)];
+          : "bottom";
         const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
         const { cleanBg, composed } = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
         const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
@@ -429,7 +433,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, stylePreset);
       setDoc(finalDoc);
       toast.success("Criação pronta!");
-      autoSave(finalDoc, composedUrls);
+      autoSave(finalDoc).then((urls) => { if (urls.length) setRenderedUrls(urls); });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar");
     } finally {
@@ -441,7 +445,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
     <OutputScreen
       doc={doc}
       brand={brand}
-      onRestart={() => { setDoc(null); setPrompt(""); if (userId) clearStudioFlowDraft(userId); }}
+      renderedUrls={renderedUrls ?? undefined}
+      onRestart={() => { setDoc(null); setPrompt(""); setRenderedUrls(null); if (userId) clearStudioFlowDraft(userId); }}
       onEditInCanvas={onEditInCanvas}
     />
   ) : (

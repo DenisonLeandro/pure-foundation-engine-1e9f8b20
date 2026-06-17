@@ -11,20 +11,30 @@ export interface El {
   // text
   text?: string;
   fontSize?: number;
+  fontFamily?: string;
   color?: string;
   weight?: number;
   align?: "left" | "center" | "right";
+  lineHeight?: number;
+  letterSpacing?: number;
+  shadow?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  opacity?: number;
+  rotation?: number;
+  zIndex?: number;
   // image
   src?: string;
   radius?: number;
+  objectFit?: "cover" | "contain";
   // shape
   bg?: string;
-  opacity?: number;
 }
 
 export interface Slide {
   bg: string;          // cor sólida ou gradiente CSS
   bgImage?: string;    // url/data url de fundo
+  bgFit?: "cover" | "contain";
   els: El[];
 }
 
@@ -38,6 +48,9 @@ export interface StudioDoc {
   hashtags: string[];
   platforms: Platform[];
   schedule: { when: "now" | "schedule"; at?: string };
+  canvas?: { width: number; height: number; aspectRatio?: number; source?: "finalImage" | "designDoc" | "fallback" };
+  /** Canvas em que os elementos foram originalmente posicionados/dimensionados. Usado para reescalar ao reabrir. */
+  authoredCanvas?: { width: number; height: number };
 }
 
 // Canvas 4:5 (1080×1350) — padrão Instagram 2026.
@@ -45,8 +58,23 @@ export interface StudioDoc {
 export const CANVAS_W = 360;
 export const CANVAS_H = 450;
 export const CANVAS_PX = CANVAS_W; // compat (largura)
+export const EXPORT_SCALE = 3;
 export const EXPORT_W = 1080;
 export const EXPORT_H = 1350;
+
+export function getCanvasSize(doc?: Pick<StudioDoc, "canvas"> | null): { width: number; height: number } {
+  const width = Math.round(Number(doc?.canvas?.width) || CANVAS_W);
+  const height = Math.round(Number(doc?.canvas?.height) || CANVAS_H);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 180 || height < 180) {
+    return { width: CANVAS_W, height: CANVAS_H };
+  }
+  return { width, height };
+}
+
+export function getExportSize(doc?: Pick<StudioDoc, "canvas"> | null): { width: number; height: number; scale: number } {
+  const size = getCanvasSize(doc);
+  return { width: size.width * EXPORT_SCALE, height: size.height * EXPORT_SCALE, scale: EXPORT_SCALE };
+}
 
 // Tamanho do gpt-image-2 mais próximo de 4:5 (o modelo aceita 1024x1536 = 2:3).
 export const IMAGE_SIZE = "1024x1536" as const;

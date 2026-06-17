@@ -143,6 +143,13 @@ export function ensureReadableTextLayers(doc: StudioDoc, brand: BrandPalette = {
     for (const el of els) {
       if (el.type !== "text") { newEls.push(el); continue; }
 
+      // Se o texto já carrega text-shadow forte (layouts editoriais),
+      // confiamos na sombra e NÃO injetamos overlay atrás — mantém a foto limpa.
+      if (el.shadow && String(el.shadow).trim().length > 0) {
+        newEls.push(el);
+        continue;
+      }
+
       // base com novos overlays já adicionados nesta passada
       const partialSlide: Slide = { ...slide, els: newEls };
       const bgInfo = effectiveBgUnderEl(partialSlide, el);
@@ -153,6 +160,7 @@ export function ensureReadableTextLayers(doc: StudioDoc, brand: BrandPalette = {
         newEls.push(el);
         continue;
       }
+
 
       // Tenta trocar para outra cor da paleta com contraste OK
       if (bgInfo.color) {

@@ -115,6 +115,10 @@ function refineSlide(slide: Slide, preset: StylePreset, accent: string): Slide {
 }
 
 function restyleOverlay(e: El, preset: StylePreset, accent: string): El {
+  // Halos pré-definidos como discretos (id `rb-bg-halo-*` ou opacidade muito
+  // baixa): mantém como está, não troca cor nem aplica preset.
+  if (e.id.startsWith("rb-bg-halo-")) return e;
+
   // Regra geral: NUNCA tarja chapada grande. Se o overlay for grande OU ocupar
   // a largura inteira, convertemos em GRADIENTE vertical vindo da base/topo.
   if (isLargeOverlay(e) || isFullWidth(e)) {
@@ -171,11 +175,12 @@ function buildAccents(slide: Slide, preset: StylePreset, accent: string): El[] {
       return [accentBar({ x: 0, y: 0, w: 6, h: CANVAS_H, color: accent })];
     case "editorial":
     case "auto": {
-      // pequena marca de acento no canto inferior esquerdo
-      return [accentBar({ x: 24, y: CANVAS_H - 28, w: 36, h: 3, color: accent })];
+      // Marca de acento entre a legenda e o handle (zona livre nos templates).
+      // Linha fina e curta — "assinatura" discreta, sem cobrir texto.
+      return [accentBar({ x: 24, y: CANVAS_H - 26, w: 28, h: 2, color: accent })];
     }
     case "modern":
-      return [accentBar({ x: 24, y: CANVAS_H - 28, w: 56, h: 3, color: accent })];
+      return [accentBar({ x: 24, y: CANVAS_H - 26, w: 44, h: 2, color: accent })];
     default:
       return [];
   }

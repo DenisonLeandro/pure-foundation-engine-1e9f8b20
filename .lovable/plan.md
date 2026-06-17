@@ -1,38 +1,53 @@
-## Problema
+## Objetivo
 
-O botão "Sair da conta" (em `ManagePreferencesView`) não funciona porque:
+Mais legibilidade nos textos sem voltar a usar tarja/gradiente visível. Se houver algum escurecimento atrás do texto, precisa ser MUITO discreto — invisível como bloco, perceptível só como "respiro".
 
-1. `supabase.auth.signOut()` está fazendo uma chamada de rede ao backend que está retornando `TypeError: Failed to fetch` (visível nos logs do console agora — várias falhas de fetch para o Supabase).
-2. O `signOut` padrão usa `scope: 'global'`, que exige rede. Quando a rede falha, ele lança erro.
-3. O `catch` em `AuthContext.signOut` engole o erro, mas a chave de sessão do Supabase (`sb-<ref>-auth-token`) **nunca é removida do localStorage** — `userStorage.clearUser()` só limpa chaves com prefixo `app_u:` / `mega_u:`, não o token do Supabase.
-4. Resultado: o usuário continua logado, o `onAuthStateChange` não dispara `SIGNED_OUT`, e o `Navigate to="/login"` em `handleSignOut` pode nem rodar (a Promise pode ficar pendente antes do catch interno do GoTrue).
+## Mudanças
 
-## Correção (escopo mínimo, só logout)
+### 1) Sombra do texto mais densa (sem virar mancha)
 
-**`src/contexts/AuthContext.tsx` — `signOut`:**
-- Forçar limpeza local primeiro, sempre, independente de rede:
-  - `setSession(null); setUser(null);`
-  - Remover manualmente todas as chaves `sb-*-auth-token` do `localStorage` (cobre o caso de rede caída).
-  - Manter `userStorage.clearUser()` para chaves do app.
-- Em seguida, disparar `supabase.auth.signOut({ scope: 'local' })` dentro de try/catch — `scope: 'local'` não exige rede e apenas limpa o storage do client; serve como redundância e garante que o GoTrue interno dispare `SIGNED_OUT`.
-- Não aguardar nenhuma chamada de rede que possa travar.
+Em `src/components/studio/workspace/editableEls.ts`, reforçar as duas constantes `SHADOW` e `SHADOW_STRONG` com mais camadas curtas (que aumentam contraste rente à letra) sem subir o blur amplo (que viraria mancha):
 
-**`src/components/setup/ManagePreferencesView.tsx` — `handleSignOut`:**
-- Após `await signOut()`, usar `window.location.assign("/login")` em vez de `navigate("/login")`, para garantir um boot limpo (descarta contextos com estado obsoleto e evita ficar preso em `/criar-empresa` por causa de cache de `CompanyContext`).
+```
+SHADOW =
+  "0 1px 0 rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.7),
+   0 2px 6px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.35)"
 
-## Fora de escopo (não mexer)
+SHADOW_STRONG =
+  "0 1px 0 rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.8),
+   0 2px 8px rgba(0,0,0,0.55), 0 10px 28px rgba(0,0,0,0.4)"
+```
 
-- Studio, Galeria, integrações, RLS, company_configs, chaves, RPCs, schema do banco.
-- Não alterar `src/integrations/supabase/client.ts` (auto-gerado / fallback público já correto).
-- Não tentar "consertar" os outros `Failed to fetch` (CompanyContext, CreateCompany) — são sintoma de instabilidade externa do backend, fora do pedido.
+A primeira camada (offset 1px, blur 0) funciona quase como contorno preto fino — dá leitura sobre qualquer foto. As demais distribuem o peso sem criar borrão.
 
-## Arquivos alterados
+Espelhar no `src/lib/slide-compose.ts` (função `paintTextWithShadow`) com as mesmas três passadas: contorno, sombra média, halo amplo.
 
-- `src/contexts/AuthContext.tsx` (função `signOut`)
-- `src/components/setup/ManagePreferencesView.tsx` (função `handleSignOut`)
+### 2) Halo radial MUITO discreto atrás do título (opcional, só nos templates onde o título manda)
 
-## Verificação
+Adicionar uma "respiração" suave atrás do bloco do título em `bottom`, `center-card` e `kicker`. Não é tarja: é um ÚNICO shape com:
+- Cor `rgba(0,0,0,0.18)` (18% — quase invisível sobre foto média/clara, perceptível só onde a foto é clara demais)
+- `radius: 999` (forma de pílula totalmente arredondada)
+- Padding generoso ao redor do texto (px 24 horizontal, 16 vertical)
+- `zIndex` abaixo do título
 
-1. Clicar em "Sair da conta" → confirmar → redireciona para `/login` mesmo com rede instável.
-2. Após logout, `localStorage` não contém mais chaves `sb-*-auth-token`.
-3. Recarregar a página em `/dashboard` → redireciona para `/login` (sessão realmente foi embora).
+Esse shape entra como elemento `rb-bg-*` em `buildEditableEls` (mesmo padrão dos overlays de leitura), mas com opacidade tão baixa que `designAesthetics.restyleOverlay` não vai esticá-lo (já que `isLargeOverlay`/`isFullWidth` exigem cobertura >45% — o halo é menor que isso).
+
+Como o `ensureReadableTextLayers` hoje pula textos com `shadow` e NÃO injeta overlay por cima, esse halo entra ANTES da etapa de readability e sobrevive intacto.
+
+### 3) Confirmar que designAesthetics não vai engordar o halo
+
+Em `src/components/studio/workspace/designAesthetics.ts`, adicionar uma regra em `restyleOverlay`: se o overlay já está com opacidade ≤ 0.22 (ou seja, foi pré-definido como halo discreto), apenas mantém — não troca a cor nem aplica os estilos do preset.
+
+## Arquivos tocados
+
+- `src/components/studio/workspace/editableEls.ts` — novas sombras + halo opcional atrás do título em 3 templates.
+- `src/lib/slide-compose.ts` — `paintTextWithShadow` espelhando o contorno tight + halo distribuído.
+- `src/components/studio/workspace/designAesthetics.ts` — preserva halos já discretos.
+
+## Fora de escopo
+
+Sem mexer em IA, backend, publicação, posições dos textos (já corrigidas), risquinho laranja (já reposicionado) ou layout.
+
+## Decisão a confirmar
+
+Posso aplicar o halo de 18% atrás do título (item 2)? Se preferir só sombra mais densa (item 1) sem QUALQUER mancha atrás do texto, eu pulo o item 2. Confirma qual?

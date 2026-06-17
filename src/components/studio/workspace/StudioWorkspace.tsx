@@ -15,7 +15,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
-import { updateCreation, sanitizeDesignDoc, saveVisualToGallery, getGalleryActiveCompany } from "@/lib/gallery";
+import { updateCreation, sanitizeDesignDoc, persistDesignDoc, saveVisualToGallery, getGalleryActiveCompany } from "@/lib/gallery";
 import { StudioProvider, useStudio } from "./StudioProvider";
 import { DesignCanvas } from "./DesignCanvas";
 import { ElementInspector } from "./ElementInspector";
@@ -111,6 +111,10 @@ function RightRailContent() {
       <ElementInspector />
     </div>
   );
+}
+
+function isStaticFallbackDoc(doc: StudioDoc): boolean {
+  return doc.canvas?.source === "fallback" && doc.slides.every((s) => (s.els?.length ?? 0) === 0 && !!s.bgImage);
 }
 
 function WorkspaceInner({
@@ -222,10 +226,11 @@ function WorkspaceInner({
         ? fallbackImageUrls
         : (fallbackImageUrl ? [fallbackImageUrl] : []);
       const docToPersist = ensureDocHasVisualFallbacks(out.safeDoc, fallbackList);
+      const persistedDoc = (await persistDesignDoc(docToPersist)) ?? sanitizeDesignDoc(docToPersist);
       const updated = await updateCreation(creationId, {
         urls: out.urls,
         thumbnailUrl: out.urls[0],
-        designDoc: sanitizeDesignDoc(docToPersist),
+        designDoc: persistedDoc,
         caption: out.safeDoc.caption ?? "",
       });
       if (!updated) { toast.error("Falha ao salvar alterações"); return false; }
@@ -251,11 +256,12 @@ function WorkspaceInner({
     try {
       const out = await composeAndExport();
       if (!out) { toast.error("Nada para salvar"); return false; }
+      const persistedDoc = (await persistDesignDoc(out.safeDoc)) ?? sanitizeDesignDoc(out.safeDoc);
       const created = await saveVisualToGallery({
         urls: out.urls,
         prompt: out.safeDoc.caption || undefined,
         templateName: "Studio",
-        designDoc: sanitizeDesignDoc(out.safeDoc),
+        designDoc: persistedDoc,
         caption: out.safeDoc.caption ?? "",
       });
       if (!created?.id) { toast.error("Falha ao salvar na Galeria"); return false; }
@@ -300,6 +306,7 @@ function WorkspaceInner({
   }, [defaultBrand, doc.brandId, set]);
 
   const brand = brands.find((b) => b.id === doc.brandId) || null;
+  const staticFallback = isStaticFallbackDoc(doc);
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col md:h-screen">
@@ -317,15 +324,17 @@ function WorkspaceInner({
           </Button>
         )}
         {/* mobile: abrir rail de ferramentas */}
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9 lg:hidden"><PanelLeft className="h-4 w-4" /></Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-72 overflow-y-auto">
-            <SheetHeader><SheetTitle>Ferramentas</SheetTitle></SheetHeader>
-            <div className="mt-4"><LeftRailContent brandName={brand?.name} brandHandle={brand?.handle} /></div>
-          </SheetContent>
-        </Sheet>
+        {!staticFallback && (
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 lg:hidden"><PanelLeft className="h-4 w-4" /></Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-72 overflow-y-auto">
+              <SheetHeader><SheetTitle>Ferramentas</SheetTitle></SheetHeader>
+              <div className="mt-4"><LeftRailContent brandName={brand?.name} brandHandle={brand?.handle} /></div>
+            </SheetContent>
+          </Sheet>
+        )}
 
         <div className="flex items-center gap-2 font-semibold">
           <Sparkles className="h-5 w-5 text-violet-500" /> <span className="hidden sm:inline">Studio</span>
@@ -348,7 +357,7 @@ function WorkspaceInner({
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={undo} disabled={!canUndo} title="Desfazer"><Undo2 className="h-4 w-4" /></Button>
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={redo} disabled={!canRedo} title="Refazer"><Redo2 className="h-4 w-4" /></Button>
           {/* mobile: abrir copiloto */}
-          <Sheet>
+          {!staticFallback && <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="h-9 w-9 xl:hidden"><Sparkles className="h-4 w-4 text-violet-500" /></Button>
             </SheetTrigger>
@@ -356,15 +365,15 @@ function WorkspaceInner({
               <SheetHeader><SheetTitle>Copiloto IA</SheetTitle></SheetHeader>
               <div className="mt-4"><RightRailContent /></div>
             </SheetContent>
-          </Sheet>
-          <Select value={stylePreset} onValueChange={(v) => handleApplyStyle(v as StylePreset)}>
+          </Sheet>}
+          {!staticFallback && <Select value={stylePreset} onValueChange={(v) => handleApplyStyle(v as StylePreset)}>
             <SelectTrigger className="hidden h-9 w-[170px] md:flex" title="Estilo visual">
               <SelectValue placeholder="Estilo visual" />
             </SelectTrigger>
             <SelectContent>
               {STYLE_PRESETS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
-          </Select>
+          </Select>}
           {draftUserId && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -433,17 +442,21 @@ function WorkspaceInner({
 
       {/* Middle */}
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-56 shrink-0 overflow-y-auto border-r border-border p-3 lg:block">
-          <LeftRailContent brandName={brand?.name} brandHandle={brand?.handle} />
-        </aside>
+        {!staticFallback && (
+          <aside className="hidden w-56 shrink-0 overflow-y-auto border-r border-border p-3 lg:block">
+            <LeftRailContent brandName={brand?.name} brandHandle={brand?.handle} />
+          </aside>
+        )}
 
         <main className="min-w-0 flex-1 overflow-hidden bg-muted/30">
           <DesignCanvas />
         </main>
 
-        <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border p-3 xl:block">
-          <RightRailContent />
-        </aside>
+        {!staticFallback && (
+          <aside className="hidden w-80 shrink-0 overflow-y-auto border-l border-border p-3 xl:block">
+            <RightRailContent />
+          </aside>
+        )}
       </div>
 
       <FlowBar onPublish={() => setPublishOpen(true)} />

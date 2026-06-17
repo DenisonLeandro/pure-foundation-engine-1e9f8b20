@@ -23,7 +23,7 @@ import { usePfmAccounts, usePfmCreatePost } from "@/hooks/use-blotato";
 import { pfmCreateUploadUrl, aiAssist } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import { brandTextHint, type BrandProfile } from "@/lib/brand";
-import { saveVisualToGallery, saveUploadToGallery, markAsPublishedByUrls, sanitizeDesignDoc } from "@/lib/gallery";
+import { saveVisualToGallery, saveUploadToGallery, markAsPublishedByUrls, sanitizeDesignDoc, persistDesignDoc } from "@/lib/gallery";
 import type { Platform } from "@/types";
 import type { StudioDoc } from "./types";
 
@@ -39,12 +39,15 @@ function dataUrlToBlob(dataUrl: string): Blob {
 }
 
 export function OutputScreen({
-  doc, brand, onRestart, onEditInCanvas,
+  doc, brand, onRestart, onEditInCanvas, renderedUrls,
 }: {
   doc: StudioDoc;
   brand: BrandProfile | null;
   onRestart: () => void;
   onEditInCanvas: (doc: StudioDoc) => void;
+  /** URLs renderizadas pelo MESMO renderer que salva na Galeria. Quando presente,
+   *  são usadas como preview/upload em vez de `slide.bgImage` (que é o fundo limpo). */
+  renderedUrls?: string[];
 }) {
   const { user } = useAuth();
   const { data: accounts = [], isLoading: acctLoading } = usePfmAccounts();
@@ -62,7 +65,11 @@ export function OutputScreen({
   const [saving, setSaving] = useState(false);
 
   const isVideo = !!doc.videoUrl;
-  const media = isVideo ? [doc.videoUrl!] : doc.slides.map((s) => s.bgImage).filter((u): u is string => !!u);
+  const media = isVideo
+    ? [doc.videoUrl!]
+    : (renderedUrls && renderedUrls.length
+        ? renderedUrls
+        : doc.slides.map((s) => s.bgImage).filter((u): u is string => !!u));
   const hasIg = selected.some((id) => accounts.find((a) => a.id === id)?.platform === "instagram");
 
   const toggle = (id: string) => setSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -174,7 +181,8 @@ export function OutputScreen({
         toast.error("Não foi possível preparar a mídia");
         return;
       }
-      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático", designDoc: sanitizeDesignDoc(doc) });
+      const persistedDoc = (await persistDesignDoc(doc)) ?? sanitizeDesignDoc(doc);
+      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático", designDoc: persistedDoc });
       if (!saved) {
         toast.error("Falha ao salvar na galeria");
         return;

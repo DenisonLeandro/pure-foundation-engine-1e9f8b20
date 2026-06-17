@@ -43,6 +43,11 @@ export function ElementInspector() {
             <div><Label className="text-[11px]">Tamanho</Label><Input type="number" value={e.fontSize} onChange={(ev) => patchEl(e.id, { fontSize: Number(ev.target.value) })} /></div>
             <div><Label className="text-[11px]">Cor</Label><Input type="color" value={e.color} onChange={(ev) => patchEl(e.id, { color: ev.target.value })} className="h-9 p-1" /></div>
           </div>
+          <div><Label className="text-[11px]">Fonte</Label><Input value={e.fontFamily ?? ""} onChange={(ev) => patchEl(e.id, { fontFamily: ev.target.value || undefined })} placeholder="Ex: Arial, Inter, serif" /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label className="text-[11px]">Altura linha</Label><Input type="number" step="0.05" value={e.lineHeight ?? 1.15} onChange={(ev) => patchEl(e.id, { lineHeight: Number(ev.target.value) })} /></div>
+            <div><Label className="text-[11px]">Espaçamento</Label><Input type="number" value={e.letterSpacing ?? 0} onChange={(ev) => patchEl(e.id, { letterSpacing: Number(ev.target.value) })} /></div>
+          </div>
           <div className="flex gap-1">
             {(["left", "center", "right"] as const).map((a) => (
               <Button key={a} variant={e.align === a ? "default" : "outline"} size="icon" className={`h-7 w-7 ${e.align === a ? "bg-violet-600" : ""}`} onClick={() => patchEl(e.id, { align: a })}>
@@ -70,8 +75,12 @@ export function ElementInspector() {
       )}
 
       <div className="grid grid-cols-2 gap-2">
+        <div><Label className="text-[11px]">X</Label><Input type="number" value={e.x} onChange={(ev) => patchEl(e.id, { x: Number(ev.target.value) })} /></div>
+        <div><Label className="text-[11px]">Y</Label><Input type="number" value={e.y} onChange={(ev) => patchEl(e.id, { y: Number(ev.target.value) })} /></div>
         <div><Label className="text-[11px]">Largura</Label><Input type="number" value={e.w} onChange={(ev) => patchEl(e.id, { w: Number(ev.target.value) })} /></div>
         <div><Label className="text-[11px]">Altura</Label><Input type="number" value={e.h} onChange={(ev) => patchEl(e.id, { h: Number(ev.target.value) })} /></div>
+        <div><Label className="text-[11px]">Opacidade</Label><Input type="number" min="0" max="1" step="0.05" value={e.opacity ?? 1} onChange={(ev) => patchEl(e.id, { opacity: Number(ev.target.value) })} /></div>
+        <div><Label className="text-[11px]">Rotação</Label><Input type="number" value={e.rotation ?? 0} onChange={(ev) => patchEl(e.id, { rotation: Number(ev.target.value) })} /></div>
       </div>
     </div>
   );

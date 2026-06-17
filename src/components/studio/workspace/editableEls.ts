@@ -3,8 +3,8 @@
  * com posições aproximadas baseadas no template. Coordenadas usam o sistema
  * do preview do canvas (CANVAS_W=360 × CANVAS_H=450).
  *
- * Não busca pixel-perfect com o composeSlideWithText (que renderiza em 1024×1536):
- * o objetivo é que o usuário consiga selecionar, editar, mover e re-exportar.
+ * Padrão editorial leve: sem gradiente cobrindo a foto, só uma sombra em
+ * camadas, suave e quase invisível, que dá leitura sem virar mancha.
  */
 
 import type { El } from "./types";
@@ -24,80 +24,175 @@ export interface BuildElsOpts {
 const W = 360;
 const H = 450;
 const MARGIN = 24;
+// Sombra em camadas: densa rente à letra, depois um halo amplo e diluído.
+// Quase invisível como "tarja", mas garante leitura sobre qualquer foto.
+const SHADOW =
+  "0 1px 0 rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.7), 0 2px 6px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.35)";
+const SHADOW_STRONG =
+  "0 1px 0 rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.55), 0 10px 28px rgba(0,0,0,0.4)";
+
+// Halo radial MUITO discreto atrás do título — 18% de opacidade, pílula
+// totalmente arredondada. Quase invisível sobre fotos médias/escuras, dá só
+// um respiro extra onde a foto é clara demais.
+const HALO_PREFIX = "rb-bg-halo-";
+function titleHalo(x: number, y: number, w: number, h: number): El {
+  const padX = 24, padY = 16;
+  return {
+    id: HALO_PREFIX + uid(),
+    type: "shape",
+    x: Math.max(0, x - padX),
+    y: Math.max(0, y - padY),
+    w: w + padX * 2,
+    h: h + padY * 2,
+    bg: "rgba(0,0,0,0.18)",
+    opacity: 1,
+    radius: 999,
+    zIndex: 1,
+  };
+}
+
+
+function counterEl(index: number | undefined, total: number | undefined, position: "top-right" | "bottom-right"): El | null {
+  if (typeof index !== "number" || typeof total !== "number" || total <= 1) return null;
+  return {
+    id: uid(), type: "text",
+    x: W - MARGIN - 60,
+    y: position === "top-right" ? 18 : H - 18,
+    w: 60, h: 14,
+    text: `${index + 1} / ${total}`,
+    fontSize: 10, color: "rgba(255,255,255,0.9)",
+    weight: 600, align: "right",
+    shadow: SHADOW,
+    zIndex: 5,
+  };
+}
+
+function handleEl(brandHandle: string | undefined, position: "bottom-left" | "top-left"): El | null {
+  if (!brandHandle) return null;
+  return {
+    id: uid(), type: "text",
+    x: MARGIN,
+    y: position === "bottom-left" ? H - 18 : 18,
+    w: 200, h: 14,
+    text: brandHandle,
+    fontSize: 9, color: "rgba(255,255,255,0.7)",
+    weight: 500, align: "left",
+    shadow: SHADOW,
+    zIndex: 5,
+  };
+}
 
 export function buildEditableEls(opts: BuildElsOpts): El[] {
-  const { heading, body, brandHandle, brandColor = "#f59e0b", index, total, template } = opts;
+  const { heading, body, brandHandle, index, total, template } = opts;
   const els: El[] = [];
-
-  // Chrome — brand handle e contador (presentes na maioria dos templates)
-  if (brandHandle) {
-    els.push({
-      id: uid(), type: "text",
-      x: MARGIN, y: template === "top" ? H - 36 : 18,
-      w: 200, h: 18,
-      text: brandHandle, fontSize: 10, color: "rgba(255,255,255,0.78)",
-      weight: 500, align: "left",
-    });
-  }
-  if (typeof index === "number" && typeof total === "number" && total > 1) {
-    els.push({
-      id: uid(), type: "text",
-      x: W - MARGIN - 60, y: template === "top" ? H - 36 : 18,
-      w: 60, h: 18,
-      text: `${index + 1} / ${total}`, fontSize: 10, color: "rgba(255,255,255,0.88)",
-      weight: 600, align: "right",
-    });
-  }
-
-  // Heading + body por template
   const head = (heading || "").trim();
   const bodyText = (body || "").trim();
 
   switch (template) {
     case "top": {
-      els.push(textEl({ x: MARGIN, y: 80, w: W - MARGIN * 2, h: 90, text: head, fontSize: 26, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: MARGIN, y: 180, w: W - MARGIN * 2, h: 60, text: bodyText, fontSize: 12, weight: 500, align: "left", color: "rgba(255,255,255,0.9)" }));
-      els.push(shapeBar(MARGIN, 60, brandColor));
+      els.push({
+        id: uid(), type: "text",
+        x: MARGIN, y: 56, w: W - MARGIN * 2, h: 130,
+        text: head,
+        fontSize: 32, weight: 800, align: "left", color: "#ffffff",
+        lineHeight: 1.04, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
+      });
+      if (bodyText) {
+        els.push({
+          id: uid(), type: "text",
+          x: MARGIN, y: 200, w: W - MARGIN * 2, h: 72,
+          text: bodyText,
+          fontSize: 12, weight: 400, align: "left",
+          color: "rgba(255,255,255,0.94)",
+          lineHeight: 1.4, shadow: SHADOW, zIndex: 3,
+        });
+      }
+      const c = counterEl(index, total, "bottom-right"); if (c) els.push(c);
+      const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
       break;
     }
+
     case "center-card": {
+      els.push(titleHalo(MARGIN, 146, W - MARGIN * 2, 140));
       els.push({
-        id: uid(), type: "shape",
-        x: MARGIN, y: 150, w: W - MARGIN * 2, h: 160,
-        bg: "rgba(10,15,30,0.72)", opacity: 1,
+        id: uid(), type: "text",
+        x: MARGIN, y: 146, w: W - MARGIN * 2, h: 140,
+        text: head,
+        fontSize: 28, weight: 800, align: "center", color: "#ffffff",
+        lineHeight: 1.08, letterSpacing: -0.3, shadow: SHADOW_STRONG, zIndex: 3,
       });
-      els.push(textEl({ x: MARGIN + 18, y: 168, w: W - (MARGIN + 18) * 2, h: 100, text: head, fontSize: 22, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: MARGIN + 18, y: 270, w: W - (MARGIN + 18) * 2, h: 36, text: bodyText, fontSize: 11, weight: 500, align: "left", color: "rgba(255,255,255,0.88)" }));
+      if (bodyText) {
+        els.push({
+          id: uid(), type: "text",
+          x: MARGIN, y: 296, w: W - MARGIN * 2, h: 80,
+          text: bodyText,
+          fontSize: 12, weight: 400, align: "center",
+          color: "rgba(255,255,255,0.94)",
+          lineHeight: 1.4, shadow: SHADOW, zIndex: 3,
+        });
+      }
+      const c = counterEl(index, total, "top-right"); if (c) els.push(c);
+      const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
       break;
     }
-    case "side-bar": {
-      els.push({
-        id: uid(), type: "shape",
-        x: 0, y: 0, w: Math.round(W * 0.42), h: H,
-        bg: brandColor, opacity: 0.95,
-      });
-      const barW = Math.round(W * 0.42);
-      els.push(textEl({ x: 16, y: 140, w: barW - 32, h: 140, text: head, fontSize: 20, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: 16, y: 290, w: barW - 32, h: 90, text: bodyText, fontSize: 11, weight: 500, align: "left", color: "rgba(255,255,255,0.92)" }));
-      break;
-    }
+
     case "kicker": {
       const kickerText = typeof index === "number" && typeof total === "number" && total > 1
-        ? `CAPÍTULO ${String(index + 1).padStart(2, "0")}`
+        ? `PARTE ${String(index + 1).padStart(2, "0")}`
         : "DESTAQUE";
-      els.push(textEl({ x: MARGIN, y: 280, w: W - MARGIN * 2, h: 18, text: kickerText, fontSize: 9, weight: 700, align: "left", color: "rgba(255,255,255,0.92)" }));
-      els.push(textEl({ x: MARGIN, y: 300, w: W - MARGIN * 2, h: 90, text: head, fontSize: 28, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: MARGIN, y: 396, w: W - MARGIN * 2, h: 40, text: bodyText, fontSize: 11, weight: 500, align: "left", color: "rgba(255,255,255,0.9)" }));
+      els.push({
+        id: uid(), type: "text",
+        x: MARGIN, y: 208, w: W - MARGIN * 2, h: 14,
+        text: kickerText,
+        fontSize: 9, weight: 700, align: "left",
+        color: "rgba(255,255,255,0.88)",
+        letterSpacing: 1.6, shadow: SHADOW, zIndex: 3,
+      });
+      els.push(titleHalo(MARGIN, 228, W - MARGIN * 2, 130));
+      els.push({
+        id: uid(), type: "text",
+        x: MARGIN, y: 228, w: W - MARGIN * 2, h: 130,
+        text: head,
+        fontSize: 28, weight: 800, align: "left", color: "#ffffff",
+        lineHeight: 1.05, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
+      });
+      if (bodyText) {
+        els.push({
+          id: uid(), type: "text",
+          x: MARGIN, y: 366, w: W - MARGIN * 2, h: 50,
+          text: bodyText,
+          fontSize: 11, weight: 400, align: "left",
+          color: "rgba(255,255,255,0.9)",
+          lineHeight: 1.35, shadow: SHADOW, zIndex: 3,
+        });
+      }
+      const c = counterEl(index, total, "top-right"); if (c) els.push(c);
+      const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
       break;
     }
-    case "quote": {
-      els.push(textEl({ x: MARGIN, y: 170, w: W - MARGIN * 2, h: 160, text: `“${head}”`, fontSize: 20, weight: 600, align: "center", color: "#ffffff" }));
-      break;
-    }
+
     case "bottom":
     default: {
-      els.push(textEl({ x: MARGIN, y: 300, w: W - MARGIN * 2, h: 90, text: head, fontSize: 28, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: MARGIN, y: 396, w: W - MARGIN * 2, h: 40, text: bodyText, fontSize: 11, weight: 500, align: "left", color: "rgba(255,255,255,0.9)" }));
+      els.push(titleHalo(MARGIN, 232, W - MARGIN * 2, 125));
+      els.push({
+        id: uid(), type: "text",
+        x: MARGIN, y: 232, w: W - MARGIN * 2, h: 125,
+        text: head,
+        fontSize: 34, weight: 800, align: "left", color: "#ffffff",
+        lineHeight: 1.02, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
+      });
+      if (bodyText) {
+        els.push({
+          id: uid(), type: "text",
+          x: MARGIN, y: 362, w: W - MARGIN * 2, h: 50,
+          text: bodyText,
+          fontSize: 12, weight: 400, align: "left",
+          color: "rgba(255,255,255,0.92)",
+          lineHeight: 1.35, shadow: SHADOW, zIndex: 3,
+        });
+      }
+      const c = counterEl(index, total, "top-right"); if (c) els.push(c);
+      const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
       break;
     }
   }
@@ -105,14 +200,3 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
   return els;
 }
 
-function textEl(p: { x: number; y: number; w: number; h: number; text: string; fontSize: number; weight: number; align: "left" | "center" | "right"; color: string }): El {
-  return {
-    id: uid(), type: "text",
-    x: p.x, y: p.y, w: p.w, h: p.h,
-    text: p.text, fontSize: p.fontSize, weight: p.weight, align: p.align, color: p.color,
-  };
-}
-
-function shapeBar(x: number, y: number, color: string): El {
-  return { id: uid(), type: "shape", x, y, w: 40, h: 3, bg: color, opacity: 1 };
-}
