@@ -176,21 +176,31 @@ function paintTextWithShadow(
   draw: () => void,
   strong = false,
 ) {
+  // Camada 4: halo amplo distribuído (não vira mancha)
   ctx.save();
-  ctx.shadowColor = strong ? "rgba(0,0,0,0.32)" : "rgba(0,0,0,0.28)";
-  ctx.shadowBlur = strong ? 32 : 24;
-  ctx.shadowOffsetY = strong ? 12 : 8;
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.4)" : "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = strong ? 28 : 18;
+  ctx.shadowOffsetY = strong ? 10 : 6;
   draw();
   ctx.restore();
+  // Camada 3: sombra média
   ctx.save();
-  ctx.shadowColor = strong ? "rgba(0,0,0,0.38)" : "rgba(0,0,0,0.35)";
-  ctx.shadowBlur = strong ? 10 : 6;
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = strong ? 8 : 6;
   ctx.shadowOffsetY = 2;
   draw();
   ctx.restore();
+  // Camada 2: blur curto que escurece os contornos
   ctx.save();
-  ctx.shadowColor = strong ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = 1;
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.8)" : "rgba(0,0,0,0.7)";
+  ctx.shadowBlur = strong ? 3 : 2;
+  ctx.shadowOffsetY = 0;
+  draw();
+  ctx.restore();
+  // Camada 1: contorno tight (offset 1px, blur 0) — quase um stroke preto fino
+  ctx.save();
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.9)" : "rgba(0,0,0,0.85)";
+  ctx.shadowBlur = 0;
   ctx.shadowOffsetY = 1;
   draw();
   ctx.restore();
