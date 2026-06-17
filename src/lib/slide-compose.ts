@@ -421,25 +421,26 @@ function renderKicker(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   ctx.font = `400 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
 
-  const kickerH = 56;
+  const kickerH = 36;
   const totalBlockH = kickerH + lines.length * lineHeight + (bodyLines.length ? 28 + bodyLines.length * Math.round(bodySize * 1.4) : 0);
   let y = Math.max(Math.round(H * 0.46), H - margin - totalBlockH - 40);
   if (brandHandle) y -= 32;
 
-  // Traço fino + rótulo caps
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.fillRect(margin, y + 6, 36, 3);
+  // Rótulo caps, sem régua branca atrás.
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `700 22px ${FONT}`;
-  ctx.fillStyle = "rgba(255,255,255,0.92)";
-  applyTextShadow(ctx);
-  ctx.fillText(kickerText, margin + 48, y);
+  ctx.fillStyle = "rgba(255,255,255,0.88)";
+  const kickerY = y;
+  paintTextWithShadow(ctx, () => ctx.fillText(kickerText, margin, kickerY));
   y += kickerH;
 
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  applyTextShadow(ctx, true);
-  for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
+  for (const line of lines) {
+    const lineY = y;
+    paintTextWithShadow(ctx, () => ctx.fillText(line, margin, lineY), true);
+    y += lineHeight;
+  }
 
   if (bodyLines.length) {
     y += 28;
