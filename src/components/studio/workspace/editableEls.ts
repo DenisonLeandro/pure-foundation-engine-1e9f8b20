@@ -71,15 +71,15 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
     case "top": {
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 64, w: W - MARGIN * 2, h: 170,
+        x: MARGIN, y: 56, w: W - MARGIN * 2, h: 130,
         text: head,
-        fontSize: 34, weight: 800, align: "left", color: "#ffffff",
+        fontSize: 32, weight: 800, align: "left", color: "#ffffff",
         lineHeight: 1.04, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
       });
       if (bodyText) {
         els.push({
           id: uid(), type: "text",
-          x: MARGIN, y: 242, w: W - MARGIN * 2, h: 70,
+          x: MARGIN, y: 200, w: W - MARGIN * 2, h: 72,
           text: bodyText,
           fontSize: 12, weight: 400, align: "left",
           color: "rgba(255,255,255,0.94)",
@@ -94,7 +94,7 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
     case "center-card": {
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 150, w: W - MARGIN * 2, h: 150,
+        x: MARGIN, y: 146, w: W - MARGIN * 2, h: 140,
         text: head,
         fontSize: 28, weight: 800, align: "center", color: "#ffffff",
         lineHeight: 1.08, letterSpacing: -0.3, shadow: SHADOW_STRONG, zIndex: 3,
@@ -102,7 +102,7 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
       if (bodyText) {
         els.push({
           id: uid(), type: "text",
-          x: MARGIN, y: 308, w: W - MARGIN * 2, h: 70,
+          x: MARGIN, y: 296, w: W - MARGIN * 2, h: 80,
           text: bodyText,
           fontSize: 12, weight: 400, align: "center",
           color: "rgba(255,255,255,0.94)",
@@ -120,7 +120,7 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
         : "DESTAQUE";
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 240, w: W - MARGIN * 2, h: 14,
+        x: MARGIN, y: 208, w: W - MARGIN * 2, h: 14,
         text: kickerText,
         fontSize: 9, weight: 700, align: "left",
         color: "rgba(255,255,255,0.88)",
@@ -128,15 +128,15 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
       });
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 262, w: W - MARGIN * 2, h: 150,
+        x: MARGIN, y: 228, w: W - MARGIN * 2, h: 130,
         text: head,
-        fontSize: 32, weight: 800, align: "left", color: "#ffffff",
-        lineHeight: 1.04, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
+        fontSize: 28, weight: 800, align: "left", color: "#ffffff",
+        lineHeight: 1.05, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
       });
       if (bodyText) {
         els.push({
           id: uid(), type: "text",
-          x: MARGIN, y: 420, w: W - MARGIN * 2 - 70, h: 24,
+          x: MARGIN, y: 366, w: W - MARGIN * 2, h: 50,
           text: bodyText,
           fontSize: 11, weight: 400, align: "left",
           color: "rgba(255,255,255,0.9)",
@@ -152,15 +152,15 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
     default: {
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 240, w: W - MARGIN * 2, h: 170,
+        x: MARGIN, y: 232, w: W - MARGIN * 2, h: 125,
         text: head,
-        fontSize: 36, weight: 800, align: "left", color: "#ffffff",
+        fontSize: 34, weight: 800, align: "left", color: "#ffffff",
         lineHeight: 1.02, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
       });
       if (bodyText) {
         els.push({
           id: uid(), type: "text",
-          x: MARGIN, y: 414, w: W - MARGIN * 2 - 70, h: 24,
+          x: MARGIN, y: 362, w: W - MARGIN * 2, h: 50,
           text: bodyText,
           fontSize: 12, weight: 400, align: "left",
           color: "rgba(255,255,255,0.92)",
@@ -175,3 +175,4 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
 
   return els;
 }
+
