@@ -349,14 +349,11 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const styleHint = ART_STYLES.find((s) => s.value === artStyle)?.hint || "";
       const direction = artDirection.trim();
 
-      // Resolve o template por slide. "auto" rotaciona; qualquer outro valor fixa.
-      const rotation = SLIDE_TEMPLATES;
-      const offset = Math.floor(Math.random() * rotation.length);
-      const pickTemplate = (i: number): SlideTemplate => {
+      // Padrão unificado: todos os slides usam o template "bottom" (editorial
+      // grande embaixo). Layout fixo escolhido pelo usuário continua respeitado.
+      const pickTemplate = (_i: number): SlideTemplate => {
         if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
-        // capa sempre num template "forte"
-        if (i === 0) return "bottom";
-        return rotation[(i + offset) % rotation.length];
+        return "bottom";
       };
 
       let slides: Slide[];
@@ -400,7 +397,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint);
         const soloTemplate: SlideTemplate = layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)
           ? (layoutMode as SlideTemplate)
-          : (["bottom", "side-bar", "kicker", "center-card"] as SlideTemplate[])[Math.floor(Math.random() * 4)];
+          : "bottom";
         const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
         const { cleanBg, composed } = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
         const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];

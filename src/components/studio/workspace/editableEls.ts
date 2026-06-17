@@ -26,93 +26,72 @@ const H = 450;
 const MARGIN = 24;
 
 export function buildEditableEls(opts: BuildElsOpts): El[] {
-  const { heading, body, brandHandle, brandColor = "#f59e0b", index, total, template } = opts;
+  const { heading, body, brandHandle, index, total } = opts;
   const els: El[] = [];
 
-  // Chrome — brand handle e contador (presentes na maioria dos templates)
-  if (brandHandle) {
-    els.push({
-      id: uid(), type: "text",
-      x: MARGIN, y: template === "top" ? H - 36 : 18,
-      w: 200, h: 18,
-      text: brandHandle, fontSize: 10, color: "rgba(255,255,255,0.78)",
-      weight: 500, align: "left",
-    });
-  }
+  // Gradiente inferior pra leitura — não-editável visualmente, mas existe como shape.
+  els.push({
+    id: uid(), type: "shape",
+    x: 0, y: Math.round(H * 0.42), w: W, h: H - Math.round(H * 0.42),
+    bg: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.88) 100%)",
+    opacity: 1,
+    zIndex: 1,
+  });
+
+  // Contador discreto no topo direito
   if (typeof index === "number" && typeof total === "number" && total > 1) {
     els.push({
       id: uid(), type: "text",
-      x: W - MARGIN - 60, y: template === "top" ? H - 36 : 18,
-      w: 60, h: 18,
-      text: `${index + 1} / ${total}`, fontSize: 10, color: "rgba(255,255,255,0.88)",
+      x: W - MARGIN - 60, y: 18, w: 60, h: 18,
+      text: `${index + 1} / ${total}`,
+      fontSize: 10, color: "rgba(255,255,255,0.92)",
       weight: 600, align: "right",
+      zIndex: 5,
     });
   }
 
-  // Heading + body por template
   const head = (heading || "").trim();
   const bodyText = (body || "").trim();
 
-  switch (template) {
-    case "top": {
-      els.push(textEl({ x: MARGIN, y: 80, w: W - MARGIN * 2, h: 90, text: head, fontSize: 26, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: MARGIN, y: 180, w: W - MARGIN * 2, h: 60, text: bodyText, fontSize: 12, weight: 500, align: "left", color: "rgba(255,255,255,0.9)" }));
-      els.push(shapeBar(MARGIN, 60, brandColor));
-      break;
-    }
-    case "center-card": {
-      els.push({
-        id: uid(), type: "shape",
-        x: MARGIN, y: 150, w: W - MARGIN * 2, h: 160,
-        bg: "rgba(10,15,30,0.72)", opacity: 1,
-      });
-      els.push(textEl({ x: MARGIN + 18, y: 168, w: W - (MARGIN + 18) * 2, h: 100, text: head, fontSize: 22, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: MARGIN + 18, y: 270, w: W - (MARGIN + 18) * 2, h: 36, text: bodyText, fontSize: 11, weight: 500, align: "left", color: "rgba(255,255,255,0.88)" }));
-      break;
-    }
-    case "side-bar": {
-      els.push({
-        id: uid(), type: "shape",
-        x: 0, y: 0, w: Math.round(W * 0.42), h: H,
-        bg: brandColor, opacity: 0.95,
-      });
-      const barW = Math.round(W * 0.42);
-      els.push(textEl({ x: 16, y: 140, w: barW - 32, h: 140, text: head, fontSize: 20, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: 16, y: 290, w: barW - 32, h: 90, text: bodyText, fontSize: 11, weight: 500, align: "left", color: "rgba(255,255,255,0.92)" }));
-      break;
-    }
-    case "kicker": {
-      const kickerText = typeof index === "number" && typeof total === "number" && total > 1
-        ? `CAPÍTULO ${String(index + 1).padStart(2, "0")}`
-        : "DESTAQUE";
-      els.push(textEl({ x: MARGIN, y: 280, w: W - MARGIN * 2, h: 18, text: kickerText, fontSize: 9, weight: 700, align: "left", color: "rgba(255,255,255,0.92)" }));
-      els.push(textEl({ x: MARGIN, y: 300, w: W - MARGIN * 2, h: 90, text: head, fontSize: 28, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: MARGIN, y: 396, w: W - MARGIN * 2, h: 40, text: bodyText, fontSize: 11, weight: 500, align: "left", color: "rgba(255,255,255,0.9)" }));
-      break;
-    }
-    case "quote": {
-      els.push(textEl({ x: MARGIN, y: 170, w: W - MARGIN * 2, h: 160, text: `“${head}”`, fontSize: 20, weight: 600, align: "center", color: "#ffffff" }));
-      break;
-    }
-    case "bottom":
-    default: {
-      els.push(textEl({ x: MARGIN, y: 300, w: W - MARGIN * 2, h: 90, text: head, fontSize: 28, weight: 800, align: "left", color: "#ffffff" }));
-      if (bodyText) els.push(textEl({ x: MARGIN, y: 396, w: W - MARGIN * 2, h: 40, text: bodyText, fontSize: 11, weight: 500, align: "left", color: "rgba(255,255,255,0.9)" }));
-      break;
-    }
+  // Heading grande, branco, embaixo à esquerda
+  els.push({
+    id: uid(), type: "text",
+    x: MARGIN, y: 268, w: W - MARGIN * 2, h: 130,
+    text: head,
+    fontSize: 38, weight: 800,
+    align: "left",
+    color: "#ffffff",
+    lineHeight: 1.02,
+    letterSpacing: -0.4,
+    shadow: "0 2px 14px rgba(0,0,0,0.45)",
+    zIndex: 3,
+  });
+
+  if (bodyText) {
+    els.push({
+      id: uid(), type: "text",
+      x: MARGIN, y: 398, w: W - MARGIN * 2, h: 40,
+      text: bodyText,
+      fontSize: 12, weight: 400,
+      align: "left",
+      color: "rgba(255,255,255,0.88)",
+      lineHeight: 1.35,
+      zIndex: 3,
+    });
+  }
+
+  // Handle discreto no rodapé esquerdo
+  if (brandHandle) {
+    els.push({
+      id: uid(), type: "text",
+      x: MARGIN, y: H - 22, w: 200, h: 16,
+      text: brandHandle,
+      fontSize: 9, color: "rgba(255,255,255,0.7)",
+      weight: 500, align: "left",
+      zIndex: 5,
+    });
   }
 
   return els;
 }
 
-function textEl(p: { x: number; y: number; w: number; h: number; text: string; fontSize: number; weight: number; align: "left" | "center" | "right"; color: string }): El {
-  return {
-    id: uid(), type: "text",
-    x: p.x, y: p.y, w: p.w, h: p.h,
-    text: p.text, fontSize: p.fontSize, weight: p.weight, align: p.align, color: p.color,
-  };
-}
-
-function shapeBar(x: number, y: number, color: string): El {
-  return { id: uid(), type: "shape", x, y, w: 40, h: 3, bg: color, opacity: 1 };
-}
