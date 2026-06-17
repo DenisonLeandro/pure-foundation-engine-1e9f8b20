@@ -434,7 +434,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, stylePreset);
       setDoc(finalDoc);
       toast.success("Criação pronta!");
-      autoSave(finalDoc, composedUrls);
+      autoSave(finalDoc).then((urls) => { if (urls.length) setRenderedUrls(urls); });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar");
     } finally {
