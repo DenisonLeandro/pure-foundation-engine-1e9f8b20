@@ -7,7 +7,7 @@ import { StudioWorkspace } from "@/components/studio/workspace/StudioWorkspace";
 import { emptyDoc } from "@/components/studio/workspace/StudioProvider";
 import { loadLatestStudioDraft, loadStudioFlowDraft, type StudioDraft, type StudioFlowDraft } from "@/components/studio/workspace/studioDraft";
 import { useAuth } from "@/contexts/AuthContext";
-import { CANVAS_H, CANVAS_W, type StudioDoc, type Slide, type El } from "@/components/studio/workspace/types";
+import { CANVAS_H, CANVAS_W, type StudioDoc, type Slide } from "@/components/studio/workspace/types";
 
 type ImageMeta = { width: number; height: number };
 const fallbackCanvas = { width: CANVAS_W, height: CANVAS_H, aspectRatio: CANVAS_W / CANVAS_H, source: "fallback" as const };
