@@ -167,11 +167,39 @@ export async function composeSlideWithText(opts: ComposeOpts): Promise<string> {
 // Templates
 // ============================================================================
 
-/** Sombra forte mas suave aplicada em qualquer texto sobre foto sem overlay. */
-function applyTextShadow(ctx: CanvasRenderingContext2D, strong = false) {
-  ctx.shadowColor = strong ? "rgba(0,0,0,0.65)" : "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = strong ? 22 : 14;
+/** Sombra em camadas: densa rente à letra + halo amplo diluído. Quase
+ *  invisível como mancha, mas dá leitura forte sobre qualquer foto.
+ *  Canvas 2D só aceita uma sombra por draw — então pintamos o texto duas
+ *  vezes: uma com halo amplo e outra com a sombra densa por cima. */
+function paintTextWithShadow(
+  ctx: CanvasRenderingContext2D,
+  draw: () => void,
+  strong = false,
+) {
+  ctx.save();
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.32)" : "rgba(0,0,0,0.28)";
+  ctx.shadowBlur = strong ? 32 : 24;
+  ctx.shadowOffsetY = strong ? 12 : 8;
+  draw();
+  ctx.restore();
+  ctx.save();
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.38)" : "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = strong ? 10 : 6;
   ctx.shadowOffsetY = 2;
+  draw();
+  ctx.restore();
+  ctx.save();
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 1;
+  ctx.shadowOffsetY = 1;
+  draw();
+  ctx.restore();
+}
+
+function applyTextShadow(ctx: CanvasRenderingContext2D, strong = false) {
+  ctx.shadowColor = strong ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = strong ? 4 : 2;
+  ctx.shadowOffsetY = 1;
 }
 function clearShadow(ctx: CanvasRenderingContext2D) {
   ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
