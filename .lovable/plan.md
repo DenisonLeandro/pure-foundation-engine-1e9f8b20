@@ -1,50 +1,35 @@
-O motivo de eu não conseguir fazer “exatamente igual e editável” com o ajuste anterior é este:
+## Plano revisado
 
-Hoje existem duas artes diferentes:
+Você quer que os novos posts venham no padrão da imagem anexada:
 
-1. A imagem da Galeria é uma imagem final já rasterizada, criada por `composeSlideWithText` em canvas 1024×1536.
-2. O editor reabre um `design_doc` com camadas recriadas por `buildEditableEls`, que o próprio código diz serem posições aproximadas, não pixel-perfect.
+- imagem de fundo em tela cheia;
+- leve escurecimento/gradiente na parte inferior para leitura;
+- título grande, branco, pesado, alinhado à esquerda, no canto inferior;
+- texto descritivo pequeno abaixo do título;
+- contador pequeno no topo direito;
+- sem faixa/card escuro atravessando o post;
+- sem linha/barrinha laranja;
+- sem padronização tipo “bloco roxo” da primeira imagem.
 
-Então o Studio não está abrindo a mesma criação; ele está abrindo uma aproximação editável da imagem final. Quando tentei colocar a imagem final como fundo + camadas por cima, ficou visualmente igual por baixo, mas duplicou texto porque o texto já estava queimado na imagem final.
+## O que vou alterar
 
-A solução correta é parar de ter dois renderizadores.
+### 1. Template principal de capa/post
+Vou ajustar o template `bottom`, que hoje é usado como capa padrão dos carrosséis e em muitos posts únicos, para ficar nesse estilo editorial da referência.
 
-Plano de correção robusta:
+### 2. Elementos editáveis do editor
+No `design_doc`, o título e o texto continuarão sendo camadas editáveis, mas serão criados já com:
 
-1. Criar um renderizador único de slide do Studio.
-   - Extrair o desenho atual do `DesignCanvas` para um componente compartilhado, por exemplo `StudioSlideRenderer`.
-   - Esse renderer será usado tanto no editor quanto na exportação/salvamento.
-   - Fundo, imagem, overlay, texto, fonte, cor, tamanho, quebra de linha, shapes e imagens passam a sair de uma única fonte.
+- título maior;
+- posição inferior esquerda;
+- corpo pequeno logo abaixo;
+- gradiente inferior como camada de fundo;
+- sem barra decorativa.
 
-2. Parar de salvar na Galeria a imagem composta por `composeSlideWithText` quando existir `design_doc`.
-   - O fluxo automático pode continuar usando IA para criar fundo e conteúdo inicial.
-   - Mas a imagem final salva na Galeria deve ser exportada a partir do próprio `design_doc` editável.
-   - Assim, a Galeria mostra exatamente o que o editor renderiza.
+### 3. Renderização final salva na Galeria
+Vou aplicar a mesma composição na renderização final, para manter o objetivo anterior: o que aparece na Galeria deve abrir igual no editor, sem duplicar texto.
 
-3. Ajustar o AutoStudio.
-   - Hoje ele cria `composedUrls` separados e salva esses URLs na Galeria.
-   - Vou mudar para salvar/exportar a arte gerada pelo mesmo renderizador do Studio.
-   - `composedUrls` deixam de ser a fonte visual principal quando houver camadas editáveis.
+### 4. Escopo
+Não vou mudar a imagem de fundo, geração por IA, legenda, banco, publicação ou outros templates. A mudança afeta novas gerações daqui pra frente; posts antigos já salvos não são recriados automaticamente.
 
-4. Corrigir o fluxo Galeria → Editar.
-   - Se existir `design_doc`, abrir somente o documento por camadas.
-   - Não aplicar a imagem final como fundo por cima.
-   - Não reescalar se o documento já tiver canvas válido.
-   - Não aplicar tema/refinamento/readability automaticamente na abertura.
-
-5. Manter fallback para posts antigos.
-   - Posts antigos sem `design_doc` continuam abrindo como imagem estática.
-   - Posts antigos com `design_doc` aproximado podem ficar melhores, mas talvez não fiquem 100% iguais ao raster antigo porque o dado original pixel-perfect nunca foi salvo.
-   - Para esses casos, posso manter uma opção técnica segura: “usar imagem final como referência bloqueada” apenas quando o usuário quiser comparar, mas não como camada padrão para não duplicar texto.
-
-6. Garantias anti-IA/créditos.
-   - O fluxo Editar não chamará `generateOpenAiImage`, `generateContent`, `aiAssist`, Higgsfield, Pexels ou qualquer geração.
-   - Só lerá o registro salvo, montará o `design_doc` e salvará via `updateCreation`.
-
-Resultado esperado:
-
-- Novas criações salvas depois da correção abrem no editor visualmente iguais à Galeria e com textos/editáveis.
-- O botão Editar não duplica texto.
-- O botão Salvar atualiza o mesmo post.
-- Posts antigos sem camadas continuam como imagem estática.
-- Posts antigos feitos pelo pipeline antigo podem não ser 100% recuperáveis, porque a imagem final e o `design_doc` nasceram de renderizadores diferentes; a correção impede que isso continue acontecendo daqui para frente.
+## Resultado esperado
+Novos posts/carrosséis passam a sair com o padrão visual da referência anexada: editorial, limpo, título grande embaixo à esquerda, fundo escurecido só para leitura e tudo ainda editável no editor.
