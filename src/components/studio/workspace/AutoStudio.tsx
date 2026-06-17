@@ -446,7 +446,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
     <OutputScreen
       doc={doc}
       brand={brand}
-      onRestart={() => { setDoc(null); setPrompt(""); if (userId) clearStudioFlowDraft(userId); }}
+      renderedUrls={renderedUrls ?? undefined}
+      onRestart={() => { setDoc(null); setPrompt(""); setRenderedUrls(null); if (userId) clearStudioFlowDraft(userId); }}
       onEditInCanvas={onEditInCanvas}
     />
   ) : (
