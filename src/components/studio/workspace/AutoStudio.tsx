@@ -140,16 +140,20 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const c2 = brand?.colors?.[1] || "#d946ef";
   const grad = `linear-gradient(135deg, ${c1}, ${c2})`;
 
-  // Auto-save na galeria. As `urls` finais já vêm compostas (com texto rasterizado)
-  // para preservar publicação/agendamento exatamente como antes. O `design_doc`
-  // guarda o fundo limpo + camadas de texto editáveis.
-  const autoSave = async (mediaOrDoc: StudioDoc, composedUrls?: string[]) => {
+  // Auto-save na galeria. As `urls` finais são geradas pelo MESMO renderer do
+  // editor (renderDocOffscreen), garantindo que abrir o post no Editar mostre
+  // exatamente a mesma arte da Galeria — sem duplicar texto e sem mismatch.
+  const autoSave = async (mediaOrDoc: StudioDoc, _composedUrls?: string[]) => {
     try {
-      const urls = mediaOrDoc.videoUrl
-        ? [mediaOrDoc.videoUrl]
-        : (composedUrls && composedUrls.length
-            ? composedUrls
-            : (mediaOrDoc.slides.map((s) => s.bgImage).filter(Boolean) as string[]));
+      let urls: string[] = [];
+      if (mediaOrDoc.videoUrl) {
+        urls = [mediaOrDoc.videoUrl];
+      } else {
+        // Renderiza o doc EXATAMENTE como o editor renderiza.
+        const rendered = await renderDocOffscreen(mediaOrDoc, brand);
+        // persistUrls converte data: → URL pública do storage.
+        urls = rendered.length ? await persistUrls(rendered) : [];
+      }
       if (urls.length) await saveVisualToGallery({
         urls,
         prompt: mediaOrDoc.caption || prompt.trim(),
@@ -157,7 +161,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         designDoc: (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc),
         caption: mediaOrDoc.caption ?? "",
       });
-    } catch { /* best-effort */ }
+    } catch (e) { console.warn("[autoSave] falhou", e); }
   };
 
   const parseBrief = async (text: string): Promise<Brief> => {
