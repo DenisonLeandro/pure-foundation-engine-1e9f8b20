@@ -144,15 +144,13 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   // Auto-save na galeria. As `urls` finais são geradas pelo MESMO renderer do
   // editor (renderDocOffscreen), garantindo que abrir o post no Editar mostre
   // exatamente a mesma arte da Galeria — sem duplicar texto e sem mismatch.
-  const autoSave = async (mediaOrDoc: StudioDoc, _composedUrls?: string[]) => {
+  const autoSave = async (mediaOrDoc: StudioDoc): Promise<string[]> => {
     try {
       let urls: string[] = [];
       if (mediaOrDoc.videoUrl) {
         urls = [mediaOrDoc.videoUrl];
       } else {
-        // Renderiza o doc EXATAMENTE como o editor renderiza.
         const rendered = await renderDocOffscreen(mediaOrDoc, brand);
-        // persistUrls converte data: → URL pública do storage.
         urls = rendered.length ? await persistUrls(rendered) : [];
       }
       if (urls.length) await saveVisualToGallery({
@@ -162,7 +160,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         designDoc: (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc),
         caption: mediaOrDoc.caption ?? "",
       });
-    } catch (e) { console.warn("[autoSave] falhou", e); }
+      return urls;
+    } catch (e) { console.warn("[autoSave] falhou", e); return []; }
   };
 
   const parseBrief = async (text: string): Promise<Brief> => {
