@@ -44,8 +44,10 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const userId = user?.id ?? null;
+
   const refreshCompanies = useCallback(async () => {
-    if (!user || !supabaseConfigured) {
+    if (!userId || !supabaseConfigured) {
       setCompanies([]);
       setActiveCompanyIdState(null);
       setLoading(false);
@@ -57,7 +59,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase
         .from("company_members")
         .select("role, status, company:companies(*)")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("status", "active");
 
       if (error) {
@@ -78,12 +80,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     if (authLoading) return;
     refreshCompanies();
-  }, [authLoading, user, refreshCompanies]);
+  }, [authLoading, userId, refreshCompanies]);
 
   const setActiveCompanyId = useCallback((id: string) => {
     setActiveCompanyIdState(id);
