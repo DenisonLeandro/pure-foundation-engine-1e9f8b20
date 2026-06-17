@@ -168,55 +168,64 @@ export async function composeSlideWithText(opts: ComposeOpts): Promise<string> {
 // ============================================================================
 
 function renderBottom(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
-  const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;
+  const { heading, body, brandHandle, index, total } = opts;
   const margin = 88;
   const maxW = W - margin * 2;
 
-  // Overlay escuro com peso no rodapé
+  // Gradiente editorial: limpo no topo, escurece suavemente na metade inferior
+  // para garantir leitura do texto sem competir com a foto.
   const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, "rgba(10,15,30,0.35)");
-  grad.addColorStop(0.45, "rgba(10,15,30,0.15)");
-  grad.addColorStop(1, "rgba(10,15,30,0.88)");
+  grad.addColorStop(0, "rgba(0,0,0,0)");
+  grad.addColorStop(0.45, "rgba(0,0,0,0.05)");
+  grad.addColorStop(0.75, "rgba(0,0,0,0.55)");
+  grad.addColorStop(1, "rgba(0,0,0,0.88)");
   ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
 
-  drawChrome(ctx, brandHandle, index, total, margin);
+  // Contador discreto no topo direito (sem handle no topo)
+  ctx.textBaseline = "top";
+  if (typeof index === "number" && typeof total === "number" && total > 1) {
+    ctx.font = `600 26px ${FONT}`;
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.textAlign = "right";
+    ctx.fillText(`${index + 1} / ${total}`, W - margin, margin);
+  }
 
-  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 92, 48);
-  const lineHeight = Math.round(headingSize * 1.08);
+  // Heading enorme, branco, alinhado embaixo à esquerda
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 132, 72);
+  const lineHeight = Math.round(headingSize * 1.02);
   const bodyText = (body || "").trim();
-  const bodySize = Math.max(28, Math.round(headingSize * 0.38));
-  const bodyLineHeight = Math.round(bodySize * 1.35);
+  const bodySize = Math.max(32, Math.round(headingSize * 0.32));
+  const bodyLineHeight = Math.round(bodySize * 1.4);
 
-  ctx.font = `500 ${bodySize}px ${FONT}`;
+  ctx.font = `400 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
-  const totalBlockH = lines.length * lineHeight + (bodyLines.length ? bodyLines.length * bodyLineHeight + 32 : 0);
-  let y = Math.max(H * 0.45, H - margin - totalBlockH - 40);
+  const gap = 36;
+  const totalBlockH = lines.length * lineHeight + (bodyLines.length ? gap + bodyLines.length * bodyLineHeight : 0);
+  let y = H - margin - totalBlockH;
+  if (brandHandle) y -= 48; // espaço pro handle no rodapé
 
   ctx.textAlign = "left"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
-  ctx.shadowColor = "rgba(0,0,0,0.55)"; ctx.shadowBlur = 14; ctx.shadowOffsetY = 2;
-
-  const first = heading.trim().split(/\s+/)[0] || "";
-  for (const line of lines) {
-    let x = margin;
-    const words = line.split(" ");
-    for (let i = 0; i < words.length; i++) {
-      const w = words[i];
-      ctx.fillStyle = w === first ? brandColor : "#ffffff";
-      ctx.fillText(w, x, y);
-      x += ctx.measureText(w + (i < words.length - 1 ? " " : "")).width;
-    }
-    y += lineHeight;
-  }
+  ctx.fillStyle = "#ffffff";
+  ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = 18; ctx.shadowOffsetY = 2;
+  for (const line of lines) { ctx.fillText(line, margin, y); y += lineHeight; }
 
   if (bodyLines.length) {
-    y += 32;
-    ctx.font = `500 ${bodySize}px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.shadowBlur = 8;
+    y += gap;
+    ctx.font = `400 ${bodySize}px ${FONT}`;
+    ctx.fillStyle = "rgba(255,255,255,0.88)"; ctx.shadowBlur = 10;
     for (const line of bodyLines) { ctx.fillText(line, margin, y); y += bodyLineHeight; }
   }
+
   ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
-  ctx.fillStyle = brandColor; ctx.fillRect(margin, H - margin, 120, 4);
+
+  // Handle discreto no rodapé esquerdo, abaixo do bloco de texto
+  if (brandHandle) {
+    ctx.font = `500 24px ${FONT}`;
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    ctx.fillText(brandHandle, margin, H - margin + 6);
+  }
 }
 
 function renderTop(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
