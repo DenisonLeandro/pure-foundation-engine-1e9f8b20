@@ -94,6 +94,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(initialDoc ?? null);
+  const [renderedUrls, setRenderedUrls] = useState<string[] | null>(null);
   const [sources, setSources] = useState<SourceRow[]>([]);
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(initialForm?.selectedSourceIds ?? []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
