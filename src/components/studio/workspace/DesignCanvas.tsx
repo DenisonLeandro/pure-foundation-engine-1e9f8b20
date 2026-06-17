@@ -69,6 +69,7 @@ export function DesignCanvas() {
   const startDrag = (ev: React.MouseEvent, e: El) => {
     ev.stopPropagation();
     select(e.id);
+    if (e.locked) return; // camadas travadas (ex.: logo de marca) não arrastam
     pushHistory();
     drag.current = { id: e.id, sx: ev.clientX, sy: ev.clientY, ex: e.x, ey: e.y };
   };
@@ -235,11 +236,11 @@ export function DesignCanvas() {
           {e.type === "shape" && <div style={{ width: "100%", height: "100%", background: e.bg, borderRadius: e.radius, opacity: e.opacity }} />}
         </div>
       ))}
-      {/* marca: logo + handle — só em slides "chapados" (sem arte de fundo) e fora do card,
-          pra não duplicar a marca em imagens já desenhadas (arte/auto/gpt-image-2). */}
+      {/* marca: logo + handle — só em slides "chapados" (sem arte de fundo) e fora do card.
+          A logo legada só aparece quando NÃO há camada brand_logo (que renderiza acima). */}
       {!s.bgImage && doc.format !== "card" && (
         <>
-          {brand?.logo_url && <img src={brand.logo_url} crossOrigin="anonymous" alt="" className="absolute left-3 top-3 h-6 w-6 rounded object-cover" />}
+          {brand?.logo_url && !s.els.some((e) => e.role === "brand_logo") && <img src={brand.logo_url} crossOrigin="anonymous" alt="" className="absolute left-3 top-3 h-6 w-6 rounded object-cover" />}
           {(brand?.handle || brand?.name) && (
             <div className="absolute bottom-3 left-3 text-[11px] font-medium" style={{ color: accent, opacity: 0.92 }}>{brand?.handle || brand?.name}</div>
           )}
