@@ -349,8 +349,10 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const styleHint = ART_STYLES.find((s) => s.value === artStyle)?.hint || "";
       const direction = artDirection.trim();
 
-      // Rotação editorial entre 4 templates leves; capa sempre "bottom".
-      const rotation: SlideTemplate[] = ["top", "center-card", "kicker", "bottom"];
+      // Rotação editorial entre templates seguros (título embaixo/em cima/kicker
+      // lateral); capa sempre "bottom". Evita templates mais arriscados (center-card,
+      // side-bar, quote) na rotação automática pra manter o carrossel coeso.
+      const rotation: SlideTemplate[] = ["top", "kicker", "bottom"];
       const offset = Math.floor(Math.random() * rotation.length);
       const pickTemplate = (i: number): SlideTemplate => {
         if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;

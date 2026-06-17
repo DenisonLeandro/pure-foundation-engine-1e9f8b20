@@ -236,15 +236,20 @@ export function DesignCanvas() {
           {e.type === "shape" && <div style={{ width: "100%", height: "100%", background: e.bg, borderRadius: e.radius, opacity: e.opacity }} />}
         </div>
       ))}
-      {/* marca: logo + handle — só em slides "chapados" (sem arte de fundo) e fora do card.
-          A logo legada só aparece quando NÃO há camada brand_logo (que renderiza acima). */}
-      {!s.bgImage && doc.format !== "card" && (
-        <>
-          {brand?.logo_url && !s.els.some((e) => e.role === "brand_logo") && <img src={brand.logo_url} crossOrigin="anonymous" alt="" className="absolute left-3 top-3 h-6 w-6 rounded object-cover" />}
-          {(brand?.handle || brand?.name) && (
-            <div className="absolute bottom-3 left-3 text-[11px] font-medium" style={{ color: accent, opacity: 0.92 }}>{brand?.handle || brand?.name}</div>
-          )}
-        </>
+      {/* logo da marca: selo discreto no canto superior esquerdo, em todos os slides.
+          Não duplica se já existir uma camada brand_logo editável no slide. */}
+      {brand?.logo_url && !s.els.some((e) => e.role === "brand_logo") && (
+        <div
+          className="absolute left-[10px] top-[10px] flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border"
+          style={{ background: "rgba(10,12,20,0.32)", borderColor: "rgba(255,255,255,0.35)", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", backdropFilter: "blur(2px)" }}
+        >
+          <img src={brand.logo_url} crossOrigin="anonymous" alt="" className="h-[22px] w-[22px] rounded-[6px] object-cover" />
+        </div>
+      )}
+      {/* handle/nome da marca — só em slides "chapados" (sem arte de fundo), pra não
+          duplicar a marca em imagens já desenhadas (arte/auto/gpt-image-2). */}
+      {!s.bgImage && doc.format !== "card" && (brand?.handle || brand?.name) && (
+        <div className="absolute bottom-3 left-3 text-[11px] font-medium" style={{ color: accent, opacity: 0.92 }}>{brand?.handle || brand?.name}</div>
       )}
     </div>
   );
