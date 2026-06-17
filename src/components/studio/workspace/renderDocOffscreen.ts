@@ -118,23 +118,41 @@ function buildSlideNode(
     node.appendChild(wrap);
   }
 
-  // chrome de marca (mesma regra do DesignCanvas: só em slides "chapados")
+  // logo da marca: selo discreto no canto superior esquerdo, em TODOS os slides
+  // (com ou sem foto de fundo) — fundo translúcido + borda sutil pra ficar
+  // legível mesmo sobre fotos claras ou escuras.
+  if (brand?.logo_url) {
+    const badge = document.createElement("div");
+    applyStyle(badge, {
+      position: "absolute",
+      left: "10px",
+      top: "10px",
+      width: "30px",
+      height: "30px",
+      borderRadius: "9px",
+      background: "rgba(10,12,20,0.32)",
+      border: "1px solid rgba(255,255,255,0.35)",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      backdropFilter: "blur(2px)",
+    });
+    const logo = document.createElement("img");
+    logo.src = brand.logo_url;
+    logo.crossOrigin = "anonymous";
+    applyStyle(logo, {
+      width: "22px",
+      height: "22px",
+      borderRadius: "6px",
+      objectFit: "cover",
+    });
+    badge.appendChild(logo);
+    node.appendChild(badge);
+  }
+
+  // handle/nome da marca: mantém regra antiga (só em slides "chapados")
   if (!slide.bgImage && format !== "card") {
-    if (brand?.logo_url) {
-      const logo = document.createElement("img");
-      logo.src = brand.logo_url;
-      logo.crossOrigin = "anonymous";
-      applyStyle(logo, {
-        position: "absolute",
-        left: "12px",
-        top: "12px",
-        width: "24px",
-        height: "24px",
-        borderRadius: "4px",
-        objectFit: "cover",
-      });
-      node.appendChild(logo);
-    }
     if (brand?.handle || brand?.name) {
       const handle = document.createElement("div");
       handle.textContent = brand.handle || brand.name || "";
