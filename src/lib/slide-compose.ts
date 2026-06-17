@@ -414,7 +414,7 @@ function renderKicker(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
     ? `PARTE ${String(index + 1).padStart(2, "0")}`
     : "DESTAQUE";
 
-  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 104, 52);
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 88, 44);
   const lineHeight = Math.round(headingSize * 1.04);
   const bodyText = (body || "").trim();
   const bodySize = Math.max(28, Math.round(headingSize * 0.34));
