@@ -145,7 +145,7 @@ function buildSlideNode(
       width: "32px",
       height: "32px",
       borderRadius: "8px",
-      objectFit: "cover",
+      objectFit: "contain",
     });
     badge.appendChild(logo);
     node.appendChild(badge);
