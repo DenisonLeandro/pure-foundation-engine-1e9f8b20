@@ -113,6 +113,7 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
     }
 
     case "center-card": {
+      els.push(titleHalo(MARGIN, 146, W - MARGIN * 2, 140));
       els.push({
         id: uid(), type: "text",
         x: MARGIN, y: 146, w: W - MARGIN * 2, h: 140,
