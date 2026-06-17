@@ -125,14 +125,14 @@ function buildSlideNode(
     const badge = document.createElement("div");
     applyStyle(badge, {
       position: "absolute",
-      left: "10px",
-      top: "10px",
-      width: "30px",
-      height: "30px",
-      borderRadius: "9px",
-      background: "rgba(10,12,20,0.32)",
-      border: "1px solid rgba(255,255,255,0.35)",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+      left: "12px",
+      top: "12px",
+      width: "42px",
+      height: "42px",
+      borderRadius: "12px",
+      background: "rgba(10,12,20,0.45)",
+      border: "1px solid rgba(255,255,255,0.4)",
+      boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -142,9 +142,9 @@ function buildSlideNode(
     logo.src = brand.logo_url;
     logo.crossOrigin = "anonymous";
     applyStyle(logo, {
-      width: "22px",
-      height: "22px",
-      borderRadius: "6px",
+      width: "32px",
+      height: "32px",
+      borderRadius: "8px",
       objectFit: "cover",
     });
     badge.appendChild(logo);

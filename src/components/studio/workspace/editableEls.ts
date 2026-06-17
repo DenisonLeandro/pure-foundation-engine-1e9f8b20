@@ -35,6 +35,10 @@ const SHADOW_STRONG =
 // totalmente arredondada. Quase invisível sobre fotos médias/escuras, dá só
 // um respiro extra onde a foto é clara demais.
 const HALO_PREFIX = "rb-bg-halo-";
+// Contador ("3/7") e handle da marca são metadados decorativos, não fazem
+// parte do bloco de título — não devem influenciar onde os acentos são
+// ancorados (senão a barra de acento "sobe" pro topo e colide com a logo).
+const META_PREFIX = "rb-meta-";
 function titleHalo(x: number, y: number, w: number, h: number): El {
   const padX = 24, padY = 16;
   return {
@@ -55,7 +59,7 @@ function titleHalo(x: number, y: number, w: number, h: number): El {
 function counterEl(index: number | undefined, total: number | undefined, position: "top-right" | "bottom-right"): El | null {
   if (typeof index !== "number" || typeof total !== "number" || total <= 1) return null;
   return {
-    id: uid(), type: "text",
+    id: META_PREFIX + uid(), type: "text",
     x: W - MARGIN - 60,
     y: position === "top-right" ? 18 : H - 18,
     w: 60, h: 14,
@@ -70,7 +74,7 @@ function counterEl(index: number | undefined, total: number | undefined, positio
 function handleEl(brandHandle: string | undefined, position: "bottom-left" | "top-left"): El | null {
   if (!brandHandle) return null;
   return {
-    id: uid(), type: "text",
+    id: META_PREFIX + uid(), type: "text",
     x: MARGIN,
     y: position === "bottom-left" ? H - 18 : 18,
     w: 200, h: 14,

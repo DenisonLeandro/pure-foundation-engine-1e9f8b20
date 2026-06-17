@@ -240,10 +240,10 @@ export function DesignCanvas() {
           Não duplica se já existir uma camada brand_logo editável no slide. */}
       {brand?.logo_url && !s.els.some((e) => e.role === "brand_logo") && (
         <div
-          className="absolute left-[10px] top-[10px] flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border"
-          style={{ background: "rgba(10,12,20,0.32)", borderColor: "rgba(255,255,255,0.35)", boxShadow: "0 2px 8px rgba(0,0,0,0.25)", backdropFilter: "blur(2px)" }}
+          className="absolute left-[12px] top-[12px] flex h-[42px] w-[42px] items-center justify-center rounded-[12px] border"
+          style={{ background: "rgba(10,12,20,0.45)", borderColor: "rgba(255,255,255,0.4)", boxShadow: "0 2px 10px rgba(0,0,0,0.3)", backdropFilter: "blur(2px)" }}
         >
-          <img src={brand.logo_url} crossOrigin="anonymous" alt="" className="h-[22px] w-[22px] rounded-[6px] object-cover" />
+          <img src={brand.logo_url} crossOrigin="anonymous" alt="" className="h-[32px] w-[32px] rounded-[8px] object-cover" />
         </div>
       )}
       {/* handle/nome da marca — só em slides "chapados" (sem arte de fundo), pra não
