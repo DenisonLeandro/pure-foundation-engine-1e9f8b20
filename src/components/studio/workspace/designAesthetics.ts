@@ -171,11 +171,12 @@ function buildAccents(slide: Slide, preset: StylePreset, accent: string): El[] {
       return [accentBar({ x: 0, y: 0, w: 6, h: CANVAS_H, color: accent })];
     case "editorial":
     case "auto": {
-      // pequena marca de acento no canto inferior esquerdo
-      return [accentBar({ x: 24, y: CANVAS_H - 28, w: 36, h: 3, color: accent })];
+      // Pequena marca de acento bem na borda inferior, ABAIXO da legenda
+      // pra não cobrir texto. Linha fina e curta — só uma "assinatura".
+      return [accentBar({ x: 24, y: CANVAS_H - 8, w: 28, h: 2, color: accent })];
     }
     case "modern":
-      return [accentBar({ x: 24, y: CANVAS_H - 28, w: 56, h: 3, color: accent })];
+      return [accentBar({ x: 24, y: CANVAS_H - 8, w: 44, h: 2, color: accent })];
     default:
       return [];
   }
