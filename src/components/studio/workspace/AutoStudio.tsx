@@ -397,7 +397,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint);
         const soloTemplate: SlideTemplate = layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)
           ? (layoutMode as SlideTemplate)
-          : (["bottom", "side-bar", "kicker", "center-card"] as SlideTemplate[])[Math.floor(Math.random() * 4)];
+          : "bottom";
         const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
         const { cleanBg, composed } = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
         const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
