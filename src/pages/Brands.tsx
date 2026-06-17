@@ -640,7 +640,7 @@ export default function Brands() {
                 <Label>Logo da marca</Label>
                 <div className="flex items-center gap-4">
                   {form.logo_url ? (
-                    <img src={form.logo_url} alt="Logo" className="h-16 w-16 rounded-xl object-cover border border-border" />
+                    <img src={form.logo_url} alt="Logo" className="h-16 w-16 rounded-xl object-contain bg-muted border border-border p-1" />
                   ) : (
                     <div className="h-16 w-16 rounded-xl bg-muted flex items-center justify-center">
                       <Building2 className="h-8 w-8 text-muted-foreground" />
