@@ -115,6 +115,10 @@ function refineSlide(slide: Slide, preset: StylePreset, accent: string): Slide {
 }
 
 function restyleOverlay(e: El, preset: StylePreset, accent: string): El {
+  // Halos pré-definidos como discretos (id `rb-bg-halo-*` ou opacidade muito
+  // baixa): mantém como está, não troca cor nem aplica preset.
+  if (e.id.startsWith("rb-bg-halo-")) return e;
+
   // Regra geral: NUNCA tarja chapada grande. Se o overlay for grande OU ocupar
   // a largura inteira, convertemos em GRADIENTE vertical vindo da base/topo.
   if (isLargeOverlay(e) || isFullWidth(e)) {
