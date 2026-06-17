@@ -95,14 +95,3 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
   return els;
 }
 
-function textEl(p: { x: number; y: number; w: number; h: number; text: string; fontSize: number; weight: number; align: "left" | "center" | "right"; color: string }): El {
-  return {
-    id: uid(), type: "text",
-    x: p.x, y: p.y, w: p.w, h: p.h,
-    text: p.text, fontSize: p.fontSize, weight: p.weight, align: p.align, color: p.color,
-  };
-}
-
-function shapeBar(x: number, y: number, color: string): El {
-  return { id: uid(), type: "shape", x, y, w: 40, h: 3, bg: color, opacity: 1 };
-}
