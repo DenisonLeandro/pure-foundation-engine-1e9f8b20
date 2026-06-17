@@ -93,39 +93,29 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
     }
 
     case "center-card": {
-      // Cartão escuro translúcido localizado no centro
-      els.push({
-        id: uid(), type: "shape",
-        x: MARGIN, y: 150, w: W - MARGIN * 2, h: 170,
-        bg: "rgba(15,20,35,0.55)", opacity: 1,
-        radius: 14, zIndex: 2,
-      });
-      els.push({
-        id: uid(), type: "shape",
-        x: MARGIN + 18, y: 168, w: 22, h: 2,
-        bg: "rgba(255,255,255,0.7)", opacity: 1, zIndex: 3,
-      });
+      // Sem card escuro. Título e legenda centralizados, apoiados só na sombra.
       els.push({
         id: uid(), type: "text",
-        x: MARGIN + 18, y: 180, w: W - (MARGIN + 18) * 2, h: 100,
+        x: MARGIN, y: 170, w: W - MARGIN * 2, h: 120,
         text: head,
-        fontSize: 26, weight: 800, align: "left", color: "#ffffff",
-        lineHeight: 1.05, letterSpacing: -0.3, zIndex: 4,
+        fontSize: 30, weight: 800, align: "center", color: "#ffffff",
+        lineHeight: 1.05, letterSpacing: -0.3, shadow: SHADOW, zIndex: 3,
       });
       if (bodyText) {
         els.push({
           id: uid(), type: "text",
-          x: MARGIN + 18, y: 268, w: W - (MARGIN + 18) * 2, h: 44,
+          x: MARGIN, y: 282, w: W - MARGIN * 2, h: 50,
           text: bodyText,
-          fontSize: 11, weight: 400, align: "left",
-          color: "rgba(255,255,255,0.9)",
-          lineHeight: 1.35, zIndex: 4,
+          fontSize: 12, weight: 400, align: "center",
+          color: "rgba(255,255,255,0.94)",
+          lineHeight: 1.4, shadow: SHADOW, zIndex: 3,
         });
       }
       const c = counterEl(index, total, "top-right"); if (c) els.push(c);
       const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
       break;
     }
+
 
     case "kicker": {
       const kickerText = typeof index === "number" && typeof total === "number" && total > 1

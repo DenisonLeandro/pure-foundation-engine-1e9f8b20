@@ -279,49 +279,40 @@ function renderTop(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
 function renderCenterCard(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const { heading, body, brandHandle, index, total } = opts;
   const margin = 88;
+  const maxW = W - margin * 2;
 
-  // Sem overlay global. Só o cartão translúcido localizado.
+  // Sem card escuro. Texto centralizado, legibilidade só pela sombra.
   drawCounter(ctx, index, total, "top-right", margin);
 
-  const cardPad = 52;
-  const cardW = W - margin * 2;
-  const maxW = cardW - cardPad * 2;
-
-  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 72, 40);
+  const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 96, 52);
   const lineHeight = Math.round(headingSize * 1.06);
   const bodyText = (body || "").trim();
-  const bodySize = Math.max(26, Math.round(headingSize * 0.4));
+  const bodySize = Math.max(28, Math.round(headingSize * 0.34));
   ctx.font = `400 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
 
-  const tickH = 24;
-  const cardH = cardPad * 2 + tickH + lines.length * lineHeight + (bodyLines.length ? 24 + bodyLines.length * Math.round(bodySize * 1.4) : 0);
-  const cardX = margin;
-  const cardY = Math.round((H - cardH) / 2);
+  const gap = 28;
+  const totalBlockH = lines.length * lineHeight + (bodyLines.length ? gap + bodyLines.length * Math.round(bodySize * 1.4) : 0);
+  let y = Math.round((H - totalBlockH) / 2);
 
-  // Card translúcido elegante, sem borda colorida
-  ctx.fillStyle = "rgba(15,20,35,0.58)";
-  roundRect(ctx, cardX, cardY, cardW, cardH, 28); ctx.fill();
-
-  // Traço fino branco no topo do card
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.fillRect(cardX + cardPad, cardY + cardPad, 48, 3);
-
-  let y = cardY + cardPad + tickH;
-  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
-  for (const line of lines) { ctx.fillText(line, cardX + cardPad, y); y += lineHeight; }
+  applyTextShadow(ctx, true);
+  for (const line of lines) { ctx.fillText(line, W / 2, y); y += lineHeight; }
 
   if (bodyLines.length) {
-    y += 24;
+    y += gap;
     ctx.font = `400 ${bodySize}px ${FONT}`;
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    for (const line of bodyLines) { ctx.fillText(line, cardX + cardPad, y); y += Math.round(bodySize * 1.4); }
+    ctx.fillStyle = "rgba(255,255,255,0.94)";
+    applyTextShadow(ctx);
+    for (const line of bodyLines) { ctx.fillText(line, W / 2, y); y += Math.round(bodySize * 1.4); }
   }
+  clearShadow(ctx);
 
   drawHandle(ctx, brandHandle, margin);
 }
+
 
 function renderSideBar(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const { heading, body, brandColor = "#f59e0b", brandHandle, index, total } = opts;

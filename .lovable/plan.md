@@ -1,45 +1,40 @@
-## Diagnóstico
+# Corrigir slides: tirar as faixas escuras
 
-O carrossel que você anexou é exatamente o padrão que quer. Olhando os 5 slides:
+## O que aconteceu
 
-- **Slide 1** — título grande embaixo à esquerda, corpo curto abaixo, contador `1/5` no topo direito, **sem gradiente** — só sombra sutil no texto.
-- **Slide 2** — cartão escuro translúcido no centro com título + corpo dentro.
-- **Slide 3** — título grande no topo à esquerda, corpo abaixo, contador `3/5` no rodapé direito, com pequeno traço acima do título.
-- Variação entre slides, todos elegantes, leves, sem barra colorida agressiva e sem escurecer a foto inteira.
+A rodada anterior, em vez de remover os blocos escuros, acabou colocando faixas/cartões escuros mais sólidos em **todos** os templates:
 
-O que quebrou: (1) coloquei um gradiente escuro forte no `bottom`, (2) travei todos em `bottom`.
+- `bottom` (slides 1, 2): faixa preta cobrindo a metade inferior atrás do título e legenda
+- `center-card` (slides 3, 4): card translúcido cinza/preto grande no meio
+- `top` (slide 3): mesma faixa preta
 
-## Correções
+Isso é o oposto da referência: na referência o texto fica direto sobre a foto, sem nenhuma faixa, só com `text-shadow` para legibilidade.
 
-### 1. Remover o gradiente visível
-Tirar a camada de gradiente do template `bottom` (tanto no editor quanto na rasterização). Manter apenas **`text-shadow` sutil** no título e corpo para legibilidade. Foto fica limpa.
+## Correção
 
-Fazer o mesmo nos demais templates: nenhum gradiente cobrindo a foto inteira. O único "escurecer" permitido é o cartão translúcido localizado do `center-card`.
+### 1. Remover **todos** os fundos escuros dos templates editoriais
 
-### 2. Voltar a variar entre slides
-Restaurar a rotação de templates entre slides do carrossel, usando só os quatro que combinam com a referência:
+Em `src/lib/slide-compose.ts` e `src/components/studio/workspace/editableEls.ts`:
 
-- `bottom` (slide 1 da referência)
-- `top` (slide 3 da referência)
-- `center-card` (slide 2 da referência)
-- `kicker` (variação editorial com pequeno rótulo)
+- `renderBottom` / template `bottom`: **remover** o `fillRect` / `<div>` com `rgba(0,0,0,…)` que cria a faixa inferior. Manter apenas título + legenda com `text-shadow` forte (`0 2px 12px rgba(0,0,0,0.65), 0 1px 2px rgba(0,0,0,0.8)`).
+- `renderTop` / template `top`: idem — sem faixa superior, só linha de 2px branca 60% acima do título + texto com shadow.
+- `renderCenterCard` / template `center-card`: **remover** o retângulo translúcido. Manter título e legenda centralizados horizontalmente, alinhados na metade do canvas, apenas com text-shadow.
+- `renderKicker` / template `kicker`: kicker (label uppercase + linha curta branca) + título logo abaixo, sem nenhum fundo.
 
-Remover `side-bar` (bloco lateral colorido) e `quote` (citação centralizada) da rotação automática — continuam disponíveis se o usuário escolher manualmente.
+### 2. Garantir contraste sem faixa
 
-Capa (slide 0) sempre `bottom`. Demais slides alternam entre os outros três para garantir variação visual.
+- Title weight 800, `text-shadow: 0 2px 14px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.9)`
+- Legenda weight 500, `text-shadow: 0 1px 6px rgba(0,0,0,0.75)`
+- Mesmos valores no editor (`editableEls.ts`) e no rasterizado (`slide-compose.ts`) para manter paridade Galeria ↔ Editor.
 
-### 3. Refinar `center-card`
-Cartão mais elegante: fundo `rgba(15,20,35,0.55)` (mais transparente), `backdrop-filter: blur(8px)`, cantos `radius: 14px`, padding interno generoso. Sem borda dura.
+### 3. Variação entre slides (mantida)
 
-### 4. Refinar `top` e `kicker`
-- `top`: pequeno traço fino (`2px`, branco 60%) acima do título, sem cor de marca; sombra leve no texto.
-- `kicker`: rótulo em caixa alta pequeno (ex.: `MITO 02`), traço curto, título grande abaixo.
+`pickTemplate` em `AutoStudio.tsx` continua rotacionando entre `bottom`, `top`, `center-card`, `kicker` — mas agora todos sem faixa, só variando posição do texto.
 
-### 5. Aplicar nos dois renderers
-Atualizar tanto `editableEls.ts` (camadas editáveis no editor) quanto `slide-compose.ts` (PNG salvo na galeria) com os mesmos valores, mantendo Galeria ↔ Editor idênticos.
+### 4. Escopo
 
-### 6. Escopo
-Sem mexer em IA, prompts, geração de imagem, legenda, banco ou publicação. Só composição visual dos slides novos. Posts antigos não mudam.
+Apenas composição visual dos slides. Sem mexer em geração de imagem, IA, legenda, banco ou publicação.
 
 ## Resultado esperado
-Novos carrosséis saem alternando entre os quatro layouts editoriais, sem escurecimento visível na foto, com tipografia branca grande e leve, contador discreto — o padrão da referência.
+
+Cada slide com a foto totalmente visível, texto branco grande posicionado em cantos/centro diferentes, legibilidade vinda apenas do text-shadow — igual à referência que você enviou.
