@@ -201,13 +201,16 @@ export default function Studio() {
     const hasDoc = hasValidDesignDoc(nav.designDoc);
     const slides = hasDoc && Array.isArray((nav.designDoc as { slides?: unknown[] }).slides)
       ? (nav.designDoc as { slides: unknown[] }).slides.length : 0;
+    const authored = hasDoc ? (nav.designDoc as StudioDoc).authoredCanvas ?? (nav.designDoc as StudioDoc).canvas ?? null : null;
     console.info("[studio:open]", {
       mode: "edit",
       creationId: nav.creationId,
       loadedFrom: hasDoc ? "designDoc" : (nav.finalImageUrls?.length || nav.fallbackImageUrls?.length || nav.fallbackImageUrl ? "finalImageFallback" : "fallback"),
       slides,
-      canvasAspectRatio: navInitial?.canvas ? `${navInitial.canvas.width}:${navInitial.canvas.height}` : "360:450",
-      imageAspectRatio: nav.finalImageMeta?.[0] ? `${nav.finalImageMeta[0].width}:${nav.finalImageMeta[0].height}` : null,
+      targetCanvas: navInitial?.canvas ? `${navInitial.canvas.width}x${navInitial.canvas.height}` : "360x450",
+      authoredCanvas: authored ? `${authored.width}x${authored.height}` : null,
+      imageAspectRatio: nav.finalImageMeta?.[0] ? `${nav.finalImageMeta[0].width}x${nav.finalImageMeta[0].height}` : null,
+      bgImageApplied: !!(nav.finalImageUrls?.length),
       ignoredLocalDraft: true,
     });
   }, [nav, navInitial]);
