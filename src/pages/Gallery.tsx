@@ -13,6 +13,8 @@ import {
   MessageSquareText,
   CheckSquare,
   X,
+  Type,
+  Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -29,7 +32,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
-import { getCreations, getCreation, deleteCreation, updateCreation, type Creation } from "@/lib/gallery";
+import { getCreations, getCreation, deleteCreation, updateCreation, getCreationLabel, type Creation } from "@/lib/gallery";
+import { aiAssist } from "@/lib/api/ai-assist";
 import { useCompany } from "@/contexts/CompanyContext";
 
 // ─── Filter types ───────────────────────────────────────────────
@@ -70,6 +74,12 @@ export default function Gallery() {
   const [captionEditing, setCaptionEditing] = useState<Creation | null>(null);
   const [captionDraft, setCaptionDraft] = useState("");
   const [captionSaving, setCaptionSaving] = useState(false);
+
+  // Edição de título
+  const [titleEditing, setTitleEditing] = useState<Creation | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [titleSaving, setTitleSaving] = useState(false);
+  const [titleGenerating, setTitleGenerating] = useState(false);
 
   // Modo seleção múltipla
   const [selectMode, setSelectMode] = useState(false);
@@ -294,6 +304,60 @@ export default function Gallery() {
     toast({ title: "Legenda atualizada" });
   }
 
+  function handleEditTitle(creation: Creation) {
+    setTitleEditing(creation);
+    setTitleDraft(creation.title ?? "");
+  }
+
+  async function handleGenerateTitle() {
+    if (!titleEditing) return;
+    setTitleGenerating(true);
+    try {
+      const caption = (titleEditing.caption || "").slice(0, 500);
+      const prompt = (titleEditing.prompt || "").slice(0, 300);
+      const tpl = titleEditing.templateName || "";
+      const ctx = [
+        tpl && `Template: ${tpl}`,
+        prompt && `Prompt original: ${prompt}`,
+        caption && `Legenda: ${caption}`,
+      ].filter(Boolean).join("\n");
+      const result = await aiAssist({
+        system: "Você cria títulos curtos em português do Brasil para posts de redes sociais. Responda APENAS com o título, sem aspas, sem emojis, sem ponto final, máximo 60 caracteres.",
+        prompt: ctx || "Post de rede social — gere um título curto e genérico em pt-BR.",
+        temperature: 0.7,
+      });
+      const cleaned = (result.text || "")
+        .trim()
+        .replace(/^["'`]+|["'`]+$/g, "")
+        .replace(/\s+/g, " ")
+        .slice(0, 80);
+      if (cleaned) setTitleDraft(cleaned);
+      else toast({ title: "Não foi possível gerar o título", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Falha ao gerar título",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setTitleGenerating(false);
+    }
+  }
+
+  async function handleSaveTitle() {
+    if (!titleEditing) return;
+    setTitleSaving(true);
+    const updated = await updateCreation(titleEditing.id, { title: titleDraft });
+    setTitleSaving(false);
+    if (!updated) {
+      toast({ title: "Falha ao salvar título", variant: "destructive" });
+      return;
+    }
+    setCreations((prev) => prev.map((c) => (c.id === updated.id ? { ...c, title: updated.title } : c)));
+    setTitleEditing(null);
+    toast({ title: "Título atualizado" });
+  }
+
   // ── Render ──────────────────────────────────────────────────
 
   return (
@@ -400,6 +464,7 @@ export default function Gallery() {
               onDelete={handleDeleteCreation}
               onEditDesign={handleEditDesign}
               onEditCaption={handleEditCaption}
+              onEditTitle={handleEditTitle}
               selectMode={selectMode}
               selected={selectedIds.has(creation.id)}
               onToggleSelect={toggleSelect}
@@ -459,6 +524,51 @@ export default function Gallery() {
         </DialogContent>
       </Dialog>
 
+      {/* Title edit dialog */}
+      <Dialog open={!!titleEditing} onOpenChange={(o) => { if (!o) setTitleEditing(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Renomear post</DialogTitle>
+            <DialogDescription>
+              Dê um nome ao post para encontrá-lo facilmente na galeria e ao vincular em artigos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              placeholder="Ex.: Carrossel sobre Lei Geral de Proteção de Dados"
+              maxLength={120}
+              autoFocus
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleGenerateTitle}
+              disabled={titleGenerating || titleSaving}
+              className="w-full"
+            >
+              {titleGenerating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4 text-violet-500" />
+              )}
+              Gerar com IA pelo conteúdo
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setTitleEditing(null)} disabled={titleSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveTitle} disabled={titleSaving} className="bg-violet-600 hover:bg-violet-700">
+              {titleSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Media Preview Dialog */}
       {previewCreation && (
         <MediaPreviewDialog
@@ -483,6 +593,7 @@ interface CreationCardProps {
   onDelete: (c: Creation) => void;
   onEditDesign: (c: Creation) => void;
   onEditCaption: (c: Creation) => void;
+  onEditTitle: (c: Creation) => void;
   selectMode: boolean;
   selected: boolean;
   onToggleSelect: (id: string) => void;
@@ -496,6 +607,7 @@ function CreationCard({
   onDelete,
   onEditDesign,
   onEditCaption,
+  onEditTitle,
   selectMode,
   selected,
   onToggleSelect,
@@ -604,6 +716,15 @@ function CreationCard({
             size="icon"
             variant="ghost"
             className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+            title="Renomear post"
+            onClick={() => onEditTitle(creation)}
+          >
+            <Type className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
             title="Editar legenda"
             onClick={() => onEditCaption(creation)}
           >
@@ -634,7 +755,7 @@ function CreationCard({
       {/* Info below thumbnail */}
       <CardContent className="space-y-1 p-3">
         <p className="truncate text-sm font-medium">
-          {creation.templateName ?? "Sem nome"}
+          {getCreationLabel(creation)}
         </p>
         {captionSnippet && (
           <p className="line-clamp-2 text-[11px] text-muted-foreground/90 italic">

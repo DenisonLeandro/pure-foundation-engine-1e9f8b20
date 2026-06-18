@@ -1,35 +1,33 @@
-## Aplicar migration da tabela `articles`
+## Título dos posts em todo lugar que mostra "Post #abc12345"
 
-**Diagnóstico:** O arquivo `supabase/migrations/20260618155946_create_articles.sql` existe no repositório, mas a tabela `public.articles` **não existe** no banco (`SELECT to_regclass('public.articles')` retorna vazio). No Lovable Cloud as migrations só são aplicadas via a ferramenta de migração — não há `supabase db push` nem acesso a dashboard.
+Hoje a Galeria e o seletor de "Vincular post" em `/artigos` mostram `Post #abc12345` porque `creations` não tem campo de nome. Vamos adicionar título editável + geração por IA e usar esse título em todas as listagens.
 
-Além disso, a migration original tem um problema crítico: **faltam os `GRANT`s** na tabela `public.articles`. Sem eles, a Data API (PostgREST) retorna erro de permissão mesmo com RLS configurado — a página `/artigos` continuaria quebrada.
+### 1. Banco
+Migration: adicionar coluna `title text` (nullable) em `public.creations`. Sem default — quando vazio, fallback `Post #abc12345`.
 
-### Ação
+### 2. Camada de dados
+- `src/lib/gallery.ts`: incluir `title?: string` no tipo `Creation` e permitir `title` em `updateCreation`.
+- Helper compartilhado `getCreationLabel(creation)` que retorna `title?.trim() || "Post #" + id.slice(0,8)` — usado pela Galeria e por `/artigos`.
 
-Rodar uma nova migration (aprovada pelo usuário) que:
+### 3. UI da Galeria (`src/pages/Gallery.tsx`)
+- `CreationCard`: exibe `getCreationLabel(creation)` em vez do id slice.
+- Botão **Renomear** (ícone `Pencil`) no overlay do card (só fora do modo seleção), ao lado de Excluir.
+- Abre `Dialog` com:
+  - `Input` com o título atual.
+  - Botão **"Gerar com IA"** (ícone `Sparkles`) — chama `aiAssist` pedindo um título curto em pt-BR (máx ~60 chars, sem aspas/emojis), construído a partir de `caption`, `prompt` e `template_name` do post; preenche o input.
+  - Botões **Cancelar** / **Salvar** — Salvar chama `updateCreation(id, { title })`, atualiza estado local, mostra toast.
 
-1. Cria `public.articles` com todas as colunas previstas (id, company_id, created_by, title, slug, content, excerpt, cover_image_url, category, linked_creation_id, status, published_at, created_at, updated_at).
-2. Adiciona os `GRANT`s obrigatórios:
-   - `GRANT SELECT, INSERT, UPDATE, DELETE ON public.articles TO authenticated;`
-   - `GRANT SELECT ON public.articles TO anon;` (necessário para leitura pública de artigos `published`)
-   - `GRANT ALL ON public.articles TO service_role;`
-3. Habilita RLS e cria as mesmas policies do arquivo original:
-   - Membros da empresa leem artigos da própria empresa.
-   - `anon` e `authenticated` leem artigos com `status = 'published'`.
-   - Membros inserem (com `created_by = auth.uid()`).
-   - Owners/admins atualizam qualquer um; criador atualiza o próprio.
-   - Owners/admins deletam.
-4. Cria os índices: `company_id`, `created_by`, `status`, `published_at DESC`, `slug`, `linked_creation_id`.
-5. Cria trigger `BEFORE UPDATE` usando `public.handle_updated_at()` (já existe no banco) para manter `updated_at`.
+### 4. Página de Artigos (`src/pages/Articles.tsx`)
+- Trocar `Post #${c.id.slice(0, 8)}` por `getCreationLabel(c)` nos dois `<Select>` (Artigo Manual + Gerar de Post).
+- Resultado: o usuário vê o nome real do post na hora de vincular.
 
-Tudo idempotente (`IF NOT EXISTS` / `DROP POLICY IF EXISTS`) para conviver com o arquivo antigo no histórico.
+### Detalhes técnicos
+- Prompt da IA (system): "Você cria títulos curtos em português do Brasil para posts de redes sociais. Responda apenas com o título, sem aspas, sem emojis, máximo 60 caracteres."
+- Input do usuário: `caption` (primeiros ~500 chars) + `prompt` + `template_name`; fallback "Post de rede social" se tudo estiver vazio.
+- `title` é trimmed e limitado a 120 chars antes de salvar; trim do retorno da IA também remove aspas externas se vierem.
 
-### Verificação pós-migration
-
-- `SELECT to_regclass('public.articles')` deve retornar `articles`.
-- Abrir `/artigos` no preview e confirmar que carrega sem erro (lista vazia inicialmente).
-- Criar um artigo de teste pela UI para validar INSERT + RLS.
-
-### Observação
-
-O arquivo `20260618155946_create_articles.sql` permanece no repositório. A nova migration é aditiva e idempotente, então não conflita.
+### Arquivos afetados
+- Nova migration (add coluna `title` em `creations`).
+- `src/lib/gallery.ts` — tipo + `updateCreation` + helper `getCreationLabel`.
+- `src/pages/Gallery.tsx` — exibição do título, botão Renomear, Dialog com gerar-por-IA.
+- `src/pages/Articles.tsx` — usar `getCreationLabel` nos seletores.

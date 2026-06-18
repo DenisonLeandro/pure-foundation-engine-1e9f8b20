@@ -21,6 +21,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { generateSlug, type CreateArticleParams, type UpdateArticleParams } from "@/lib/api/articles";
+import { getCreationLabel } from "@/lib/gallery";
 
 const STATUS_COLORS = {
   draft: "bg-gray-100 text-gray-800",
@@ -395,7 +396,7 @@ export default function Articles() {
                   <SelectContent>
                     {creations.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        Post #{c.id.slice(0, 8)}
+                        {getCreationLabel(c)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -413,7 +414,7 @@ export default function Articles() {
                   <SelectContent>
                     {creations.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        Post #{c.id.slice(0, 8)}
+                        {getCreationLabel(c)}
                       </SelectItem>
                     ))}
                   </SelectContent>
