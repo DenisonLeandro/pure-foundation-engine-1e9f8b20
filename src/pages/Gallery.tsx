@@ -304,6 +304,60 @@ export default function Gallery() {
     toast({ title: "Legenda atualizada" });
   }
 
+  function handleEditTitle(creation: Creation) {
+    setTitleEditing(creation);
+    setTitleDraft(creation.title ?? "");
+  }
+
+  async function handleGenerateTitle() {
+    if (!titleEditing) return;
+    setTitleGenerating(true);
+    try {
+      const caption = (titleEditing.caption || "").slice(0, 500);
+      const prompt = (titleEditing.prompt || "").slice(0, 300);
+      const tpl = titleEditing.templateName || "";
+      const ctx = [
+        tpl && `Template: ${tpl}`,
+        prompt && `Prompt original: ${prompt}`,
+        caption && `Legenda: ${caption}`,
+      ].filter(Boolean).join("\n");
+      const result = await aiAssist({
+        system: "Você cria títulos curtos em português do Brasil para posts de redes sociais. Responda APENAS com o título, sem aspas, sem emojis, sem ponto final, máximo 60 caracteres.",
+        prompt: ctx || "Post de rede social — gere um título curto e genérico em pt-BR.",
+        temperature: 0.7,
+      });
+      const cleaned = (result.text || "")
+        .trim()
+        .replace(/^["'`]+|["'`]+$/g, "")
+        .replace(/\s+/g, " ")
+        .slice(0, 80);
+      if (cleaned) setTitleDraft(cleaned);
+      else toast({ title: "Não foi possível gerar o título", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Falha ao gerar título",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setTitleGenerating(false);
+    }
+  }
+
+  async function handleSaveTitle() {
+    if (!titleEditing) return;
+    setTitleSaving(true);
+    const updated = await updateCreation(titleEditing.id, { title: titleDraft });
+    setTitleSaving(false);
+    if (!updated) {
+      toast({ title: "Falha ao salvar título", variant: "destructive" });
+      return;
+    }
+    setCreations((prev) => prev.map((c) => (c.id === updated.id ? { ...c, title: updated.title } : c)));
+    setTitleEditing(null);
+    toast({ title: "Título atualizado" });
+  }
+
   // ── Render ──────────────────────────────────────────────────
 
   return (
