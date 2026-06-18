@@ -569,6 +569,7 @@ function CreationCard({
         )}
 
         {/* Hover overlay with actions */}
+        {!selectMode && (
         <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <Button
             size="icon"
