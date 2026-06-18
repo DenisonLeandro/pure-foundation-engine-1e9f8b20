@@ -13,36 +13,31 @@ import { getRelativeLuminance, getContrastRatio, parseHex } from "./designReadab
 
 // ─── Presets de shadow (em camadas) ─────────────────────────────
 //
-// IMPORTANTE: todas as camadas são OMNIDIRECIONAIS (contorno ao redor de
-// toda a letra, não só sombra para baixo). Isso é o que garante leitura
-// sobre fundo BRANCO/claro — as bordas superiores e laterais das letras
-// brancas ganham um anel escuro que as separa do fundo. Sombras só para
-// baixo (offset-y positivo) falham em foto branca.
+// Drop-shadow natural em múltiplas camadas com blur crescente.
+// A primeira camada (offset zero, blur pequeno) protege contra fundo branco.
+// As próximas camadas (offset pequenininho, blur maior) criam halo suave.
+// Resultado: parece sombra mesmo, funciona em qualquer fundo, sem efeito cartoon.
 
 /**
- * SHADOW_DISCRETE: contorno fino + halo curto, peso visual baixo.
- * Uso: fundos médios, quando contraste já é 4.5-7.
- * Renderização: anel sutil ao redor da letra, quase imperceptível.
+ * SHADOW_DISCRETE: proteção leve, padrão para fundos médios.
+ * Camadas: glow microscópico + halo curto.
  */
 export const SHADOW_DISCRETE =
-  "0 0 1px rgba(0,0,0,0.65), -1px -1px 1px rgba(0,0,0,0.35), 1px -1px 1px rgba(0,0,0,0.35), -1px 1px 1px rgba(0,0,0,0.35), 1px 1px 1px rgba(0,0,0,0.35), 0 0 3px rgba(0,0,0,0.4)";
+  "0 0 2px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3)";
 
 /**
- * SHADOW_MEDIUM: contorno definido + halo suave.
- * Uso: padrão editorial, fundos médios/escuros, layout robusto.
- * Renderização: anel escuro nítido em volta da letra + difusão suave.
+ * SHADOW_MEDIUM: proteção equilibrada, padrão editorial.
+ * Camadas: glow denso + halo médio.
  */
 export const SHADOW_MEDIUM =
-  "0 0 2px rgba(0,0,0,0.85), -1px -1px 1px rgba(0,0,0,0.6), 1px -1px 1px rgba(0,0,0,0.6), -1px 1px 1px rgba(0,0,0,0.6), 1px 1px 1px rgba(0,0,0,0.6), 0 0 4px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.4)";
+  "0 0 3px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.25)";
 
 /**
- * SHADOW_STRONG: contorno escuro forte (tipo stroke) + halo amplo.
- * Uso: fotos BRANCAS/claras, fundos complexos, máxima proteção.
- * Renderização: anel escuro denso em todas as direções — garante 100%
- * de leitura de texto branco mesmo sobre fundo totalmente branco.
+ * SHADOW_STRONG: máxima proteção, para fotos brancas/complexas.
+ * Camadas: glow forte + halos crescentes.
  */
 export const SHADOW_STRONG =
-  "-1px -1px 1px rgba(0,0,0,0.9), 1px -1px 1px rgba(0,0,0,0.9), -1px 1px 1px rgba(0,0,0,0.9), 1px 1px 1px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.6), 0 2px 10px rgba(0,0,0,0.45)";
+  "0 0 4px rgba(0,0,0,0.85), 0 1px 4px rgba(0,0,0,0.7), 0 2px 8px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.2)";
 
 export interface ShadowPreset {
   name: string;
