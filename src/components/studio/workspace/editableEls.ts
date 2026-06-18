@@ -26,6 +26,8 @@ const H = 450;
 const MARGIN = 24;
 // Sombra em camadas: densa rente à letra, depois um halo amplo e diluído.
 // Quase invisível como "tarja", mas garante leitura sobre qualquer foto.
+const SHADOW_DISCRETE =
+  "0 1px 0 rgba(0,0,0,0.6), 0 0 1px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)";
 const SHADOW =
   "0 1px 0 rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.7), 0 2px 6px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.35)";
 const SHADOW_STRONG =

@@ -56,6 +56,57 @@ export function ElementInspector() {
             ))}
             <Button variant={e.weight === 700 ? "default" : "outline"} size="sm" className={`h-7 ${e.weight === 700 ? "bg-violet-600" : ""}`} onClick={() => patchEl(e.id, { weight: e.weight === 700 ? 400 : 700 })}>B</Button>
           </div>
+
+          <div>
+            <Label className="text-[11px] mb-1.5 block">Sombra de Texto</Label>
+            <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-1">
+                <Button
+                  size="sm"
+                  variant={e.shadowPreset === "discrete" ? "default" : "outline"}
+                  className={`text-[10px] h-7 ${e.shadowPreset === "discrete" ? "bg-violet-600" : ""}`}
+                  onClick={() => patchEl(e.id, { shadow: "0 1px 0 rgba(0,0,0,0.6), 0 0 1px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)", shadowPreset: "discrete" })}
+                >
+                  Discreto
+                </Button>
+                <Button
+                  size="sm"
+                  variant={e.shadowPreset === "medium" ? "default" : "outline"}
+                  className={`text-[10px] h-7 ${e.shadowPreset === "medium" ? "bg-violet-600" : ""}`}
+                  onClick={() => patchEl(e.id, { shadow: "0 1px 0 rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.7), 0 2px 6px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.35)", shadowPreset: "medium" })}
+                >
+                  Médio
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <Button
+                  size="sm"
+                  variant={e.shadowPreset === "strong" ? "default" : "outline"}
+                  className={`text-[10px] h-7 ${e.shadowPreset === "strong" ? "bg-violet-600" : ""}`}
+                  onClick={() => patchEl(e.id, { shadow: "0 1px 0 rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.55), 0 10px 28px rgba(0,0,0,0.4)", shadowPreset: "strong" })}
+                >
+                  Forte
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-[10px] h-7"
+                  onClick={() => patchEl(e.id, { shadow: "", shadowPreset: undefined })}
+                >
+                  Limpar
+                </Button>
+              </div>
+              <Input
+                value={e.shadow ?? ""}
+                onChange={(ev) => patchEl(e.id, { shadow: ev.target.value || undefined, shadowPreset: "custom" })}
+                placeholder="CSS customizado (text-shadow)"
+                className="text-[10px] h-8 font-mono"
+              />
+              <p className="text-[9px] text-muted-foreground">
+                Drop-shadow em camadas garante legibilidade em qualquer fundo. Formato: <code>offset-x offset-y blur color</code>
+              </p>
+            </div>
+          </div>
         </>
       )}
 
