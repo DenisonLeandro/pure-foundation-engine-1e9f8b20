@@ -395,7 +395,7 @@ export default function Articles() {
                   <SelectContent>
                     {creations.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        Post #{c.id.slice(0, 8)}
+                        {getCreationLabel(c)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -413,7 +413,7 @@ export default function Articles() {
                   <SelectContent>
                     {creations.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        Post #{c.id.slice(0, 8)}
+                        {getCreationLabel(c)}
                       </SelectItem>
                     ))}
                   </SelectContent>
