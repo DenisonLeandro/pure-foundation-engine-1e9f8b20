@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useStudio } from "./StudioProvider";
+import { SHADOW_DISCRETE, SHADOW_MEDIUM, SHADOW_STRONG } from "./textShadowEngine";
 
 export function ElementInspector() {
   const { selectedEl, patchEl, delEl, slide, patchSlide, currentSlide } = useStudio();
@@ -65,7 +66,7 @@ export function ElementInspector() {
                   size="sm"
                   variant={e.shadowPreset === "discrete" ? "default" : "outline"}
                   className={`text-[10px] h-7 ${e.shadowPreset === "discrete" ? "bg-violet-600" : ""}`}
-                  onClick={() => patchEl(e.id, { shadow: "0 1px 0 rgba(0,0,0,0.6), 0 0 1px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)", shadowPreset: "discrete" })}
+                  onClick={() => patchEl(e.id, { shadow: SHADOW_DISCRETE, shadowPreset: "discrete" })}
                 >
                   Discreto
                 </Button>
@@ -73,7 +74,7 @@ export function ElementInspector() {
                   size="sm"
                   variant={e.shadowPreset === "medium" ? "default" : "outline"}
                   className={`text-[10px] h-7 ${e.shadowPreset === "medium" ? "bg-violet-600" : ""}`}
-                  onClick={() => patchEl(e.id, { shadow: "0 1px 0 rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.7), 0 2px 6px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.35)", shadowPreset: "medium" })}
+                  onClick={() => patchEl(e.id, { shadow: SHADOW_MEDIUM, shadowPreset: "medium" })}
                 >
                   Médio
                 </Button>
@@ -83,7 +84,7 @@ export function ElementInspector() {
                   size="sm"
                   variant={e.shadowPreset === "strong" ? "default" : "outline"}
                   className={`text-[10px] h-7 ${e.shadowPreset === "strong" ? "bg-violet-600" : ""}`}
-                  onClick={() => patchEl(e.id, { shadow: "0 1px 0 rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.55), 0 10px 28px rgba(0,0,0,0.4)", shadowPreset: "strong" })}
+                  onClick={() => patchEl(e.id, { shadow: SHADOW_STRONG, shadowPreset: "strong" })}
                 >
                   Forte
                 </Button>
