@@ -309,8 +309,8 @@ export default function Gallery() {
         </p>
       </div>
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap gap-2">
+      {/* Filter + selection bar */}
+      <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
           <Button
             key={f.value}
@@ -326,6 +326,52 @@ export default function Gallery() {
             {f.label}
           </Button>
         ))}
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {!selectMode ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectMode(true)}
+              disabled={filtered.length === 0}
+            >
+              <CheckSquare className="mr-2 h-4 w-4" />
+              Selecionar
+            </Button>
+          ) : (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {selectedIds.size} selecionado{selectedIds.size === 1 ? "" : "s"}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const allIds = filtered.map((c) => c.id);
+                  const allSelected = allIds.every((id) => selectedIds.has(id));
+                  setSelectedIds(allSelected ? new Set() : new Set(allIds));
+                }}
+              >
+                {filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))
+                  ? "Limpar seleção"
+                  : "Selecionar tudo"}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={selectedIds.size === 0 || bulkDeleting}
+                onClick={() => setConfirmBulkOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir ({selectedIds.size})
+              </Button>
+              <Button size="sm" variant="ghost" onClick={exitSelectMode}>
+                <X className="mr-2 h-4 w-4" />
+                Cancelar
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Grid or empty state */}
