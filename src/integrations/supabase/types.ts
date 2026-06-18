@@ -628,6 +628,7 @@ export type Database = {
           template_id: string | null
           template_name: string | null
           thumbnail_url: string | null
+          title: string | null
           type: string
           updated_by: string | null
           urls: string[]
@@ -648,6 +649,7 @@ export type Database = {
           template_id?: string | null
           template_name?: string | null
           thumbnail_url?: string | null
+          title?: string | null
           type?: string
           updated_by?: string | null
           urls?: string[]
@@ -668,6 +670,7 @@ export type Database = {
           template_id?: string | null
           template_name?: string | null
           thumbnail_url?: string | null
+          title?: string | null
           type?: string
           updated_by?: string | null
           urls?: string[]
