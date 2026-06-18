@@ -74,6 +74,72 @@ export type Database = {
         }
         Relationships: []
       }
+      articles: {
+        Row: {
+          category: string | null
+          company_id: string
+          content: string
+          cover_image_url: string | null
+          created_at: string
+          created_by: string | null
+          excerpt: string | null
+          id: string
+          linked_creation_id: string | null
+          published_at: string | null
+          slug: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          company_id: string
+          content: string
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          excerpt?: string | null
+          id?: string
+          linked_creation_id?: string | null
+          published_at?: string | null
+          slug: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          company_id?: string
+          content?: string
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          excerpt?: string | null
+          id?: string
+          linked_creation_id?: string | null
+          published_at?: string | null
+          slug?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "articles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "articles_linked_creation_id_fkey"
+            columns: ["linked_creation_id"]
+            isOneToOne: false
+            referencedRelation: "creations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       autopilot_calendars: {
         Row: {
           config_id: string

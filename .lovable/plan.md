@@ -1,35 +1,35 @@
-## Modo seleção para exclusão em massa na Galeria
+## Aplicar migration da tabela `articles`
 
-Adicionar um botão "Selecionar" na Galeria que ativa um modo de seleção múltipla, permitindo escolher vários posts e apagá-los de uma vez.
+**Diagnóstico:** O arquivo `supabase/migrations/20260618155946_create_articles.sql` existe no repositório, mas a tabela `public.articles` **não existe** no banco (`SELECT to_regclass('public.articles')` retorna vazio). No Lovable Cloud as migrations só são aplicadas via a ferramenta de migração — não há `supabase db push` nem acesso a dashboard.
 
-### Mudanças em `src/pages/Gallery.tsx`
+Além disso, a migration original tem um problema crítico: **faltam os `GRANT`s** na tabela `public.articles`. Sem eles, a Data API (PostgREST) retorna erro de permissão mesmo com RLS configurado — a página `/artigos` continuaria quebrada.
 
-1. **Novos estados**:
-   - `selectMode: boolean` — modo seleção ligado/desligado
-   - `selectedIds: Set<string>` — IDs selecionados
-   - `bulkDeleting: boolean` — loading da exclusão
-   - `confirmOpen: boolean` — abre AlertDialog de confirmação
+### Ação
 
-2. **Barra de ações (ao lado dos filtros)**:
-   - Quando `selectMode === false`: botão `Selecionar` (outline).
-   - Quando `selectMode === true`:
-     - Texto "N selecionados"
-     - Botão `Selecionar tudo` / `Limpar seleção`
-     - Botão `Excluir (N)` (destructive, desabilitado se N=0) → abre confirmação
-     - Botão `Cancelar` → sai do modo seleção
+Rodar uma nova migration (aprovada pelo usuário) que:
 
-3. **CreationCard**:
-   - Receber props `selectMode`, `selected`, `onToggleSelect`.
-   - Em modo seleção: clicar no card alterna seleção; overlay de hover com ações fica desabilitado; mostra um `Checkbox` no canto superior direito sempre visível; borda violeta + ring quando selecionado.
-   - Fora do modo seleção: comportamento atual inalterado.
+1. Cria `public.articles` com todas as colunas previstas (id, company_id, created_by, title, slug, content, excerpt, cover_image_url, category, linked_creation_id, status, published_at, created_at, updated_at).
+2. Adiciona os `GRANT`s obrigatórios:
+   - `GRANT SELECT, INSERT, UPDATE, DELETE ON public.articles TO authenticated;`
+   - `GRANT SELECT ON public.articles TO anon;` (necessário para leitura pública de artigos `published`)
+   - `GRANT ALL ON public.articles TO service_role;`
+3. Habilita RLS e cria as mesmas policies do arquivo original:
+   - Membros da empresa leem artigos da própria empresa.
+   - `anon` e `authenticated` leem artigos com `status = 'published'`.
+   - Membros inserem (com `created_by = auth.uid()`).
+   - Owners/admins atualizam qualquer um; criador atualiza o próprio.
+   - Owners/admins deletam.
+4. Cria os índices: `company_id`, `created_by`, `status`, `published_at DESC`, `slug`, `linked_creation_id`.
+5. Cria trigger `BEFORE UPDATE` usando `public.handle_updated_at()` (já existe no banco) para manter `updated_at`.
 
-4. **Exclusão em massa**:
-   - `handleBulkDelete()`: `await Promise.all(ids.map(deleteCreation))`, atualiza `creations` removendo os IDs localmente (sem refetch completo), limpa seleção, sai do modo seleção, toast "N criações removidas".
-   - Confirmação via `AlertDialog` ("Excluir N criações? Esta ação não pode ser desfeita.")
+Tudo idempotente (`IF NOT EXISTS` / `DROP POLICY IF EXISTS`) para conviver com o arquivo antigo no histórico.
 
-5. **Detalhes de UX**:
-   - Trocar filtro mantém seleção (IDs permanecem válidos).
-   - Sair do modo limpa `selectedIds`.
-   - Ícone do botão: `CheckSquare` (lucide) para "Selecionar", `Trash2` no botão de excluir.
+### Verificação pós-migration
 
-Nenhuma mudança em `gallery.ts`, schema ou outras telas. Apenas frontend.
+- `SELECT to_regclass('public.articles')` deve retornar `articles`.
+- Abrir `/artigos` no preview e confirmar que carrega sem erro (lista vazia inicialmente).
+- Criar um artigo de teste pela UI para validar INSERT + RLS.
+
+### Observação
+
+O arquivo `20260618155946_create_articles.sql` permanece no repositório. A nova migration é aditiva e idempotente, então não conflita.
