@@ -464,6 +464,7 @@ export default function Gallery() {
               onDelete={handleDeleteCreation}
               onEditDesign={handleEditDesign}
               onEditCaption={handleEditCaption}
+              onEditTitle={handleEditTitle}
               selectMode={selectMode}
               selected={selectedIds.has(creation.id)}
               onToggleSelect={toggleSelect}
@@ -547,6 +548,7 @@ interface CreationCardProps {
   onDelete: (c: Creation) => void;
   onEditDesign: (c: Creation) => void;
   onEditCaption: (c: Creation) => void;
+  onEditTitle: (c: Creation) => void;
   selectMode: boolean;
   selected: boolean;
   onToggleSelect: (id: string) => void;
@@ -560,6 +562,7 @@ function CreationCard({
   onDelete,
   onEditDesign,
   onEditCaption,
+  onEditTitle,
   selectMode,
   selected,
   onToggleSelect,
@@ -668,6 +671,15 @@ function CreationCard({
             size="icon"
             variant="ghost"
             className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
+            title="Renomear post"
+            onClick={() => onEditTitle(creation)}
+          >
+            <Type className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-white hover:bg-white/20 hover:text-white"
             title="Editar legenda"
             onClick={() => onEditCaption(creation)}
           >
@@ -698,7 +710,7 @@ function CreationCard({
       {/* Info below thumbnail */}
       <CardContent className="space-y-1 p-3">
         <p className="truncate text-sm font-medium">
-          {creation.templateName ?? "Sem nome"}
+          {getCreationLabel(creation)}
         </p>
         {captionSnippet && (
           <p className="line-clamp-2 text-[11px] text-muted-foreground/90 italic">
