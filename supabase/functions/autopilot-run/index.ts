@@ -730,6 +730,32 @@ async function handleConfirm(calendarId: string) {
           error_message: engagement ? JSON.stringify(engagement) : null,
         }).eq("id", post.id);
         confirmed++;
+
+        // Se há artigos vinculados a este post, publicá-los também
+        try {
+          const { data: linkedArticles } = await sb
+            .from("articles")
+            .select("id")
+            .eq("linked_creation_id", post.id)
+            .eq("status", "linked");
+
+          if (linkedArticles?.length) {
+            const now = new Date().toISOString();
+            for (const article of linkedArticles) {
+              await sb
+                .from("articles")
+                .update({
+                  status: "published",
+                  published_at: now,
+                  updated_at: now,
+                })
+                .eq("id", article.id);
+              console.log(`[autopilot] Published linked article ${article.id}`);
+            }
+          }
+        } catch (err) {
+          console.error("[autopilot] Error publishing linked articles:", err);
+        }
       }
     }
 

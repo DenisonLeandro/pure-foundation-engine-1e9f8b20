@@ -16,6 +16,14 @@ import { brandTextHint, type BrandProfile } from "@/lib/brand";
 import { saveUploadToGallery, markAsPublishedByUrls } from "@/lib/gallery";
 import { isPfmAuthError } from "@/lib/pfm-errors";
 import { PfmAuthExpired } from "@/components/PfmAuthExpired";
+import { useArticles } from "@/hooks/use-articles";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function isHttp(u?: string): boolean {
   return !!u && /^https?:\/\//.test(u);
@@ -44,6 +52,7 @@ export function PublishPanel({
   const { data: accounts = [], isLoading, isError, error } = usePfmAccounts();
   const pfmAuthExpired = isError && isPfmAuthError(error);
   const createPost = usePfmCreatePost();
+  const { articles } = useArticles();
   const [selected, setSelected] = useState<string[]>([]);
   const [caption, setCaption] = useState(defaultCaption);
   const [when, setWhen] = useState<"now" | "schedule">(defaultScheduledAt ? "schedule" : "now");
@@ -52,6 +61,7 @@ export function PublishPanel({
   const [publishing, setPublishing] = useState(false);
   const [done, setDone] = useState(false);
   const [genCap, setGenCap] = useState(false);
+  const [linkedArticleId, setLinkedArticleId] = useState<string>("");
 
   const generateCaption = async () => {
     const topic = (captionTopic || caption || "").trim();
@@ -137,6 +147,25 @@ export function PublishPanel({
 
       await createPost.mutateAsync(payload as unknown as Parameters<typeof createPost.mutateAsync>[0]);
       if (hosted.length) markAsPublishedByUrls(hosted);
+
+      // Se publicando "agora" com um artigo vinculado, publicar o artigo também
+      if (linkedArticleId && when === "now") {
+        try {
+          const { getSupabaseUrl, baseHeaders } = await import("@/lib/api/_shared");
+          const url = `${getSupabaseUrl()}/functions/v1/publish-article`;
+          const headers = await baseHeaders();
+          const res = await fetch(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ article_id: linkedArticleId }),
+          });
+          if (!res.ok) throw new Error("Falha ao publicar artigo");
+        } catch (err) {
+          console.error("Erro ao publicar artigo:", err);
+          toast.warning("Post publicado, mas falha ao publicar o artigo. Publique manualmente.");
+        }
+      }
+
       setDone(true);
       toast.success(when === "schedule" ? "Post agendado!" : "Publicado!");
     } catch (e) {
@@ -207,6 +236,28 @@ export function PublishPanel({
                 </div>
               </div>
             )}
+
+            {/* Link article */}
+            <div className="space-y-1.5">
+              <Label className="flex items-center justify-between text-xs">
+                <span>Subir artigo junto? (opcional)</span>
+              </Label>
+              <Select value={linkedArticleId} onValueChange={setLinkedArticleId}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Nenhum artigo vinculado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nenhum</SelectItem>
+                  {articles
+                    .filter((a) => a.status !== "published")
+                    .map((article) => (
+                      <SelectItem key={article.id} value={article.id}>
+                        {article.title}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Schedule */}
             <div className="flex flex-wrap items-center gap-2">
