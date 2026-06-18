@@ -58,7 +58,7 @@ export async function getArticles(companyId: string): Promise<Article[]> {
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
-  return data || [];
+  return (data || []) as Article[];
 }
 
 // Get a single article
@@ -70,7 +70,7 @@ export async function getArticle(articleId: string): Promise<Article | null> {
     .single();
 
   if (error && error.code !== "PGRST116") throw new Error(error.message);
-  return data || null;
+  return (data as Article | null) || null;
 }
 
 // Get published articles (public access)
@@ -83,7 +83,7 @@ export async function getPublishedArticles(limit = 100): Promise<Article[]> {
     .limit(limit);
 
   if (error) throw new Error(error.message);
-  return data || [];
+  return (data || []) as Article[];
 }
 
 // Create a new article
@@ -104,7 +104,7 @@ export async function createArticle(params: CreateArticleParams): Promise<Articl
     .single();
 
   if (error) throw new Error(error.message);
-  return data;
+  return data as Article;
 }
 
 // Update an article
@@ -123,7 +123,7 @@ export async function updateArticle(
     .single();
 
   if (error) throw new Error(error.message);
-  return data;
+  return data as Article;
 }
 
 // Publish an article
@@ -141,7 +141,7 @@ export async function publishArticle(articleId: string): Promise<Article> {
     .single();
 
   if (error) throw new Error(error.message);
-  return data;
+  return data as Article;
 }
 
 // Delete an article
