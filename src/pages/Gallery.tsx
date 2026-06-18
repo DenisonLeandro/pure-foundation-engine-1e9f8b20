@@ -11,15 +11,22 @@ import {
   Loader2,
   Pencil,
   MessageSquareText,
+  CheckSquare,
+  X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
 import { getCreations, getCreation, deleteCreation, updateCreation, type Creation } from "@/lib/gallery";
@@ -64,6 +71,12 @@ export default function Gallery() {
   const [captionDraft, setCaptionDraft] = useState("");
   const [captionSaving, setCaptionSaving] = useState(false);
 
+  // Modo seleção múltipla
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+
   const { activeCompanyId } = useCompany();
 
   useEffect(() => {
@@ -96,6 +109,37 @@ export default function Gallery() {
     loadCreations();
     toast({ title: "Criação removida" });
   }, [toast, loadCreations]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    setBulkDeleting(true);
+    const results = await Promise.allSettled(ids.map((id) => deleteCreation(id)));
+    setBulkDeleting(false);
+    setConfirmBulkOpen(false);
+    const okIds = ids.filter((_, i) => results[i].status === "fulfilled" && (results[i] as PromiseFulfilledResult<boolean>).value);
+    setCreations((prev) => prev.filter((c) => !okIds.includes(c.id)));
+    exitSelectMode();
+    toast({
+      title: okIds.length === ids.length
+        ? `${okIds.length} criações removidas`
+        : `${okIds.length} de ${ids.length} removidas`,
+    });
+  }, [selectedIds, toast, exitSelectMode]);
+
 
   const filtered =
     activeFilter === "all"
@@ -265,8 +309,8 @@ export default function Gallery() {
         </p>
       </div>
 
-      {/* Filter bar */}
-      <div className="flex flex-wrap gap-2">
+      {/* Filter + selection bar */}
+      <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
           <Button
             key={f.value}
@@ -282,6 +326,52 @@ export default function Gallery() {
             {f.label}
           </Button>
         ))}
+
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {!selectMode ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectMode(true)}
+              disabled={filtered.length === 0}
+            >
+              <CheckSquare className="mr-2 h-4 w-4" />
+              Selecionar
+            </Button>
+          ) : (
+            <>
+              <span className="text-sm text-muted-foreground">
+                {selectedIds.size} selecionado{selectedIds.size === 1 ? "" : "s"}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const allIds = filtered.map((c) => c.id);
+                  const allSelected = allIds.every((id) => selectedIds.has(id));
+                  setSelectedIds(allSelected ? new Set() : new Set(allIds));
+                }}
+              >
+                {filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))
+                  ? "Limpar seleção"
+                  : "Selecionar tudo"}
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={selectedIds.size === 0 || bulkDeleting}
+                onClick={() => setConfirmBulkOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir ({selectedIds.size})
+              </Button>
+              <Button size="sm" variant="ghost" onClick={exitSelectMode}>
+                <X className="mr-2 h-4 w-4" />
+                Cancelar
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Grid or empty state */}
@@ -310,10 +400,36 @@ export default function Gallery() {
               onDelete={handleDeleteCreation}
               onEditDesign={handleEditDesign}
               onEditCaption={handleEditCaption}
+              selectMode={selectMode}
+              selected={selectedIds.has(creation.id)}
+              onToggleSelect={toggleSelect}
             />
           ))}
         </div>
       )}
+
+      {/* Bulk delete confirmation */}
+      <AlertDialog open={confirmBulkOpen} onOpenChange={setConfirmBulkOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selectedIds.size} criações?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Os posts selecionados serão removidos permanentemente da galeria.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleBulkDelete(); }}
+              disabled={bulkDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {bulkDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Caption edit dialog */}
       <Dialog open={!!captionEditing} onOpenChange={(o) => { if (!o) setCaptionEditing(null); }}>
@@ -367,6 +483,9 @@ interface CreationCardProps {
   onDelete: (c: Creation) => void;
   onEditDesign: (c: Creation) => void;
   onEditCaption: (c: Creation) => void;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
 }
 
 function CreationCard({
@@ -377,6 +496,9 @@ function CreationCard({
   onDelete,
   onEditDesign,
   onEditCaption,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: CreationCardProps) {
   const thumb = creation.thumbnailUrl ?? creation.urls[0] ?? "";
   const date = new Date(creation.createdAt).toLocaleDateString("pt-BR", {
@@ -387,9 +509,38 @@ function CreationCard({
   const captionSnippet = (creation.caption || "").trim().split(/\n+/)[0] ?? "";
 
   return (
-    <Card className="group overflow-hidden border-violet-200/40 transition-shadow hover:shadow-lg dark:border-violet-800/30">
+    <Card
+      className={`group overflow-hidden border-violet-200/40 transition-shadow hover:shadow-lg dark:border-violet-800/30 ${
+        selectMode ? "cursor-pointer" : ""
+      } ${selected ? "ring-2 ring-violet-500 border-violet-500" : ""}`}
+      onClick={selectMode ? () => onToggleSelect(creation.id) : undefined}
+    >
       {/* Thumbnail wrapper */}
       <div className="relative aspect-square overflow-hidden bg-muted">
+        {thumb ? (
+          <img
+            src={thumb}
+            alt={creation.templateName ?? "Criação"}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <Image className="h-10 w-10 text-muted-foreground/40" />
+          </div>
+        )}
+
+        {/* Selection checkbox */}
+        {selectMode && (
+          <div className="absolute right-2 top-2 z-10 rounded-md bg-black/60 p-1.5">
+            <Checkbox
+              checked={selected}
+              onCheckedChange={() => onToggleSelect(creation.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="border-white data-[state=checked]:bg-violet-600 data-[state=checked]:border-violet-600"
+            />
+          </div>
+        )}
+
         {thumb ? (
           <img
             src={thumb}
@@ -418,6 +569,7 @@ function CreationCard({
         )}
 
         {/* Hover overlay with actions */}
+        {!selectMode && (
         <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <Button
             size="icon"
@@ -476,6 +628,7 @@ function CreationCard({
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
+        )}
       </div>
 
       {/* Info below thumbnail */}
