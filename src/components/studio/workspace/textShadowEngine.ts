@@ -114,7 +114,7 @@ export function shadowIntensity(shadowString: string): number {
   const baseIntensity = Math.min(1, layers * 0.25);
 
   // Check se há opacidade alta (>0.7) em qualquer camada
-  const hasHighOpacity = /rgba?\([^)]*,\s*[0.8-1]/i.test(shadowString);
+  const hasHighOpacity = /rgba?\([^)]*,\s*(?:0?\.[89]\d*|1(?:\.0+)?)\s*\)/i.test(shadowString);
   return hasHighOpacity ? Math.min(1, baseIntensity + 0.2) : baseIntensity;
 }
 
