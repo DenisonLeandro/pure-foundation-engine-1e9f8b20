@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getSupabaseUrl, baseHeaders } from "./_shared";
 
 export interface Article {
   id: string;
@@ -172,23 +173,17 @@ export async function generateArticleFromCreation(
   creationId: string,
   title?: string
 ): Promise<GeneratedArticle> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("User not authenticated");
+  const url = `${getSupabaseUrl()}/functions/v1/generate-article-from-post`;
+  const headers = await baseHeaders();
 
-  const response = await fetch(
-    `${new URL(supabase.supabaseUrl).origin}/functions/v1/generate-article-from-post`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        creation_id: creationId,
-        title,
-      }),
-    }
-  );
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      creation_id: creationId,
+      title,
+    }),
+  });
 
   if (!response.ok) {
     const error = await response.json();
