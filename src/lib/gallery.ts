@@ -39,7 +39,17 @@ export interface Creation {
   designDoc?: EditableDesignDoc | null;
   /** Legenda do post para redes sociais (editável depois). */
   caption?: string | null;
+  /** Título amigável do post (editável; vazio = usa fallback "Post #abc12345"). */
+  title?: string | null;
 }
+
+/** Rótulo amigável de um post para listagens (Galeria, seletor de Artigos, etc.). */
+export function getCreationLabel(c: Pick<Creation, "id" | "title">): string {
+  const t = (c.title || "").trim();
+  if (t) return t;
+  return `Post #${c.id.slice(0, 8)}`;
+}
+
 
 /**
  * Sanitiza um StudioDoc-like para persistir como design_doc:
@@ -142,7 +152,7 @@ export async function getCreations(companyIdOrFilter?: string | "image" | "video
   // NOTE: design_doc é pesado e usado só na edição — carregado sob demanda via getCreation(id).
   let query = supabase
     .from("creations")
-    .select("id,user_id,company_id,created_by,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,caption,design_doc")
+    .select("id,user_id,company_id,created_by,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,caption,design_doc,title")
     .eq("company_id", resolvedCompanyId)
     .order("created_at", { ascending: false });
 
@@ -252,6 +262,11 @@ export async function updateCreation(id: string, updates: Partial<Creation>): Pr
   if (updates.caption !== undefined) {
     payload.caption = updates.caption || null;
   }
+  if (updates.title !== undefined) {
+    const t = (updates.title || "").trim();
+    payload.title = t ? t.slice(0, 120) : null;
+  }
+
 
   const { data, error } = await supabase
     .from("creations")
@@ -416,5 +431,6 @@ function mapRow(row: any): Creation {
     createdAt: row.created_at,
     designDoc: (row.design_doc as EditableDesignDoc | null) ?? null,
     caption: (row.caption as string | null) ?? null,
+    title: (row.title as string | null) ?? null,
   };
 }
