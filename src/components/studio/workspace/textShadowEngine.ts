@@ -12,30 +12,37 @@ import type { StudioDoc, El, Slide } from "./types";
 import { getRelativeLuminance, getContrastRatio, parseHex } from "./designReadability";
 
 // ─── Presets de shadow (em camadas) ─────────────────────────────
+//
+// IMPORTANTE: todas as camadas são OMNIDIRECIONAIS (contorno ao redor de
+// toda a letra, não só sombra para baixo). Isso é o que garante leitura
+// sobre fundo BRANCO/claro — as bordas superiores e laterais das letras
+// brancas ganham um anel escuro que as separa do fundo. Sombras só para
+// baixo (offset-y positivo) falham em foto branca.
 
 /**
- * SHADOW_DISCRETE: 3 camadas, alcance ~3px, peso visual ~25%
- * Uso: fundos médios, quando contraste já é 4.5-7
- * Renderização: quase invisível, só protege
+ * SHADOW_DISCRETE: contorno fino + halo curto, peso visual baixo.
+ * Uso: fundos médios, quando contraste já é 4.5-7.
+ * Renderização: anel sutil ao redor da letra, quase imperceptível.
  */
 export const SHADOW_DISCRETE =
-  "0 1px 0 rgba(0,0,0,0.6), 0 0 1px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)";
+  "0 0 1px rgba(0,0,0,0.65), -1px -1px 1px rgba(0,0,0,0.35), 1px -1px 1px rgba(0,0,0,0.35), -1px 1px 1px rgba(0,0,0,0.35), 1px 1px 1px rgba(0,0,0,0.35), 0 0 3px rgba(0,0,0,0.4)";
 
 /**
- * SHADOW_MEDIUM: 4 camadas, alcance ~18px, peso visual ~45%
- * Uso: padrão editorial, imagens escuras, layout robusto
- * Renderização: halo suave, bem definido
+ * SHADOW_MEDIUM: contorno definido + halo suave.
+ * Uso: padrão editorial, fundos médios/escuros, layout robusto.
+ * Renderização: anel escuro nítido em volta da letra + difusão suave.
  */
 export const SHADOW_MEDIUM =
-  "0 1px 0 rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.7), 0 2px 6px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.35)";
+  "0 0 2px rgba(0,0,0,0.85), -1px -1px 1px rgba(0,0,0,0.6), 1px -1px 1px rgba(0,0,0,0.6), -1px 1px 1px rgba(0,0,0,0.6), 1px 1px 1px rgba(0,0,0,0.6), 0 0 4px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.4)";
 
 /**
- * SHADOW_STRONG: 4 camadas, alcance ~28px, peso visual ~60%
- * Uso: imagens claras, fundos complexos, máxima proteção
- * Renderização: halo amplo, protege contra tudo
+ * SHADOW_STRONG: contorno escuro forte (tipo stroke) + halo amplo.
+ * Uso: fotos BRANCAS/claras, fundos complexos, máxima proteção.
+ * Renderização: anel escuro denso em todas as direções — garante 100%
+ * de leitura de texto branco mesmo sobre fundo totalmente branco.
  */
 export const SHADOW_STRONG =
-  "0 1px 0 rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.55), 0 10px 28px rgba(0,0,0,0.4)";
+  "-1px -1px 1px rgba(0,0,0,0.9), 1px -1px 1px rgba(0,0,0,0.9), -1px 1px 1px rgba(0,0,0,0.9), 1px 1px 1px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.6), 0 2px 10px rgba(0,0,0,0.45)";
 
 export interface ShadowPreset {
   name: string;

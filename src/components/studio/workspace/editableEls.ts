@@ -24,14 +24,15 @@ export interface BuildElsOpts {
 const W = 360;
 const H = 450;
 const MARGIN = 24;
-// Sombra em camadas: densa rente à letra, depois um halo amplo e diluído.
-// Quase invisível como "tarja", mas garante leitura sobre qualquer foto.
+// Sombra OMNIDIRECIONAL em camadas: anel escuro ao redor de toda a letra
+// (não só para baixo). É o que garante leitura sobre qualquer foto,
+// inclusive fundo BRANCO — as bordas das letras claras ganham contorno escuro.
 const SHADOW_DISCRETE =
-  "0 1px 0 rgba(0,0,0,0.6), 0 0 1px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)";
+  "0 0 1px rgba(0,0,0,0.65), -1px -1px 1px rgba(0,0,0,0.35), 1px -1px 1px rgba(0,0,0,0.35), -1px 1px 1px rgba(0,0,0,0.35), 1px 1px 1px rgba(0,0,0,0.35), 0 0 3px rgba(0,0,0,0.4)";
 const SHADOW =
-  "0 1px 0 rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.7), 0 2px 6px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.35)";
+  "0 0 2px rgba(0,0,0,0.85), -1px -1px 1px rgba(0,0,0,0.6), 1px -1px 1px rgba(0,0,0,0.6), -1px 1px 1px rgba(0,0,0,0.6), 1px 1px 1px rgba(0,0,0,0.6), 0 0 4px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.4)";
 const SHADOW_STRONG =
-  "0 1px 0 rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.55), 0 10px 28px rgba(0,0,0,0.4)";
+  "-1px -1px 1px rgba(0,0,0,0.9), 1px -1px 1px rgba(0,0,0,0.9), -1px 1px 1px rgba(0,0,0,0.9), 1px 1px 1px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.95), 0 0 4px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.6), 0 2px 10px rgba(0,0,0,0.45)";
 
 // Halo radial MUITO discreto atrás do título — 18% de opacidade, pílula
 // totalmente arredondada. Quase invisível sobre fotos médias/escuras, dá só
