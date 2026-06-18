@@ -104,8 +104,12 @@ export default function Articles() {
   };
 
   const handleSave = async () => {
-    if (!form.title.trim()) {
+    if (mode === "manual" && !form.title.trim()) {
       toast.error("Título é obrigatório");
+      return;
+    }
+    if (mode === "from-post" && !selectedCreation) {
+      toast.error("Selecione um post para gerar o artigo");
       return;
     }
     if (!form.content.trim()) {
@@ -407,7 +411,22 @@ export default function Articles() {
             <TabsContent value="from-post" className="space-y-4">
               <div className="space-y-2">
                 <Label>Escolha um Post da Galeria</Label>
-                <Select value={selectedCreation} onValueChange={setSelectedCreation}>
+                <Select
+                  value={selectedCreation}
+                  onValueChange={(creationId) => {
+                    setSelectedCreation(creationId);
+                    const creation = creations.find((c) => c.id === creationId);
+                    if (creation) {
+                      const title = creation.prompt || "Artigo baseado em Post";
+                      setForm((prev) => ({
+                        ...prev,
+                        title,
+                        slug: generateSlug(title),
+                        linked_creation_id: creationId,
+                      }));
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um post" />
                   </SelectTrigger>
@@ -420,10 +439,32 @@ export default function Articles() {
                   </SelectContent>
                 </Select>
               </div>
-              <p className="text-sm text-muted-foreground">
-                Selecione um post e a IA irá expandir em um artigo completo.
-                Recurso disponível em breve.
-              </p>
+              {selectedCreation && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Título (auto-preenchido)</Label>
+                    <Input
+                      value={form.title}
+                      onChange={(e) => handleTitleChange(e.target.value)}
+                      placeholder="Será preenchido a partir do post"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Conteúdo</Label>
+                    <Textarea
+                      value={form.content}
+                      onChange={(e) => setForm((prev) => ({ ...prev, content: e.target.value }))}
+                      placeholder="Escreva o conteúdo do artigo..."
+                      rows={6}
+                    />
+                  </div>
+                </>
+              )}
+              {!selectedCreation && (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  Selecione um post acima para começar
+                </p>
+              )}
             </TabsContent>
           </Tabs>
 
