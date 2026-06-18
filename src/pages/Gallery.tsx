@@ -110,6 +110,37 @@ export default function Gallery() {
     toast({ title: "Criação removida" });
   }, [toast, loadCreations]);
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    setBulkDeleting(true);
+    const results = await Promise.allSettled(ids.map((id) => deleteCreation(id)));
+    setBulkDeleting(false);
+    setConfirmBulkOpen(false);
+    const okIds = ids.filter((_, i) => results[i].status === "fulfilled" && (results[i] as PromiseFulfilledResult<boolean>).value);
+    setCreations((prev) => prev.filter((c) => !okIds.includes(c.id)));
+    exitSelectMode();
+    toast({
+      title: okIds.length === ids.length
+        ? `${okIds.length} criações removidas`
+        : `${okIds.length} de ${ids.length} removidas`,
+    });
+  }, [selectedIds, toast, exitSelectMode]);
+
+
   const filtered =
     activeFilter === "all"
       ? creations
