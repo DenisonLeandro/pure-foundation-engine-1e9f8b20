@@ -13,6 +13,8 @@ import {
   MessageSquareText,
   CheckSquare,
   X,
+  Type,
+  Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -29,7 +32,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
-import { getCreations, getCreation, deleteCreation, updateCreation, type Creation } from "@/lib/gallery";
+import { getCreations, getCreation, deleteCreation, updateCreation, getCreationLabel, type Creation } from "@/lib/gallery";
+import { aiAssist } from "@/lib/api/ai-assist";
 import { useCompany } from "@/contexts/CompanyContext";
 
 // ─── Filter types ───────────────────────────────────────────────
