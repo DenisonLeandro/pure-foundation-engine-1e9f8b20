@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { generateSlug, type CreateArticleParams, type UpdateArticleParams } from "@/lib/api/articles";
+import { generateSlug, generateArticleFromCreation, type CreateArticleParams, type UpdateArticleParams } from "@/lib/api/articles";
 import { getCreationLabel } from "@/lib/gallery";
 
 const STATUS_COLORS = {
@@ -64,6 +64,7 @@ export default function Articles() {
   const [form, setForm] = useState<FormData>({ ...emptyForm });
   const [mode, setMode] = useState<"manual" | "from-post">("manual");
   const [saving, setSaving] = useState(false);
+  const [generatingContent, setGeneratingContent] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCreation, setSelectedCreation] = useState<string>("");
 
@@ -413,7 +414,7 @@ export default function Articles() {
                 <Label>Escolha um Post da Galeria</Label>
                 <Select
                   value={selectedCreation}
-                  onValueChange={(creationId) => {
+                  onValueChange={async (creationId) => {
                     setSelectedCreation(creationId);
                     const creation = creations.find((c) => c.id === creationId);
                     if (creation) {
@@ -423,9 +424,29 @@ export default function Articles() {
                         title,
                         slug: generateSlug(title),
                         linked_creation_id: creationId,
+                        content: "", // clear while generating
                       }));
+
+                      // Generate content from post
+                      setGeneratingContent(true);
+                      try {
+                        const generated = await generateArticleFromCreation(creationId, title);
+                        setForm((prev) => ({
+                          ...prev,
+                          title: generated.title,
+                          slug: generateSlug(generated.title),
+                          content: generated.content,
+                          excerpt: generated.excerpt || prev.excerpt,
+                        }));
+                        toast.success("Conteúdo gerado com sucesso!");
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : "Erro ao gerar conteúdo");
+                      } finally {
+                        setGeneratingContent(false);
+                      }
                     }
                   }}
+                  disabled={generatingContent}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um post" />
@@ -447,22 +468,30 @@ export default function Articles() {
                       value={form.title}
                       onChange={(e) => handleTitleChange(e.target.value)}
                       placeholder="Será preenchido a partir do post"
+                      disabled={generatingContent}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Conteúdo</Label>
-                    <Textarea
-                      value={form.content}
-                      onChange={(e) => setForm((prev) => ({ ...prev, content: e.target.value }))}
-                      placeholder="Escreva o conteúdo do artigo..."
-                      rows={6}
-                    />
+                    <Label>Conteúdo (auto-gerado)</Label>
+                    {generatingContent ? (
+                      <div className="flex items-center justify-center gap-2 py-12 border rounded-lg bg-muted">
+                        <Loader2 className="h-4 w-4 animate-spin text-violet-500" />
+                        <span className="text-sm text-muted-foreground">Gerando conteúdo com IA...</span>
+                      </div>
+                    ) : (
+                      <Textarea
+                        value={form.content}
+                        onChange={(e) => setForm((prev) => ({ ...prev, content: e.target.value }))}
+                        placeholder="O conteúdo será gerado automaticamente..."
+                        rows={6}
+                      />
+                    )}
                   </div>
                 </>
               )}
               {!selectedCreation && (
                 <p className="text-sm text-muted-foreground text-center py-8">
-                  Selecione um post acima para começar
+                  Selecione um post acima para gerar o artigo automaticamente
                 </p>
               )}
             </TabsContent>
@@ -474,12 +503,16 @@ export default function Articles() {
             </Button>
             <Button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || generatingContent}
               className="bg-gradient-to-r from-violet-600 to-fuchsia-500"
             >
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando…
+                </>
+              ) : generatingContent ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando…
                 </>
               ) : (
                 <>
