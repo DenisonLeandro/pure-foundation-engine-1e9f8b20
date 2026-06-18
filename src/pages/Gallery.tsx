@@ -524,6 +524,51 @@ export default function Gallery() {
         </DialogContent>
       </Dialog>
 
+      {/* Title edit dialog */}
+      <Dialog open={!!titleEditing} onOpenChange={(o) => { if (!o) setTitleEditing(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Renomear post</DialogTitle>
+            <DialogDescription>
+              Dê um nome ao post para encontrá-lo facilmente na galeria e ao vincular em artigos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              placeholder="Ex.: Carrossel sobre Lei Geral de Proteção de Dados"
+              maxLength={120}
+              autoFocus
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleGenerateTitle}
+              disabled={titleGenerating || titleSaving}
+              className="w-full"
+            >
+              {titleGenerating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4 text-violet-500" />
+              )}
+              Gerar com IA pelo conteúdo
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setTitleEditing(null)} disabled={titleSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveTitle} disabled={titleSaving} className="bg-violet-600 hover:bg-violet-700">
+              {titleSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Media Preview Dialog */}
       {previewCreation && (
         <MediaPreviewDialog
