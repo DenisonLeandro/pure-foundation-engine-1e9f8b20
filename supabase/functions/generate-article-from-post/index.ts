@@ -31,25 +31,34 @@ async function callLovableAI(prompt: string): Promise<string> {
     throw new Error("LOVABLE_API_KEY not configured");
   }
 
-  const response = await fetch("https://api.lovable.ai/generate", {
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      prompt,
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "user", content: prompt },
+      ],
       temperature: 0.7,
       max_tokens: 2000,
     }),
   });
 
   if (!response.ok) {
-    throw new Error(`Lovable API error: ${response.status}`);
+    const errText = await response.text();
+    console.error("[generate-article-from-post] AI Gateway error:", response.status, errText);
+    throw new Error(`Lovable AI Gateway error: ${response.status}`);
   }
 
   const data = await response.json();
-  return data.text || "";
+  const textContent = data.choices?.[0]?.message?.content;
+  if (!textContent) {
+    throw new Error("No content in AI response");
+  }
+  return textContent;
 }
 
 Deno.serve(async (req: Request) => {
