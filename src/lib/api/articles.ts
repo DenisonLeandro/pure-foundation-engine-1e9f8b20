@@ -161,20 +161,44 @@ export async function linkArticleToCreation(
   });
 }
 
-// Generate article from a creation/post using AI
+export interface GeneratedArticle {
+  title: string;
+  content: string;
+  excerpt?: string;
+}
+
+// Generate article content from a creation/post using AI
 export async function generateArticleFromCreation(
   creationId: string,
-  companyId: string,
   title?: string
-): Promise<Partial<Article>> {
-  // This would call an Edge Function to generate content using AI
-  // For now, return a template structure
+): Promise<GeneratedArticle> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("User not authenticated");
+
+  const response = await fetch(
+    `${new URL(supabase.supabaseUrl).origin}/functions/v1/generate-article-from-post`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        creation_id: creationId,
+        title,
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to generate article");
+  }
+
+  const result = await response.json();
   return {
-    title: title || "Novo Artigo",
-    slug: generateSlug(title || "novo-artigo"),
-    content: "",
-    excerpt: "",
-    linked_creation_id: creationId,
-    status: "draft",
+    title: result.title,
+    content: result.content,
+    excerpt: result.excerpt,
   };
 }
