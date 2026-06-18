@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft, Save, Loader2, Trash2, Eye, EyeOff,
+  PanelLeft, Quote, ArrowLeft, Save, Loader2, Trash2, Eye, EyeOff, Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +30,7 @@ import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
 import { applyBrandLogo, removeBrandLogo, docHasBrandLogo } from "./brandLogo";
 import { saveStudioDraft, clearStudioDrafts, type StudioDraftInput } from "./studioDraft";
+import { applyAutoShadowsToDoc } from "./textShadowEngine";
 
 const FORMATS: { value: StudioFormat; label: string; icon: typeof PenSquare }[] = [
   { value: "post", label: "Post", icon: PenSquare },
@@ -227,6 +228,12 @@ function WorkspaceInner({
     const refined = refineDesignAesthetics(readable, brandPalette, stylePreset);
     replaceDoc(refined);
     toast.success("Legibilidade ajustada");
+  };
+
+  const handleAutoShadow = () => {
+    const withShadows = applyAutoShadowsToDoc(doc);
+    replaceDoc(withShadows);
+    toast.success("Drop-shadows aplicados automaticamente");
   };
 
   const handleApplyStyle = (preset: StylePreset) => {
@@ -439,6 +446,18 @@ function WorkspaceInner({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          )}
+          {!staticFallback && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAutoShadow}
+              title="Aplicar drop-shadows automáticos para melhorar legibilidade"
+              className="hidden md:inline-flex"
+            >
+              <Wand2 className="mr-2 h-4 w-4" />
+              Aplicar Shadows
+            </Button>
           )}
           <Button
             variant="outline"

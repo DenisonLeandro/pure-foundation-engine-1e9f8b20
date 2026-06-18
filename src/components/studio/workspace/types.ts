@@ -18,6 +18,7 @@ export interface El {
   lineHeight?: number;
   letterSpacing?: number;
   shadow?: string;
+  shadowPreset?: "auto" | "discrete" | "medium" | "strong" | "custom";
   stroke?: string;
   strokeWidth?: number;
   opacity?: number;
