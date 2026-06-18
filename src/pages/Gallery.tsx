@@ -483,6 +483,9 @@ interface CreationCardProps {
   onDelete: (c: Creation) => void;
   onEditDesign: (c: Creation) => void;
   onEditCaption: (c: Creation) => void;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
 }
 
 function CreationCard({
@@ -493,6 +496,9 @@ function CreationCard({
   onDelete,
   onEditDesign,
   onEditCaption,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: CreationCardProps) {
   const thumb = creation.thumbnailUrl ?? creation.urls[0] ?? "";
   const date = new Date(creation.createdAt).toLocaleDateString("pt-BR", {
@@ -503,9 +509,38 @@ function CreationCard({
   const captionSnippet = (creation.caption || "").trim().split(/\n+/)[0] ?? "";
 
   return (
-    <Card className="group overflow-hidden border-violet-200/40 transition-shadow hover:shadow-lg dark:border-violet-800/30">
+    <Card
+      className={`group overflow-hidden border-violet-200/40 transition-shadow hover:shadow-lg dark:border-violet-800/30 ${
+        selectMode ? "cursor-pointer" : ""
+      } ${selected ? "ring-2 ring-violet-500 border-violet-500" : ""}`}
+      onClick={selectMode ? () => onToggleSelect(creation.id) : undefined}
+    >
       {/* Thumbnail wrapper */}
       <div className="relative aspect-square overflow-hidden bg-muted">
+        {thumb ? (
+          <img
+            src={thumb}
+            alt={creation.templateName ?? "Criação"}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <Image className="h-10 w-10 text-muted-foreground/40" />
+          </div>
+        )}
+
+        {/* Selection checkbox */}
+        {selectMode && (
+          <div className="absolute right-2 top-2 z-10 rounded-md bg-black/60 p-1.5">
+            <Checkbox
+              checked={selected}
+              onCheckedChange={() => onToggleSelect(creation.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="border-white data-[state=checked]:bg-violet-600 data-[state=checked]:border-violet-600"
+            />
+          </div>
+        )}
+
         {thumb ? (
           <img
             src={thumb}
