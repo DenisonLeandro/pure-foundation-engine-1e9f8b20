@@ -21,6 +21,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { generateSlug, type CreateArticleParams, type UpdateArticleParams } from "@/lib/api/articles";
+import { getCreationLabel } from "@/lib/gallery";
 
 const STATUS_COLORS = {
   draft: "bg-gray-100 text-gray-800",
