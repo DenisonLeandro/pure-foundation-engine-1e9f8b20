@@ -36,6 +36,7 @@ const Studio = lazy(() => import("./pages/Studio"));
 const Autopilot = lazy(() => import("./pages/Autopilot"));
 const Admin = lazy(() => import("./pages/Admin"));
 const Team = lazy(() => import("./pages/Team"));
+const Articles = lazy(() => import("./pages/Articles"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -173,6 +174,7 @@ const App = () => (
                         <Route path="/brands" element={<RoutePage><Brands /></RoutePage>} />
                         <Route path="/insights" element={<RoutePage><Insights /></RoutePage>} />
                         <Route path="/autopilot" element={<RoutePage><Autopilot /></RoutePage>} />
+                        <Route path="/artigos" element={<RoutePage><Articles /></RoutePage>} />
                         <Route path="/admin" element={<RoutePage><Admin /></RoutePage>} />
                         <Route path="/admin/equipe" element={<RoutePage><Team /></RoutePage>} />
                       </Route>

@@ -18,6 +18,7 @@ import {
   BarChart3,
   ShieldAlert,
   Sparkles,
+  FileText,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -40,6 +41,7 @@ const navItems = [
   { to: "/schedule", icon: CalendarDays, label: "Agenda" },
   { to: "/sources", icon: BookOpen, label: "Fontes" },
   { to: "/brands", icon: Building2, label: "Marcas" },
+  { to: "/artigos", icon: FileText, label: "Artigos" },
   { to: "/accounts", icon: Users, label: "Contas" },
   { to: "/insights", icon: Lightbulb, label: "Insights IA" },
   { to: "/admin", icon: ShieldAlert, label: "Administração" },
