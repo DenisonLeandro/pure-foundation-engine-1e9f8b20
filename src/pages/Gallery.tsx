@@ -71,6 +71,12 @@ export default function Gallery() {
   const [captionDraft, setCaptionDraft] = useState("");
   const [captionSaving, setCaptionSaving] = useState(false);
 
+  // Modo seleção múltipla
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
+
   const { activeCompanyId } = useCompany();
 
   useEffect(() => {
