@@ -75,6 +75,12 @@ export default function Gallery() {
   const [captionDraft, setCaptionDraft] = useState("");
   const [captionSaving, setCaptionSaving] = useState(false);
 
+  // Edição de título
+  const [titleEditing, setTitleEditing] = useState<Creation | null>(null);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [titleSaving, setTitleSaving] = useState(false);
+  const [titleGenerating, setTitleGenerating] = useState(false);
+
   // Modo seleção múltipla
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
