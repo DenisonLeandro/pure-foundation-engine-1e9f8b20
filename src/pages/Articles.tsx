@@ -419,6 +419,7 @@ export default function Articles() {
                     const creation = creations.find((c) => c.id === creationId);
                     if (creation) {
                       const title = creation.prompt || "Artigo baseado em Post";
+                      const fallbackContent = creation.prompt || creation.caption || "";
                       setForm((prev) => ({
                         ...prev,
                         title,
@@ -441,6 +442,10 @@ export default function Articles() {
                         toast.success("Conteúdo gerado com sucesso!");
                       } catch (err) {
                         toast.error(err instanceof Error ? err.message : "Erro ao gerar conteúdo");
+                        setForm((prev) => ({
+                          ...prev,
+                          content: fallbackContent,
+                        }));
                       } finally {
                         setGeneratingContent(false);
                       }
