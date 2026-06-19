@@ -136,6 +136,52 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // 6. Publica artigos automaticamente quando seus posts associados são publicados
+    const { data: draftArticles } = await sb
+      .from("articles")
+      .select("id, linked_creation_id")
+      .eq("status", "draft")
+      .not("linked_creation_id", "is", null);
+
+    if (draftArticles?.length) {
+      console.log(`[autopilot-cron] ${draftArticles.length} draft articles with linked posts`);
+
+      for (const article of draftArticles) {
+        if (!article.linked_creation_id) continue;
+
+        // Verifica se o post associado foi publicado nos últimos 5 minutos
+        const { data: creation } = await sb
+          .from("creations")
+          .select("id, created_at")
+          .eq("id", article.linked_creation_id)
+          .single();
+
+        if (!creation) continue;
+
+        // Se o post foi criado/atualizado recentemente, publica o artigo
+        const createdAt = new Date(creation.created_at);
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+        if (createdAt > fiveMinutesAgo) {
+          const { error: updateError } = await sb
+            .from("articles")
+            .update({
+              status: "published",
+              published_at: now,
+              updated_at: now,
+            })
+            .eq("id", article.id);
+
+          if (!updateError) {
+            results.articles_published = (results.articles_published ?? 0) + 1;
+            console.log(`[autopilot-cron] Published article ${article.id} linked to post ${article.linked_creation_id}`);
+          } else {
+            console.error(`[autopilot-cron] Failed to publish article ${article.id}:`, updateError);
+          }
+        }
+      }
+    }
+
     console.log("[autopilot-cron] Done:", results);
 
     return new Response(JSON.stringify(results), {
