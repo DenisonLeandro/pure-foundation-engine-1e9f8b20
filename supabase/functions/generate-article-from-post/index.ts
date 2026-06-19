@@ -94,21 +94,49 @@ Deno.serve(async (req: Request) => {
 
     // Generate article content using AI
     const articleTitle = title || postContent.split("\n")[0].slice(0, 50);
-    const prompt = `Você é um redator profissional de artigos jurídicos.
+    const prompt = `Você é um redator especializado em conteúdo jurídico de alta qualidade para sites e blogs de advocacia.
 
-A partir do seguinte conteúdo de um post para redes sociais:
+Sua tarefa é transformar o seguinte conteúdo de post em um ARTIGO PROFISSIONAL, INFORMATIVO E PERSUASIVO:
+
 "${postContent}"
 
-Expanda isso em um artigo completo, bem estruturado e informativo com:
-- Introdução contextual (2-3 parágrafos)
-- Desenvolvimento detalhado do tema (5-7 parágrafos)
-- Conclusão e próximos passos (2-3 parágrafos)
+REQUISITOS OBRIGATÓRIOS:
+1. ESTRUTURA: Use subtítulos bem organizados (máx. 2-3 níveis)
+2. INTRODUÇÃO: Um parágrafo forte que:
+   - Apresente a relevância do tema
+   - Mostre por que o leitor deve se importar
+   - Crie conexão emocional com o problema
 
-O artigo deve ser profissional, informativo e sem captação comercial agressiva.
-Mantenha o tom educativo e responsável.
-Procure estruturar bem com subtítulos quando apropriado.
+3. DESENVOLVIMENTO: 6-8 parágrafos que:
+   - Expliquem detalhadamente o assunto
+   - Incluam exemplos práticos e reais
+   - Destaquem benefícios e consequências
+   - Use linguagem acessível mas profissional
+   - Anticipe dúvidas do leitor
 
-Responda APENAS com o conteúdo do artigo, sem introduções ou comentários.`;
+4. BENEFÍCIOS/OPORTUNIDADES: Um parágrafo que:
+   - Enumere benefícios de agir corretamente
+   - Mostre riscos de não fazer nada
+   - Inspire confiança
+
+5. CALL-TO-ACTION: Fechamento que:
+   - Convide o leitor a buscar ajuda profissional
+   - Seja gentil e sem pressão
+   - Use frases como "entre em contato", "agende uma consulta"
+
+TOM:
+- Profissional, mas acessível
+- Educativo e informativo
+- Confiável e autoridade
+- Que demonstra expertise
+- Que convida contato (sem ser agressivo)
+
+FORMATAÇÃO:
+- Parágrafos bem distribuídos (3-5 linhas cada)
+- Linguagem clara e direta
+- Sem jargão desnecessário
+
+RESPONDA APENAS COM O CORPO DO ARTIGO, SEM PREFÁCIOS OU COMENTÁRIOS.`;
 
     // For now, since Lovable API might not be available, we'll use Claude via the AI gateway
     // In a real scenario, you'd call your AI provider here
