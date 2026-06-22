@@ -155,13 +155,29 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         const rendered = await renderDocOffscreen(mediaOrDoc, brand);
         urls = rendered.length ? await persistUrls(rendered) : [];
       }
-      if (urls.length) await saveVisualToGallery({
-        urls,
-        prompt: mediaOrDoc.caption || prompt.trim(),
-        templateName: "Studio · Automático",
-        designDoc: (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc),
-        caption: mediaOrDoc.caption ?? "",
-      });
+      if (urls.length) {
+        const designDoc = (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc);
+        const caption = mediaOrDoc.caption ?? "";
+        const promptVal = mediaOrDoc.caption || prompt.trim();
+        // Se já criamos uma entrada nesta sessão, ATUALIZA em vez de duplicar.
+        if (creationIdRef.current) {
+          await updateCreation(creationIdRef.current, {
+            urls,
+            thumbnailUrl: urls[0],
+            designDoc,
+            caption,
+          });
+        } else {
+          const created = await saveVisualToGallery({
+            urls,
+            prompt: promptVal,
+            templateName: "Studio · Automático",
+            designDoc,
+            caption,
+          });
+          if (created?.id) creationIdRef.current = created.id;
+        }
+      }
       return urls;
     } catch (e) { console.warn("[autoSave] falhou", e); return []; }
   };
