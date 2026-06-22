@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Authenticated read published articles" ON public.articles;
