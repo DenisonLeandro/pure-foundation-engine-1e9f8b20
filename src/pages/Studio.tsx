@@ -190,6 +190,8 @@ export default function Studio() {
     isEditFromGallery || navInitial ? "assisted" : "entry"
   );
   const [handoffDoc, setHandoffDoc] = useState<StudioDoc | undefined>(undefined);
+  /** creationId passado do modo auto quando o usuário clica "Refinar no canvas". */
+  const [handoffCreationId, setHandoffCreationId] = useState<string | undefined>(undefined);
 
   // Restaura rascunho local ao abrir o Studio sem state — uma única vez, antes de o canvas montar.
   useEffect(() => {
