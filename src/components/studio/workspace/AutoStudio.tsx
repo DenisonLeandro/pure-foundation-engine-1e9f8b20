@@ -99,6 +99,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(initialForm?.selectedSourceIds ?? []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** ID da `creation` gerada nesta sessão — usado para ATUALIZAR em vez de duplicar. */
+  const creationIdRef = useRef<string | null>(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   // ── Persistência do fluxo (sobrevive a troca de aba/rota) ──
