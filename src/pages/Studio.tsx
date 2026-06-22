@@ -190,6 +190,8 @@ export default function Studio() {
     isEditFromGallery || navInitial ? "assisted" : "entry"
   );
   const [handoffDoc, setHandoffDoc] = useState<StudioDoc | undefined>(undefined);
+  /** creationId passado do modo auto quando o usuário clica "Refinar no canvas". */
+  const [handoffCreationId, setHandoffCreationId] = useState<string | undefined>(undefined);
 
   // Restaura rascunho local ao abrir o Studio sem state — uma única vez, antes de o canvas montar.
   useEffect(() => {
@@ -223,15 +225,15 @@ export default function Studio() {
   );
 
   // Prioridade: navigation state > rascunho local.
-  const editingCreationId = nav?.creationId ?? (navInitial ? undefined : draft?.creationId);
+  const editingCreationId = nav?.creationId ?? handoffCreationId ?? (navInitial ? undefined : draft?.creationId);
   const fallbackImageUrl = nav?.fallbackImageUrl ?? undefined;
   const fallbackImageUrls = navInitial
     ? (nav?.fallbackImageUrls ?? []).filter(isHttpUrl)
     : (draft?.fallbackImageUrls ?? []).filter(isHttpUrl);
 
-  const back = () => { setHandoffDoc(undefined); setFlowDraft(null); setMode("entry"); };
+  const back = () => { setHandoffDoc(undefined); setHandoffCreationId(undefined); setFlowDraft(null); setMode("entry"); };
   // Após descartar o rascunho, volta para a entrada com o Studio limpo.
-  const handleDraftDiscarded = () => { setDraft(null); setFlowDraft(null); setHandoffDoc(undefined); setMode("entry"); };
+  const handleDraftDiscarded = () => { setDraft(null); setFlowDraft(null); setHandoffDoc(undefined); setHandoffCreationId(undefined); setMode("entry"); };
 
   if (mode === "entry") {
     return <StudioEntry onPick={setMode} />;
@@ -241,7 +243,7 @@ export default function Studio() {
     return (
       <AutoStudio
         onBack={back}
-        onEditInCanvas={(d) => { setHandoffDoc(d); setMode("assisted"); }}
+        onEditInCanvas={(d, cid) => { setHandoffDoc(d); setHandoffCreationId(cid); setMode("assisted"); }}
         initialForm={flowDraft?.autoForm}
         initialDoc={flowDraft?.autoDoc}
       />

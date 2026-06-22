@@ -15,7 +15,7 @@ import {
 } from "@/lib/api";
 import { brandImageDirective, brandTextProfile, type BrandProfile } from "@/lib/brand";
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
-import { saveVisualToGallery, sanitizeDesignDoc, persistDesignDoc, persistUrls } from "@/lib/gallery";
+import { saveVisualToGallery, updateCreation, sanitizeDesignDoc, persistDesignDoc, persistUrls } from "@/lib/gallery";
 import { composeSlideWithText, SLIDE_TEMPLATES, preferredCleanArea, type SlideTemplate } from "@/lib/slide-compose";
 import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
@@ -70,7 +70,7 @@ interface Brief {
 }
 
 interface AutoStudioProps {
-  onEditInCanvas: (doc: StudioDoc) => void;
+  onEditInCanvas: (doc: StudioDoc, creationId?: string) => void;
   onBack: () => void;
   initialForm?: AutoFormDraft;
   initialDoc?: StudioDoc;
@@ -99,6 +99,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>(initialForm?.selectedSourceIds ?? []);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** ID da `creation` gerada nesta sessão — usado para ATUALIZAR em vez de duplicar. */
+  const creationIdRef = useRef<string | null>(null);
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   // ── Persistência do fluxo (sobrevive a troca de aba/rota) ──
@@ -153,13 +155,29 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         const rendered = await renderDocOffscreen(mediaOrDoc, brand);
         urls = rendered.length ? await persistUrls(rendered) : [];
       }
-      if (urls.length) await saveVisualToGallery({
-        urls,
-        prompt: mediaOrDoc.caption || prompt.trim(),
-        templateName: "Studio · Automático",
-        designDoc: (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc),
-        caption: mediaOrDoc.caption ?? "",
-      });
+      if (urls.length) {
+        const designDoc = (await persistDesignDoc(mediaOrDoc)) ?? sanitizeDesignDoc(mediaOrDoc);
+        const caption = mediaOrDoc.caption ?? "";
+        const promptVal = mediaOrDoc.caption || prompt.trim();
+        // Se já criamos uma entrada nesta sessão, ATUALIZA em vez de duplicar.
+        if (creationIdRef.current) {
+          await updateCreation(creationIdRef.current, {
+            urls,
+            thumbnailUrl: urls[0],
+            designDoc,
+            caption,
+          });
+        } else {
+          const created = await saveVisualToGallery({
+            urls,
+            prompt: promptVal,
+            templateName: "Studio · Automático",
+            designDoc,
+            caption,
+          });
+          if (created?.id) creationIdRef.current = created.id;
+        }
+      }
       return urls;
     } catch (e) { console.warn("[autoSave] falhou", e); return []; }
   };
@@ -448,8 +466,14 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       doc={doc}
       brand={brand}
       renderedUrls={renderedUrls ?? undefined}
-      onRestart={() => { setDoc(null); setPrompt(""); setRenderedUrls(null); if (userId) clearStudioFlowDraft(userId); }}
-      onEditInCanvas={onEditInCanvas}
+      creationId={creationIdRef.current ?? undefined}
+      onSaved={(id) => { creationIdRef.current = id; }}
+      onRestart={() => {
+        setDoc(null); setPrompt(""); setRenderedUrls(null);
+        creationIdRef.current = null;
+        if (userId) clearStudioFlowDraft(userId);
+      }}
+      onEditInCanvas={(d) => onEditInCanvas(d, creationIdRef.current ?? undefined)}
     />
   ) : (
     <div className="mx-auto max-w-3xl px-4 py-8">
