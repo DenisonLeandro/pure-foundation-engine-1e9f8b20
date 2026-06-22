@@ -38,6 +38,7 @@ const Admin = lazy(() => import("./pages/Admin"));
 const Team = lazy(() => import("./pages/Team"));
 const Articles = lazy(() => import("./pages/Articles"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const Trust = lazy(() => import("./pages/Trust"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -178,6 +179,9 @@ const App = () => (
                         <Route path="/admin" element={<RoutePage><Admin /></RoutePage>} />
                         <Route path="/admin/equipe" element={<RoutePage><Team /></RoutePage>} />
                       </Route>
+
+                      {/* Public trust page */}
+                      <Route path="/trust" element={<RoutePage><Trust /></RoutePage>} />
 
                       {/* Redirects */}
                       <Route path="/" element={<RootRedirect />} />
