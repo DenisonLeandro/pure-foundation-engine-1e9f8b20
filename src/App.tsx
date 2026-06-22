@@ -38,6 +38,7 @@ const Admin = lazy(() => import("./pages/Admin"));
 const Team = lazy(() => import("./pages/Team"));
 const Articles = lazy(() => import("./pages/Articles"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const Trust = lazy(() => import("./pages/Trust"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
