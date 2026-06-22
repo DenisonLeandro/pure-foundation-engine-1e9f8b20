@@ -231,9 +231,9 @@ export default function Studio() {
     ? (nav?.fallbackImageUrls ?? []).filter(isHttpUrl)
     : (draft?.fallbackImageUrls ?? []).filter(isHttpUrl);
 
-  const back = () => { setHandoffDoc(undefined); setFlowDraft(null); setMode("entry"); };
+  const back = () => { setHandoffDoc(undefined); setHandoffCreationId(undefined); setFlowDraft(null); setMode("entry"); };
   // Após descartar o rascunho, volta para a entrada com o Studio limpo.
-  const handleDraftDiscarded = () => { setDraft(null); setFlowDraft(null); setHandoffDoc(undefined); setMode("entry"); };
+  const handleDraftDiscarded = () => { setDraft(null); setFlowDraft(null); setHandoffDoc(undefined); setHandoffCreationId(undefined); setMode("entry"); };
 
   if (mode === "entry") {
     return <StudioEntry onPick={setMode} />;
