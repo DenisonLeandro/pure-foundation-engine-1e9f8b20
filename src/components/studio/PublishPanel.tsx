@@ -242,12 +242,12 @@ export function PublishPanel({
               <Label className="flex items-center justify-between text-xs">
                 <span>Subir artigo junto? (opcional)</span>
               </Label>
-              <Select value={linkedArticleId} onValueChange={setLinkedArticleId}>
+              <Select value={linkedArticleId || "none"} onValueChange={(v) => setLinkedArticleId(v === "none" ? "" : v)}>
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Nenhum artigo vinculado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {articles
                     .filter((a) => a.status !== "published")
                     .map((article) => (
