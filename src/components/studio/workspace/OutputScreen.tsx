@@ -39,7 +39,7 @@ function dataUrlToBlob(dataUrl: string): Blob {
 }
 
 export function OutputScreen({
-  doc, brand, onRestart, onEditInCanvas, renderedUrls,
+  doc, brand, onRestart, onEditInCanvas, renderedUrls, creationId, onSaved,
 }: {
   doc: StudioDoc;
   brand: BrandProfile | null;
@@ -48,6 +48,11 @@ export function OutputScreen({
   /** URLs renderizadas pelo MESMO renderer que salva na Galeria. Quando presente,
    *  são usadas como preview/upload em vez de `slide.bgImage` (que é o fundo limpo). */
   renderedUrls?: string[];
+  /** ID da `creation` já salva nesta sessão. Quando presente, "Salvar na galeria"
+   *  ATUALIZA a entrada existente em vez de criar uma nova (evita duplicatas). */
+  creationId?: string;
+  /** Avisa o pai quando uma nova `creation` é criada, para reaproveitar o ID. */
+  onSaved?: (id: string) => void;
 }) {
   const { user } = useAuth();
   const { data: accounts = [], isLoading: acctLoading } = usePfmAccounts();
