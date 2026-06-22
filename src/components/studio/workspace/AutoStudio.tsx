@@ -466,8 +466,14 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       doc={doc}
       brand={brand}
       renderedUrls={renderedUrls ?? undefined}
-      onRestart={() => { setDoc(null); setPrompt(""); setRenderedUrls(null); if (userId) clearStudioFlowDraft(userId); }}
-      onEditInCanvas={onEditInCanvas}
+      creationId={creationIdRef.current ?? undefined}
+      onSaved={(id) => { creationIdRef.current = id; }}
+      onRestart={() => {
+        setDoc(null); setPrompt(""); setRenderedUrls(null);
+        creationIdRef.current = null;
+        if (userId) clearStudioFlowDraft(userId);
+      }}
+      onEditInCanvas={(d) => onEditInCanvas(d, creationIdRef.current ?? undefined)}
     />
   ) : (
     <div className="mx-auto max-w-3xl px-4 py-8">
