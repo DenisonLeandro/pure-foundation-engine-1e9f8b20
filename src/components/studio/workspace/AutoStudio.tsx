@@ -70,7 +70,7 @@ interface Brief {
 }
 
 interface AutoStudioProps {
-  onEditInCanvas: (doc: StudioDoc) => void;
+  onEditInCanvas: (doc: StudioDoc, creationId?: string) => void;
   onBack: () => void;
   initialForm?: AutoFormDraft;
   initialDoc?: StudioDoc;
