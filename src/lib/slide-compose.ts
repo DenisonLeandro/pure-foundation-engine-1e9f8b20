@@ -246,7 +246,6 @@ function renderBottom(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const maxW = W - margin * 2;
 
   // SEM gradiente sobre a foto. Legibilidade vem só da sombra do texto.
-  drawCounter(ctx, index, total, "top-right", margin);
 
   const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 124, 64);
   const lineHeight = Math.round(headingSize * 1.02);
@@ -315,7 +314,6 @@ function renderTop(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   }
   clearShadow(ctx);
 
-  drawCounter(ctx, index, total, "bottom-right", margin);
   drawHandle(ctx, brandHandle, margin);
 }
 
@@ -325,7 +323,6 @@ function renderCenterCard(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const maxW = W - margin * 2;
 
   // Sem card escuro. Texto centralizado, legibilidade só pela sombra.
-  drawCounter(ctx, index, total, "top-right", margin);
 
   const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 96, 52);
   const lineHeight = Math.round(headingSize * 1.06);
@@ -418,11 +415,6 @@ function renderKicker(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   const maxW = W - margin * 2;
 
   // Sem gradiente sobre a foto.
-  drawCounter(ctx, index, total, "top-right", margin);
-
-  const kickerText = typeof index === "number" && typeof total === "number" && total > 1
-    ? `PARTE ${String(index + 1).padStart(2, "0")}`
-    : "DESTAQUE";
 
   const { size: headingSize, lines } = fitHeading(ctx, heading, maxW, 4, 88, 44);
   const lineHeight = Math.round(headingSize * 1.04);
@@ -431,18 +423,9 @@ function renderKicker(ctx: CanvasRenderingContext2D, opts: ComposeOpts) {
   ctx.font = `400 ${bodySize}px ${FONT}`;
   const bodyLines = bodyText ? wrapLines(ctx, bodyText, maxW) : [];
 
-  const kickerH = 36;
-  const totalBlockH = kickerH + lines.length * lineHeight + (bodyLines.length ? 28 + bodyLines.length * Math.round(bodySize * 1.4) : 0);
+  const totalBlockH = lines.length * lineHeight + (bodyLines.length ? 28 + bodyLines.length * Math.round(bodySize * 1.4) : 0);
   let y = Math.max(Math.round(H * 0.46), H - margin - totalBlockH - 40);
   if (brandHandle) y -= 32;
-
-  // Rótulo caps, sem régua branca atrás.
-  ctx.textAlign = "left"; ctx.textBaseline = "top";
-  ctx.font = `700 22px ${FONT}`;
-  ctx.fillStyle = "rgba(255,255,255,0.88)";
-  const kickerY = y;
-  paintTextWithShadow(ctx, () => ctx.fillText(kickerText, margin, kickerY));
-  y += kickerH;
 
   ctx.font = `800 ${headingSize}px ${FONT}`;
   ctx.fillStyle = "#ffffff";
