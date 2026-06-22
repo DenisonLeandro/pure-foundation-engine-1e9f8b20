@@ -243,7 +243,7 @@ export default function Studio() {
     return (
       <AutoStudio
         onBack={back}
-        onEditInCanvas={(d) => { setHandoffDoc(d); setMode("assisted"); }}
+        onEditInCanvas={(d, cid) => { setHandoffDoc(d); setHandoffCreationId(cid); setMode("assisted"); }}
         initialForm={flowDraft?.autoForm}
         initialDoc={flowDraft?.autoDoc}
       />
