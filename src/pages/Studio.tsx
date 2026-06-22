@@ -225,7 +225,7 @@ export default function Studio() {
   );
 
   // Prioridade: navigation state > rascunho local.
-  const editingCreationId = nav?.creationId ?? (navInitial ? undefined : draft?.creationId);
+  const editingCreationId = nav?.creationId ?? handoffCreationId ?? (navInitial ? undefined : draft?.creationId);
   const fallbackImageUrl = nav?.fallbackImageUrl ?? undefined;
   const fallbackImageUrls = navInitial
     ? (nav?.fallbackImageUrls ?? []).filter(isHttpUrl)
