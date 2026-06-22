@@ -180,6 +180,9 @@ const App = () => (
                         <Route path="/admin/equipe" element={<RoutePage><Team /></RoutePage>} />
                       </Route>
 
+                      {/* Public trust page */}
+                      <Route path="/trust" element={<RoutePage><Trust /></RoutePage>} />
+
                       {/* Redirects */}
                       <Route path="/" element={<RootRedirect />} />
                       <Route path="*" element={<RoutePage><NotFound /></RoutePage>} />
