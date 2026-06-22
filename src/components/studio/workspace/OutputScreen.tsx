@@ -187,12 +187,21 @@ export function OutputScreen({
         return;
       }
       const persistedDoc = (await persistDesignDoc(doc)) ?? sanitizeDesignDoc(doc);
-      const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático", designDoc: persistedDoc });
-      if (!saved) {
-        toast.error("Falha ao salvar na galeria");
-        return;
+      if (creationId) {
+        const updated = await updateCreation(creationId, {
+          urls,
+          thumbnailUrl: urls[0],
+          designDoc: persistedDoc,
+          caption: doc.caption ?? "",
+        });
+        if (!updated) { toast.error("Falha ao atualizar na galeria"); return; }
+        toast.success("Atualizado na galeria");
+      } else {
+        const saved = await saveVisualToGallery({ urls, prompt: doc.caption, templateName: "Studio · Automático", designDoc: persistedDoc });
+        if (!saved) { toast.error("Falha ao salvar na galeria"); return; }
+        if (saved.id) onSaved?.(saved.id);
+        toast.success("Salvo na galeria");
       }
-      toast.success("Salvo na galeria");
     } catch (e) {
       console.error("[gallery] save error:", e);
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");
