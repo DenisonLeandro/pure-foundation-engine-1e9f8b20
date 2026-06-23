@@ -13,7 +13,7 @@ import { pfmCreateUploadUrl, aiAssist } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import type { Platform } from "@/types";
 import { brandTextHint, type BrandProfile } from "@/lib/brand";
-import { saveUploadToGallery, markAsPublishedByUrls } from "@/lib/gallery";
+import { saveUploadToGallery, markAsPublishedByUrls, markAsPublished } from "@/lib/gallery";
 import { isPfmAuthError } from "@/lib/pfm-errors";
 import { PfmAuthExpired } from "@/components/PfmAuthExpired";
 import { useArticles } from "@/hooks/use-articles";
