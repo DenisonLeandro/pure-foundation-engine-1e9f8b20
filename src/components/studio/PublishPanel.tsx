@@ -41,6 +41,7 @@ export function PublishPanel({
   defaultScheduledAt,
   brand,
   captionTopic,
+  creationId,
 }: {
   defaultCaption?: string;
   captionsByPlatform?: Record<string, string>;
@@ -48,6 +49,8 @@ export function PublishPanel({
   defaultScheduledAt?: string;
   brand?: BrandProfile | null;
   captionTopic?: string;
+  /** Quando presente, marca esta creation como publicada em vez de criar nova linha na Galeria. */
+  creationId?: string;
 }) {
   const { data: accounts = [], isLoading, isError, error } = usePfmAccounts();
   const pfmAuthExpired = isError && isPfmAuthError(error);
