@@ -385,9 +385,32 @@ export async function saveVisualToGallery(opts: {
 
   const isVideo = validUrls.some((u) => /\.(mp4|mov|webm)/i.test(u));
   const isCarousel = validUrls.length > 1 && !isVideo;
+  const type: Creation["type"] = isVideo ? "video" : isCarousel ? "carousel" : "image";
+
+  // Dedup: se já existe uma criação na MESMA empresa com o MESMO prompt,
+  // atualiza-a em vez de criar outra linha (evita Galeria cheia de cópias).
+  if (opts.prompt && activeCompanyId) {
+    const { data: existing } = await supabase
+      .from("creations")
+      .select("id")
+      .eq("company_id", activeCompanyId)
+      .eq("prompt", opts.prompt)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing?.id) {
+      return updateCreation(existing.id, {
+        type,
+        urls: validUrls,
+        thumbnailUrl: validUrls[0],
+        designDoc: opts.designDoc ?? undefined,
+        caption: opts.caption ?? undefined,
+      });
+    }
+  }
 
   return saveCreation({
-    type: isVideo ? "video" : isCarousel ? "carousel" : "image",
+    type,
     urls: validUrls,
     thumbnailUrl: validUrls[0],
     prompt: opts.prompt,

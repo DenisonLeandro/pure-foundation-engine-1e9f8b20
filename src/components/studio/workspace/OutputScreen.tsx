@@ -23,7 +23,7 @@ import { usePfmAccounts, usePfmCreatePost } from "@/hooks/use-blotato";
 import { pfmCreateUploadUrl, aiAssist } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import { brandTextHint, type BrandProfile } from "@/lib/brand";
-import { saveVisualToGallery, saveUploadToGallery, markAsPublishedByUrls, updateCreation, sanitizeDesignDoc, persistDesignDoc } from "@/lib/gallery";
+import { saveVisualToGallery, saveUploadToGallery, markAsPublishedByUrls, markAsPublished, updateCreation, sanitizeDesignDoc, persistDesignDoc } from "@/lib/gallery";
 import type { Platform } from "@/types";
 import type { StudioDoc } from "./types";
 
@@ -127,7 +127,8 @@ export function OutputScreen({
     setPublishing(true); setDone(false);
     try {
       const hosted = media.length ? await uploadMedia() : [];
-      if (hosted.length) saveUploadToGallery(hosted);
+      // Só cria entrada nova na Galeria se ainda não temos uma creation ligada a esta sessão.
+      if (hosted.length && !creationId) saveUploadToGallery(hosted);
 
       const cfgs = selected.map((id) => {
         const acc = accounts.find((a) => a.id === id);
@@ -143,7 +144,11 @@ export function OutputScreen({
       if (hosted.length) payload.media = hosted.map((url) => ({ url }));
 
       await createPost.mutateAsync(payload as unknown as Parameters<typeof createPost.mutateAsync>[0]);
-      if (hosted.length) markAsPublishedByUrls(hosted);
+      if (creationId) {
+        await markAsPublished(creationId);
+      } else if (hosted.length) {
+        markAsPublishedByUrls(hosted);
+      }
       setDone(true);
       toast.success(when === "schedule" ? "Post agendado!" : "Publicado com sucesso!");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Erro ao publicar"); }

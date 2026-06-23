@@ -13,7 +13,7 @@ import { pfmCreateUploadUrl, aiAssist } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import type { Platform } from "@/types";
 import { brandTextHint, type BrandProfile } from "@/lib/brand";
-import { saveUploadToGallery, markAsPublishedByUrls } from "@/lib/gallery";
+import { saveUploadToGallery, markAsPublishedByUrls, markAsPublished } from "@/lib/gallery";
 import { isPfmAuthError } from "@/lib/pfm-errors";
 import { PfmAuthExpired } from "@/components/PfmAuthExpired";
 import { useArticles } from "@/hooks/use-articles";
@@ -41,6 +41,7 @@ export function PublishPanel({
   defaultScheduledAt,
   brand,
   captionTopic,
+  creationId,
 }: {
   defaultCaption?: string;
   captionsByPlatform?: Record<string, string>;
@@ -48,6 +49,8 @@ export function PublishPanel({
   defaultScheduledAt?: string;
   brand?: BrandProfile | null;
   captionTopic?: string;
+  /** Quando presente, marca esta creation como publicada em vez de criar nova linha na Galeria. */
+  creationId?: string;
 }) {
   const { data: accounts = [], isLoading, isError, error } = usePfmAccounts();
   const pfmAuthExpired = isError && isPfmAuthError(error);
@@ -126,7 +129,8 @@ export function PublishPanel({
     setDone(false);
     try {
       const hosted = media.length ? await uploadMedia() : [];
-      if (hosted.length) saveUploadToGallery(hosted);
+      // Só salva como nova linha na Galeria se NÃO temos uma creation já vinculada.
+      if (hosted.length && !creationId) saveUploadToGallery(hosted);
 
       const account_configurations = selected.map((id) => {
         const acc = accounts.find((a) => a.id === id);
@@ -146,7 +150,11 @@ export function PublishPanel({
       if (hosted.length) payload.media = hosted.map((url) => ({ url }));
 
       await createPost.mutateAsync(payload as unknown as Parameters<typeof createPost.mutateAsync>[0]);
-      if (hosted.length) markAsPublishedByUrls(hosted);
+      if (creationId) {
+        await markAsPublished(creationId);
+      } else if (hosted.length) {
+        markAsPublishedByUrls(hosted);
+      }
 
       // Se publicando "agora" com um artigo vinculado, publicar o artigo também
       if (linkedArticleId && when === "now") {
