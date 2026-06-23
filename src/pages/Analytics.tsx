@@ -378,6 +378,35 @@ export default function Analytics() {
       const result = await api.fetchAnalytics(accountsList, enrichEnabled);
       setAnalytics(result.results);
 
+      // Persist each profile snapshot so Insights IA can read aggregated data.
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const uid = userData?.user?.id;
+        if (uid && result.results.length) {
+          const rows = result.results.map((p) => ({
+            user_id: uid,
+            platform: p.platform,
+            username: p.username,
+            display_name: p.displayName ?? null,
+            profile_image_url: p.profileImageUrl ?? null,
+            followers: p.followers ?? 0,
+            following: p.following ?? 0,
+            posts_count: p.posts ?? 0,
+            engagement_rate: p.engagementRate ?? null,
+            avg_likes: p.avgLikes ?? null,
+            avg_comments: p.avgComments ?? null,
+            avg_views: p.avgViews ?? null,
+            recent_posts: (p.recentPosts ?? []) as unknown as never,
+            raw_data: (p.enrichment ?? {}) as unknown as never,
+            fetched_at: p.fetchedAt ?? new Date().toISOString(),
+          }));
+          const { error: insErr } = await supabase.from("analytics_snapshots").insert(rows);
+          if (insErr) console.warn("[Analytics] falha ao persistir snapshots:", insErr);
+        }
+      } catch (persistErr) {
+        console.warn("[Analytics] erro inesperado ao salvar snapshots:", persistErr);
+      }
+
       if (result.errors?.length > 0) {
         toast({ title: `${result.results.length} perfil(is) carregados, ${result.errors.length} com erro` });
       } else {
