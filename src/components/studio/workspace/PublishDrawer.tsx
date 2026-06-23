@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useBrands } from "@/hooks/use-brands";
@@ -13,6 +13,9 @@ export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenCha
 
   const [media, setMedia] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [creationId, setCreationId] = useState<string | undefined>(undefined);
+  // Garante que só salvamos uma vez por (sessão do drawer + doc atual).
+  const savedSigRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -23,16 +26,21 @@ export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenCha
         const m = doc.format === "video" ? (doc.videoUrl ? [doc.videoUrl] : []) : await exportSlides();
         if (alive) {
           setMedia(m);
-          // saveVisualToGallery agora faz upload de data: URLs automaticamente
-          if (m.length) {
+          // saveVisualToGallery agora deduplica por (empresa, prompt): se já existe
+          // uma criação com este prompt, ele atualiza em vez de criar uma nova.
+          // Mesmo assim evitamos chamadas redundantes guardando uma "assinatura" da sessão.
+          const sig = `${doc.brandId || ""}::${doc.caption || ""}::${m.length}`;
+          if (m.length && savedSigRef.current !== sig) {
+            savedSigRef.current = sig;
             const persisted = (await persistDesignDoc(doc)) ?? sanitizeDesignDoc(doc);
-            saveVisualToGallery({
+            const saved = await saveVisualToGallery({
               urls: m,
               prompt: doc.caption,
               templateName: "Studio · Canvas",
               designDoc: persisted,
               caption: doc.caption ?? "",
             });
+            if (alive && saved?.id) setCreationId(saved.id);
           }
         }
       } finally {
@@ -41,6 +49,7 @@ export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenCha
     })();
     return () => { alive = false; };
   }, [open, doc, exportSlides]);
+
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
