@@ -23,7 +23,7 @@ import { usePfmAccounts, usePfmCreatePost } from "@/hooks/use-blotato";
 import { pfmCreateUploadUrl, aiAssist } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import { brandTextHint, type BrandProfile } from "@/lib/brand";
-import { saveVisualToGallery, saveUploadToGallery, markAsPublishedByUrls, updateCreation, sanitizeDesignDoc, persistDesignDoc } from "@/lib/gallery";
+import { saveVisualToGallery, saveUploadToGallery, markAsPublishedByUrls, markAsPublished, updateCreation, sanitizeDesignDoc, persistDesignDoc } from "@/lib/gallery";
 import type { Platform } from "@/types";
 import type { StudioDoc } from "./types";
 
