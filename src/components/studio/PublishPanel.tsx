@@ -129,7 +129,8 @@ export function PublishPanel({
     setDone(false);
     try {
       const hosted = media.length ? await uploadMedia() : [];
-      if (hosted.length) saveUploadToGallery(hosted);
+      // Só salva como nova linha na Galeria se NÃO temos uma creation já vinculada.
+      if (hosted.length && !creationId) saveUploadToGallery(hosted);
 
       const account_configurations = selected.map((id) => {
         const acc = accounts.find((a) => a.id === id);
@@ -149,7 +150,11 @@ export function PublishPanel({
       if (hosted.length) payload.media = hosted.map((url) => ({ url }));
 
       await createPost.mutateAsync(payload as unknown as Parameters<typeof createPost.mutateAsync>[0]);
-      if (hosted.length) markAsPublishedByUrls(hosted);
+      if (creationId) {
+        await markAsPublished(creationId);
+      } else if (hosted.length) {
+        markAsPublishedByUrls(hosted);
+      }
 
       // Se publicando "agora" com um artigo vinculado, publicar o artigo também
       if (linkedArticleId && when === "now") {
