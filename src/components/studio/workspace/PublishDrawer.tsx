@@ -88,6 +88,7 @@ export function PublishDrawer({ open, onOpenChange }: { open: boolean; onOpenCha
                 brand={brand}
                 captionTopic={doc.caption}
                 defaultScheduledAt={doc.schedule.at}
+                creationId={creationId}
               />
             </>
           )}
