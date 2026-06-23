@@ -1,40 +1,32 @@
-## Por que apareceram 6 rascunhos iguais
+# Consertar Insights IA vazio
 
-Cada um desses 6 cartões é uma **criação nova** salva na Galeria — mesmo conteúdo, IDs diferentes (`24e4ccb0`, `762da1a6`, `cbd6f066`, `b5648996`, etc.), todos com o mesmo `prompt` e gerados entre 12:54 e 13:33 de hoje, na mesma empresa.
+## Causa
+A página **Insights IA** lê da tabela `analytics_snapshots`, mas hoje **nada grava** nessa tabela. A página **Analytics IA** só guarda o resultado em memória/localStorage. Resultado: Insights sempre mostra "Nenhum dado coletado".
 
-A causa está no fluxo de salvar do Studio:
+## O que vou fazer
 
-1. **`OutputScreen` (Resultado automático)** — o botão "Salvar na galeria" chama `saveVisualToGallery(...)` direto (linha 185), **sem rastrear `creationId`**. Cada clique cria um registro novo.
-2. **`StudioWorkspace` (Refinar no canvas)** — `handleSaveToGallery` só atualiza se já existir `creationId` no estado local. Quando você entra pelo "Refinar no canvas" a partir do Output, o `creationId` da entrada anterior **não é propagado**, então o primeiro save vira uma **nova** linha em vez de atualizar a que já estava na galeria.
-3. **Auto-save / regenerações** — quando você muda estilo, regenera ou salva de novo após pequenas edições, o ciclo se repete e cada passada vira mais um rascunho.
+### 1. Persistir cada coleta de Analytics no banco
+Em `src/pages/Analytics.tsx`, dentro de `handleFetchAnalytics`, logo após `setAnalytics(result.results)`:
 
-Resultado: 1 conteúdo → várias linhas (umas viraram "Publicado" quando você postou, as outras ficaram "Rascunho").
+- Pegar o `user_id` do usuário logado (`supabase.auth.getUser()`).
+- Para cada perfil em `result.results`, fazer um `insert` em `analytics_snapshots` mapeando:
+  - `platform`, `username`, `display_name`, `profile_image_url`
+  - `followers`, `following`, `posts_count`
+  - `engagement_rate`, `avg_likes`, `avg_comments`, `avg_views`
+  - `recent_posts` (jsonb), `raw_data` (enrichment, jsonb)
+  - `fetched_at`
+- Falha de gravação só loga `console.warn` (não quebra a UI).
 
-Não é o autopilot, não é cron e não é bug do banco — é o Studio criando uma nova `creation` toda vez em vez de atualizar a existente.
+A tabela já tem RLS por `auth.uid()` e os GRANTs necessários — não precisa migração.
 
-## Como corrigir (proposta — peça "implementar" para aplicar)
+### 2. Resultado esperado
+- Próxima vez que o usuário clicar em **Atualizar** em Analytics IA, cada perfil vira uma linha em `analytics_snapshots`.
+- Ao abrir **Insights IA**, a consulta `select ... order by fetched_at desc limit 50` traz os snapshots e a página passa a mostrar:
+  - Cards de seguidores totais / engajamento médio / likes / comentários
+  - Melhor dia, melhor horário, melhor plataforma, melhor tipo de conteúdo
+  - Top posts e cards por plataforma
+  - Caixa de pergunta para a IA estratégica
 
-Objetivo: 1 sessão de design = 1 entrada na Galeria. Salvar de novo deve **atualizar**, não duplicar.
-
-### 1. Propagar `creationId` do Output para o canvas
-- Em `OutputScreen.tsx`, ao salvar (linha 185), guardar o `saved.id` retornado num ref/estado e usar `updateCreation` em cliques subsequentes do mesmo "Salvar".
-- Ao chamar `onEditInCanvas(doc)` (linha 201), passar também esse `creationId` para o `StudioWorkspace` inicializar `setCreationId(...)`. Assim "Salvar" no canvas atualiza a mesma linha em vez de criar outra.
-
-### 2. Limpar os 5 rascunhos duplicados existentes
-Manter o mais recente de cada grupo (ou o publicado, se houver) e apagar os demais. Concretamente, na sua empresa, manter:
-- `b864342d` (publicado) e `efc0efdb` (publicado)
-- E apagar os 4 rascunhos duplicados: `24e4ccb0`, `762da1a6`, `cbd6f066`, `b5648996`.
-
-Faço isso via `DELETE` direto na tabela `creations`, com aprovação sua antes de rodar.
-
-### 3. (Opcional) Guard de deduplicação no `saveVisualToGallery`
-Antes de inserir, verificar se já existe nas últimas X horas uma `creation` com mesmo `company_id` + mesmo `prompt` (hash) + mesmo conjunto de `urls`. Se sim, retornar a existente em vez de criar. Rede de segurança caso a propagação do `creationId` falhe.
-
-## Escopo
-- **Frontend apenas** nas correções 1 e 3 (`OutputScreen.tsx`, `StudioWorkspace.tsx`, `lib/gallery.ts`). Sem mudanças em edge functions, autopilot, RLS ou schema.
-- **Limpeza** (item 2): um único `DELETE` na tabela `creations`, com sua aprovação.
-
-Me diga se quer:
-- (a) só limpar os 4 duplicados agora, ou
-- (b) limpar + aplicar a correção do fluxo (recomendado), ou
-- (c) limpar + correção + guard de deduplicação (mais robusto).
+## Fora do escopo
+- Não vou mexer na estrutura da tabela nem mudar o escopo de `user_id` para `company_id` (cada membro vê só os snapshots que ele próprio coletou). Se quiser compartilhar entre time, faço em separado.
+- Não vou alterar a página Insights — ela já está pronta, só estava sem dados.
