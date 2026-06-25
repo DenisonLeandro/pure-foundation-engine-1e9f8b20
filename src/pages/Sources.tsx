@@ -24,7 +24,9 @@ import { Badge } from "@/components/ui/badge";
 import { extractSource } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useCompany } from "@/contexts/CompanyContext";
 import type { ContentSource } from "@/types";
+
 
 const SOURCE_TYPES = [
   { id: "perplexity-query", label: "Pesquisar com IA", icon: Search, desc: "Pesquise tendências e informações com IA", inputType: "text" as const },
@@ -45,34 +47,40 @@ export default function Sources() {
   const [inputValue, setInputValue] = useState("");
   const [customInstructions, setCustomInstructions] = useState("");
   const [extracting, setExtracting] = useState(false);
+  const { activeCompanyId } = useCompany();
 
   const { data: savedSources = [], isLoading: loadingSources } = useQuery({
-    queryKey: ["saved_sources"],
+    queryKey: ["saved_sources", activeCompanyId],
     queryFn: async () => {
+      if (!activeCompanyId) return [];
       const { data, error } = await supabase
         .from("saved_sources")
         .select("*")
+        .eq("company_id", activeCompanyId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
+    enabled: !!activeCompanyId,
   });
 
   async function persistSource(source: { title?: string; content?: string; sourceType?: string; referenceUrl?: string }) {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user || !activeCompanyId) return;
     const exists = savedSources.some(s => s.title === (source.title || "Fonte sem título") && s.source_type === (source.sourceType || selectedType));
     if (exists) return;
     await supabase.from("saved_sources").insert({
       user_id: user.id,
+      company_id: activeCompanyId,
       source_type: source.sourceType || selectedType,
       title: source.title || "Fonte sem título",
       content: source.content || "",
       reference_url: source.referenceUrl || null,
       custom_instructions: customInstructions || null,
     });
-    queryClient.invalidateQueries({ queryKey: ["saved_sources"] });
+    queryClient.invalidateQueries({ queryKey: ["saved_sources", activeCompanyId] });
   }
+
 
   const currentType = SOURCE_TYPES.find((t) => t.id === selectedType)!;
 
@@ -99,9 +107,10 @@ export default function Sources() {
 
   const handleDelete = async (id: string) => {
     await supabase.from("saved_sources").delete().eq("id", id);
-    queryClient.invalidateQueries({ queryKey: ["saved_sources"] });
+    queryClient.invalidateQueries({ queryKey: ["saved_sources", activeCompanyId] });
     toast({ title: "Fonte removida" });
   };
+
 
   const isExtracting = extracting;
 
