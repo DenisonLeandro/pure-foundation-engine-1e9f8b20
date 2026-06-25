@@ -153,21 +153,34 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
     stopPolling();
 
     pollIntervalRef.current = setInterval(async () => {
-      const { accs } = await loadAccounts();
-      // Detecta qualquer conta PFM ainda não vinculada à empresa ativa.
-      // Funciona tanto para OAuth novo quanto para conta já existente no PFM
-      // que está sendo autorizada para uma empresa diferente.
-      const newAcc = accs.find((a) => !knownIdsRef.current.has(a.id));
+      const { accs, linked } = await loadAccounts();
+      const apiPlatform = platform === "twitter" ? "x" : platform;
 
-      if (newAcc) {
-        // ✅ Nova conta detectada
+      // Candidatos: contas PFM dessa plataforma que NÃO estão vinculadas à empresa ativa.
+      const candidates = accs.filter(
+        (a) => (a.platform === apiPlatform || a.platform === platform) && !linked.has(a.id)
+      );
+
+      // Preferência: conta nova no PFM (não existia antes do click).
+      let target = candidates.find((a) => !knownIdsRef.current.has(a.id));
+
+      // Fallback: usuário reautorizou uma conta já existente no PFM para esta empresa
+      // (caso típico: a conta foi conectada antes em OUTRA empresa do mesmo dono).
+      // Só aceitamos esse fallback depois que o popup já fechou, para evitar
+      // vincular automaticamente sem o usuário concluir o OAuth.
+      if (!target && popupRef.current && popupRef.current.closed && candidates.length > 0) {
+        target = candidates[0];
+      }
+
+      if (target) {
+        const newAcc = target;
         stopPolling();
         knownIdsRef.current.add(newAcc.id);
 
         const pfmPlatform = (newAcc.platform === "x" ? "twitter" : newAcc.platform) as Platform;
         const cfg = PLATFORMS[pfmPlatform] || { name: newAcc.platform };
 
-        // Link conta à empresa ativa
+        // Vincula à empresa ativa (idempotente via upsert).
         if (activeCompanyId) {
           try {
             await api.linkSocialAccountToCompany(
@@ -177,8 +190,10 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
               newAcc.username,
               newAcc.name || undefined
             );
-            // Invalidate company social accounts query
             queryClient.invalidateQueries({ queryKey: ["company", "social-accounts"] });
+            queryClient.invalidateQueries({ queryKey: ["company", "pfm-accounts"] });
+            queryClient.invalidateQueries({ queryKey: ["company", "pfm-posts"] });
+            await loadAccounts();
           } catch (err) {
             console.error("[ConnectAccountDialog] Erro ao linkar conta à empresa:", err);
           }
