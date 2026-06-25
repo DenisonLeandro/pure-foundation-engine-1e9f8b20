@@ -139,53 +139,6 @@ export default function Accounts() {
 
       {/* Seção Blotato removida — visuais agora são OpenAI; contas via PFM acima */}
 
-      {/* Connected Accounts — filtered by company */}
-      {(companySocialAccountsQuery.data?.length ?? 0) > 0 && (
-        <div>
-          <h2 className="mb-4 text-lg font-semibold text-green-600">
-            Contas conectadas ({companySocialAccountsQuery.data!.length})
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {companySocialAccountsQuery.data!.map((account) => {
-              const cfg = PLATFORMS[account.platform as keyof typeof PLATFORMS];
-              return (
-                <Card key={account.pfm_account_id} className="border-green-500/30">
-                  <CardContent className="flex items-center gap-4 p-5">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-white text-xl shadow-lg ${cfg?.bgColor ?? "bg-gray-500"}`}>
-                      {cfg?.icon ?? "🌐"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold truncate">{cfg?.name ?? account.platform}</h3>
-                        <Badge className="bg-green-500/10 text-green-600 text-[10px]">ativo</Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {account.username ? `@${account.username}` : account.full_name || "—"}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
-                      title="Desconectar"
-                      disabled={disconnectingId === account.pfm_account_id}
-                      onClick={() => handleDisconnect(account.pfm_account_id, cfg?.name ?? account.platform)}
-                    >
-                      {disconnectingId === account.pfm_account_id
-                        ? <Loader2 className="h-4 w-4 animate-spin" />
-                        : <Unlink className="h-4 w-4" />
-                      }
-                    </Button>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Seção Blotato removida — visuais agora são OpenAI; contas via PFM acima */}
-
       {/* All Platforms */}
       <div>
         <h2 className="mb-4 text-lg font-semibold">Todas as Redes Disponíveis</h2>
