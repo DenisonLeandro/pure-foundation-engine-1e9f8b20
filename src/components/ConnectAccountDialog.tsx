@@ -84,7 +84,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   const [authUrl, setAuthUrl]         = useState<string | null>(null);   // fallback link
   const [error, setError]             = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
-  const [profileUrls, setProfileUrls] = useState<Record<string, string>>(loadProfileUrls);
+  const [profileUrls, setProfileUrls] = useState<Record<string, string>>(() => loadProfileUrls(activeCompanyId));
 
   // Bluesky
   const [bskyHandle, setBskyHandle]     = useState("");
@@ -338,8 +338,9 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   const updateProfileUrl = (platform: string, url: string) => {
     const updated = { ...profileUrls, [platform]: url };
     setProfileUrls(updated);
-    saveProfileUrls(updated);
+    saveProfileUrls(activeCompanyId, updated);
   };
+
 
   // ── Render ────────────────────────────────────────────────────
   return (
