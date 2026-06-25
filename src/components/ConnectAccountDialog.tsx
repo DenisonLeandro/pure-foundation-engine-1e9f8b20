@@ -563,6 +563,36 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
                   </div>
                 </div>
 
+                {/* ── Contas PFM disponíveis para reaproveitar ─── */}
+                {reusable.length > 0 && !isBluesky && (
+                  <div className="ml-[52px] space-y-1.5 rounded-lg border border-dashed border-violet-500/30 bg-violet-500/5 p-2">
+                    <p className="text-[10px] text-muted-foreground">
+                      Já autorizada no Post for Me em outra empresa — vincule sem refazer login:
+                    </p>
+                    {reusable.map((acc) => {
+                      const isLinking = linkingExisting === acc.id;
+                      return (
+                        <div key={acc.id} className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-foreground truncate">
+                            {acc.username ? `@${acc.username}` : acc.name || acc.id}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px] shrink-0"
+                            disabled={!!connecting || isLinking || !activeCompanyId}
+                            onClick={() => handleLinkExisting(acc)}
+                          >
+                            {isLinking
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <><Link2 className="h-3 w-3 mr-1" />Vincular a esta empresa</>}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* ── Bluesky: form especial ───────────────────── */}
                 {isBluesky && !isConnected && (
                   <div className="ml-[52px] space-y-2 rounded-lg border border-border bg-muted/30 p-3">
