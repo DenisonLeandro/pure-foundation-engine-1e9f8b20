@@ -19,6 +19,7 @@ export type Database = {
           avg_comments: number | null
           avg_likes: number | null
           avg_views: number | null
+          company_id: string | null
           created_at: string
           display_name: string | null
           engagement_rate: number | null
@@ -38,6 +39,7 @@ export type Database = {
           avg_comments?: number | null
           avg_likes?: number | null
           avg_views?: number | null
+          company_id?: string | null
           created_at?: string
           display_name?: string | null
           engagement_rate?: number | null
@@ -57,6 +59,7 @@ export type Database = {
           avg_comments?: number | null
           avg_likes?: number | null
           avg_views?: number | null
+          company_id?: string | null
           created_at?: string
           display_name?: string | null
           engagement_rate?: number | null
@@ -72,7 +75,15 @@ export type Database = {
           user_id?: string | null
           username?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "analytics_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       articles: {
         Row: {
@@ -142,6 +153,7 @@ export type Database = {
       }
       autopilot_calendars: {
         Row: {
+          company_id: string | null
           config_id: string
           created_at: string
           cycle_end: string
@@ -153,6 +165,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          company_id?: string | null
           config_id: string
           created_at?: string
           cycle_end: string
@@ -164,6 +177,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          company_id?: string | null
           config_id?: string
           created_at?: string
           cycle_end?: string
@@ -176,6 +190,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "autopilot_calendars_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "autopilot_calendars_config_id_fkey"
             columns: ["config_id"]
             isOneToOne: false
@@ -187,6 +208,7 @@ export type Database = {
       autopilot_configs: {
         Row: {
           brand_id: string | null
+          company_id: string | null
           content_types: string[] | null
           created_at: string
           id: string
@@ -211,6 +233,7 @@ export type Database = {
         }
         Insert: {
           brand_id?: string | null
+          company_id?: string | null
           content_types?: string[] | null
           created_at?: string
           id?: string
@@ -235,6 +258,7 @@ export type Database = {
         }
         Update: {
           brand_id?: string | null
+          company_id?: string | null
           content_types?: string[] | null
           created_at?: string
           id?: string
@@ -265,12 +289,20 @@ export type Database = {
             referencedRelation: "brand_profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "autopilot_configs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
         ]
       }
       autopilot_posts: {
         Row: {
           calendar_id: string
           carousel_data: Json | null
+          company_id: string | null
           created_at: string
           error_message: string | null
           hashtags: string[] | null
@@ -291,6 +323,7 @@ export type Database = {
         Insert: {
           calendar_id: string
           carousel_data?: Json | null
+          company_id?: string | null
           created_at?: string
           error_message?: string | null
           hashtags?: string[] | null
@@ -311,6 +344,7 @@ export type Database = {
         Update: {
           calendar_id?: string
           carousel_data?: Json | null
+          company_id?: string | null
           created_at?: string
           error_message?: string | null
           hashtags?: string[] | null
@@ -334,6 +368,13 @@ export type Database = {
             columns: ["calendar_id"]
             isOneToOne: false
             referencedRelation: "autopilot_calendars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autopilot_posts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -845,6 +886,7 @@ export type Database = {
       }
       saved_sources: {
         Row: {
+          company_id: string | null
           content: string | null
           created_at: string
           custom_instructions: string | null
@@ -855,6 +897,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          company_id?: string | null
           content?: string | null
           created_at?: string
           custom_instructions?: string | null
@@ -865,6 +908,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          company_id?: string | null
           content?: string | null
           created_at?: string
           custom_instructions?: string | null
@@ -874,7 +918,15 @@ export type Database = {
           title?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "saved_sources_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_settings: {
         Row: {

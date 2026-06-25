@@ -1,80 +1,80 @@
-## Princípio único
+## Objetivo
 
-Cada empresa é uma "sub-conta" isolada do dono. **Tudo é por empresa**, exceto:
+Isolar **tudo** por empresa, exceto as chaves de API (que continuam no perfil do dono em `user_configs` e servem para todas as empresas dele).
 
-- As **chaves de API** (Post for Me, Blotato, Pexels, Apify, Firecrawl, Higgsfield, etc.) — ficam no perfil do dono e atendem todas as empresas dele.
-- O **dono** em si (mesma conta de login).
+## O que já está isolado por empresa hoje
 
-Qualquer outra coisa — contas de rede social conectadas, posts criados, agendamentos, galeria, analytics/insights, autopilot, marcas/brand profiles, fontes salvas, configurações de empresa — pertence a uma empresa específica e não vaza para outra.
+`companies`, `company_configs`, `company_members`, `company_invites`, `company_invite_companies`, `company_social_accounts`, `brand_profiles`, `articles`, `creations`, `post_history`. Vou só **auditar as queries** dessas páginas e garantir que todas filtram por `activeCompanyId` (e que o cache invalida ao trocar de empresa).
 
-## Diagnóstico atual
+## O que NÃO é isolado e precisa ser
 
-Já é por empresa (OK): `creations`, `post_history`, `brand_profiles`, `saved_sources`, `company_configs`, `autopilot_*`, `analytics_snapshots`, `company_members`, `company_invites`.
+Tabelas que hoje só têm `user_id`:
 
-Vaza entre empresas (precisa corrigir):
+- `saved_sources` (fontes)
+- `analytics_snapshots` (analytics + insights)
+- `autopilot_configs`, `autopilot_calendars`, `autopilot_posts` (autopilot/agenda)
 
-- **Contas de redes sociais**: a página Contas, Dashboard, Analytics, Publish, Schedule, Autopilot e Setup chamam `usePfmAccounts()` direto, que devolve todas as contas da chave PFM do dono. A tabela `company_social_accounts` existe e tem o vínculo correto, mas nenhuma tela filtra por ela. Resultado: empresa nova "herda" as contas da antiga.
-- **`ConnectAccountDialog`** insere o vínculo, mas como nenhuma tela respeita o vínculo, na prática tudo aparece em todas as empresas.
+E dados em `localStorage` que hoje são por usuário e vazam entre empresas do mesmo dono:
+
+- `analytics`, `structured_insights`, `profile_urls`, `enrich_analytics` (Analytics / Insights / Dashboard)
+- chaves de UI scopadas a "última coisa usada" (ex.: brand selecionada, último carrossel etc.)
+
+E a **agenda Post for Me**: `usePfmPosts` devolve todos os posts agendados na chave do dono, sem cortar pelos `social_account_id` da empresa ativa.
+
+## O que continua user-scoped (intencional)
+
+- `user_configs` → chaves de API (Post for Me, Blotato, Pexels, Apify, Firecrawl, Higgsfield, ElevenLabs). Uma vez por dono, valem para todas as empresas dele.
+- `profiles`, `user_roles` → metadados do usuário.
 
 ## Plano
 
-### 1. Backfill seguro das contas existentes
+### 1. Migration única
 
-`company_social_accounts` está vazio. Só "ligar o filtro" faria as contas sumirem de todo lado. Então:
+Para `saved_sources`, `analytics_snapshots`, `autopilot_configs`, `autopilot_calendars`, `autopilot_posts`:
 
-- Adicionar um aviso na página **Contas** quando houver contas no PFM do dono que ainda não estão vinculadas a nenhuma empresa dele: *"N contas sem empresa. Vincular à empresa X (mais antiga)?"* com botão **Vincular**.
-- Botão chama uma edge function `backfill-company-social-accounts` (idempotente) que pega a empresa mais antiga do dono e faz `upsert` de cada conta PFM no link table.
-- Em paralelo, dar ao usuário um diálogo **"Vincular conta existente"** para escolher manualmente qual conta vai para qual empresa (útil quando ele quer dividir).
+1. `ADD COLUMN company_id uuid REFERENCES public.companies(id) ON DELETE CASCADE` (nullable nesta fase para não quebrar nada em execução).
+2. **Backfill** com a primeira `companies.id` do `user_id` correspondente — é a empresa onde esses dados já apareciam.
+3. Index em `(company_id)`.
+4. RLS reescrita para exigir `public.is_company_member(company_id, auth.uid())` em SELECT/INSERT/UPDATE/DELETE. Fallback `company_id IS NULL ⇒ user_id = auth.uid()` só para registros legados não backfilladados (não deve sobrar nenhum, mas evita sumir algo).
 
-### 2. Filtrar todas as telas por empresa ativa
+Numa migration de fase 2 (depois que a UI já gravar `company_id` sempre), viro `NOT NULL`.
 
-Novo hook `useCompanyPfmAccounts(platform?)` em `src/hooks/use-blotato.ts` que cruza `pfmListAccounts` (chave do dono) com `listCompanySocialAccounts(activeCompanyId)` e devolve apenas a interseção. Mesmo shape do `usePfmAccounts` para troca direta.
+### 2. Front-end — filtro por `activeCompanyId` em todas as queries
 
-Substituir `usePfmAccounts()` por `useCompanyPfmAccounts()` em:
+| Página / hook | Mudança |
+| --- | --- |
+| `src/pages/Sources.tsx` | query + insert usam `company_id = activeCompanyId`; key `["saved_sources", companyId]` |
+| `src/hooks/use-autopilot.ts` (5 hooks) | filtra e grava `company_id`; keys incluem `companyId` |
+| `src/pages/Autopilot.tsx`, `src/components/autopilot/AutopilotWizard.tsx` | passam `activeCompanyId` ao salvar |
+| `src/pages/Analytics.tsx` | filtra `analytics_snapshots` por `company_id`, grava com `company_id` |
+| `src/pages/Insights.tsx` | mesma filtragem + key com `companyId` |
+| `src/pages/Schedule.tsx`, `src/pages/Dashboard.tsx` (agenda) | trocam `usePfmPosts` por novo `useCompanyPfmPosts(companyId, opts)` que intersecta `pfmListPosts` com `listCompanySocialAccounts(companyId)` |
+| `src/pages/Articles.tsx`, `src/pages/Brands.tsx` | auditar — já são por empresa, só conferir filtro e cache key |
 
-- `src/pages/Accounts.tsx`
-- `src/pages/Dashboard.tsx` (contador, lista, cards)
-- `src/pages/Analytics.tsx` (todas as métricas e insights)
-- `src/components/setup/ManageAccountsView.tsx`
-- `src/components/studio/PublishPanel.tsx`
-- `src/components/studio/workspace/OutputScreen.tsx`
-- `src/components/autopilot/AutopilotWizard.tsx`
+### 3. Novo `src/lib/companyStorage.ts`
 
-### 3. Conectar / desconectar respeitam a empresa ativa
+Wrapper igual ao `userStorage`, com prefixo `app_uc:<uid>:<companyId>:<key>`. Tem migração one-shot: primeira leitura por empresa, se a chave nova estiver vazia mas existir a chave antiga em `userStorage`, copia para a empresa ativa (assim o que você já tem hoje fica preso na primeira empresa, sem vazar para a Teste).
 
-- **Conectar**: `ConnectAccountDialog` já chama `linkSocialAccountToCompany` no callback de sucesso — apenas garantir que usa `useCompany().activeCompanyId` e nunca um fallback.
-- **Desconectar** (na página Contas): por padrão só remove o vínculo desta empresa (`unlinkSocialAccountFromCompany`). Se for o último vínculo daquela conta entre todas as empresas do dono, aí sim revoga o OAuth no PFM (`pfmDisconnectAccount`). Há também checkbox *"Desconectar de todas as empresas"* para forçar revogação.
+Substituir em Analytics/Insights/Dashboard as chaves `analytics`, `structured_insights`, `profile_urls`, `enrich_analytics`. Outras chaves de UI por usuário continuam como estão.
 
-### 4. Reforçar isolamento de outros dados (verificação)
+### 4. Novo hook `useCompanyPfmPosts(companyId, opts)`
 
-Auditar cada query do app e garantir que está com `WHERE company_id = activeCompanyId`:
+Em `src/hooks/use-blotato.ts`. Faz `pfmListPosts(opts)` + `listCompanySocialAccounts(companyId)` e devolve só os posts cujo `social_account_id` está vinculado à empresa ativa. Mesma estratégia do `useCompanyPfmAccounts` que já existe.
 
-- Galeria (`creations`), Schedule, Studio (rascunhos), Analytics (snapshots), Autopilot (config/posts/calendar), Brand profiles, Saved sources.
+### 5. Invalidação no `CompanyContext`
 
-Se algum endpoint ou hook hoje não exige `company_id`, corrigir para exigir. RLS já está por `is_company_member`, mas o filtro no cliente precisa ser explícito para evitar mostrar dados de outra empresa quando o usuário é membro das duas.
+Adicionar à invalidação ao trocar de empresa: `["saved_sources"]`, `["autopilot"]`, `["analytics_snapshots_latest"]`, `["articles"]`, `["brand_profiles"]`. As keys `["pfm"]` e `["company"]` já são invalidadas.
 
-Também: ao **trocar de empresa** no `CompanySwitcher`, invalidar todas as queries com chave que contenha `companyId` (ou simplesmente `queryClient.clear()` segmentado), para que nada renderize com cache da empresa anterior.
+## O que NÃO muda
 
-### 5. Funcionário
+- Chaves de API, perfil do dono, papéis, convites.
+- Layout/UX das páginas.
+- Posts, fontes, calendários e snapshots existentes — ganham `company_id` apontando para a primeira empresa do dono (onde já apareciam), sem perda nem duplicação.
 
-Nenhuma mudança extra além das guards já existentes. Funcionário só vê as empresas em que está em `company_members` e, dentro de cada uma, os dados daquela empresa.
+## Validação
 
-## O que **não** muda
-
-- Chaves de API continuam em `user_configs` (do dono) — funcionam para todas as empresas dele.
-- Login, signup, fluxo de convite, criação de empresa, OAuth de redes sociais.
-- Modelos de IA, geração de posts, editor.
-- Empresa antiga continua com exatamente as contas que tinha (via backfill).
-
-## Detalhes técnicos
-
-- Sem nova tabela. `company_social_accounts` já existe com unique `(company_id, pfm_account_id)`, RLS por `is_company_member`/`can_manage_members` e GRANTs corretos.
-- Nova edge function `backfill-company-social-accounts`:
-  - Valida JWT em código (padrão Lovable Cloud).
-  - Lê `companies` mais antiga do `auth.uid()` (created_by).
-  - Lista contas no PFM com a chave do dono.
-  - Faz `upsert` em `company_social_accounts` com `ON CONFLICT DO NOTHING`.
-  - Retorna `{ linked: N, anchor_company_id }`.
-- Novo hook `useCompanyPfmAccounts`: `useQuery(["company","pfm-accounts", activeCompanyId, platform], ...)`, depende de `useCompany().activeCompanyId`.
-- Em todas as mutations de conectar/desconectar/backfill: `invalidateQueries(["pfm","accounts"])` + `invalidateQueries(["company","social-accounts"])` + `invalidateQueries(["company","pfm-accounts"])`.
-- `CompanyContext.setActiveCompanyId`: após trocar, chamar `queryClient.invalidateQueries()` com um predicado que matche queries cujo key inclua `activeCompanyId` antigo, para limpar dados residuais.
+- Empresa Teste: agenda, fontes, analytics, insights e autopilot vazios (ou apenas com o que foi criado nela).
+- Denison: tudo continua aparecendo como antes.
+- Criar/agendar/extrair na Teste → não aparece no Denison e vice-versa.
+- Chaves de API continuam servindo as duas empresas sem reconfiguração.
+- `tsgo` limpo.
