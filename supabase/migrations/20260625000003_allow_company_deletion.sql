@@ -1,11 +1,11 @@
 -- =====================================================
--- Fix company deletion policy to allow deletion by creator
+-- Allow company deletion with proper authorization
 -- =====================================================
--- Allow deletion by:
--- 1. Owner (user with 'owner' role in company_members)
--- 2. Creator (user who created the company, even if not yet claimed)
+-- Only owners can delete their company
+-- All related data cascades via FK constraints
 
 DROP POLICY IF EXISTS "owners can delete company" ON public.companies;
+
 CREATE POLICY "owners can delete company"
   ON public.companies FOR DELETE
   TO authenticated
