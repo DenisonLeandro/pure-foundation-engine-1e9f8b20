@@ -161,6 +161,7 @@ const App = () => (
 
                       {/* Convite */}
                       <Route path="/aceitar-convite" element={<AcceptInvite />} />
+                      <Route path="/aguardando-convite" element={<WaitingInvite />} />
 
                       {/* Criar empresa (autenticado, sem exigir empresa) */}
                       <Route path="/criar-empresa" element={<RequireCompanyShell><CreateCompany /></RequireCompanyShell>} />
