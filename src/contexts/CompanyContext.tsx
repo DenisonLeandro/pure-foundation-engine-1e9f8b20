@@ -42,9 +42,11 @@ const ACTIVE_KEY = "activeCompanyId";
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const [companies, setCompanies] = useState<CompanyMembership[]>([]);
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
 
   const userId = user?.id ?? null;
 
