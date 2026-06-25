@@ -132,7 +132,7 @@ export default function Dashboard() {
 
   const connectedCount = pfmAccountsQuery.data?.length ?? 0;
   const totalPlatforms = ALL_PLATFORMS.length;
-  const scheduledCount = scheduledPostsQuery.data?.data?.length ?? 0;
+  const scheduledCount = (scheduledPostsQuery.data as any[] | undefined)?.length ?? 0;
   const isLoading = pfmAccountsQuery.isLoading;
 
   // ── Fetch analytics handler ─────────────────────────────────
