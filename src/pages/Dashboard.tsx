@@ -122,7 +122,7 @@ export default function Dashboard() {
     userStorage.set("analytics", JSON.stringify(data));
   };
 
-  const connectedCount = accounts.length;
+  const connectedCount = pfmAccountsQuery.data?.length ?? 0;
   const totalPlatforms = ALL_PLATFORMS.length;
   const scheduledCount = scheduledPostsQuery.data?.data?.length ?? 0;
   const isLoading = pfmAccountsQuery.isLoading;
@@ -894,7 +894,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-9">
           {ALL_PLATFORMS.map((platform) => {
             const cfg = PLATFORMS[platform];
-            const isConnected = accounts.some((a) => a.platform === platform);
+            const isConnected = pfmAccountsQuery.data?.some((a) => a.platform === platform) ?? false;
             return (
               <Card
                 key={platform}
