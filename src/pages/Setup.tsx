@@ -34,7 +34,7 @@ export default function Setup() {
     resetConfig,
   } = useApp();
   const { user } = useAuth();
-  const { isEditor, loading: companyLoading } = useCompany();
+  const { isEditor, role, loading: companyLoading } = useCompany();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -301,6 +301,7 @@ export default function Setup() {
           toast({ title: "Configurações salvas." });
         }}
         onBack={() => navigate("/dashboard")}
+        role={role}
       />
     );
   }
