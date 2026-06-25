@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   BarChart3,
   TrendingUp,
@@ -357,6 +357,67 @@ export default function Analytics() {
   const [insightsExpanded, setInsightsExpanded] = useState(true);
   const [insightsTab, setInsightsTab] = useState("geral");
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Re-hidratar estado quando a empresa ativa mudar: lê do companyStorage
+  // e, se estiver vazio, busca os últimos snapshots persistidos no banco
+  // filtrados por company_id (sem cruzar empresas).
+  useEffect(() => {
+    if (!activeCompanyId) return;
+    try {
+      const savedA = companyStorage.get(activeCompanyId, "analytics");
+      setAnalyticsState(savedA ? JSON.parse(savedA) : []);
+    } catch { setAnalyticsState([]); }
+    try {
+      const savedI = companyStorage.get(activeCompanyId, "structured_insights");
+      setStructuredInsights(savedI ? JSON.parse(savedI) : { general: null, platforms: null, computed: null });
+    } catch { setStructuredInsights({ general: null, platforms: null, computed: null }); }
+    try {
+      setEnrichEnabled(companyStorage.get(activeCompanyId, "enrich_analytics") === "true");
+    } catch { setEnrichEnabled(false); }
+
+    // Se nada em cache, hidrata do banco (uma vez).
+    (async () => {
+      try {
+        const cached = companyStorage.get(activeCompanyId, "analytics");
+        if (cached) return;
+        const { data, error } = await supabase
+          .from("analytics_snapshots")
+          .select("*")
+          .eq("company_id", activeCompanyId)
+          .order("fetched_at", { ascending: false })
+          .limit(50);
+        if (error || !data?.length) return;
+        const seen = new Set<string>();
+        const rows: ProfileAnalytics[] = [];
+        for (const r of data) {
+          const k = `${r.platform}:${r.username}`;
+          if (seen.has(k)) continue;
+          seen.add(k);
+          rows.push({
+            platform: r.platform as ProfileAnalytics["platform"],
+            username: r.username,
+            displayName: r.display_name ?? undefined,
+            profileImageUrl: r.profile_image_url ?? undefined,
+            followers: r.followers ?? 0,
+            following: r.following ?? 0,
+            posts: r.posts_count ?? 0,
+            engagementRate: r.engagement_rate ?? undefined,
+            avgLikes: r.avg_likes ?? undefined,
+            avgComments: r.avg_comments ?? undefined,
+            avgViews: r.avg_views ?? undefined,
+            recentPosts: (r.recent_posts as unknown as ProfileAnalytics["recentPosts"]) ?? [],
+            enrichment: (r.raw_data as unknown as ProfileAnalytics["enrichment"]) ?? undefined,
+            fetchedAt: r.fetched_at ?? undefined,
+          } as ProfileAnalytics);
+        }
+        if (rows.length) {
+          setAnalyticsState(rows);
+          companyStorage.set(activeCompanyId, "analytics", JSON.stringify(rows));
+        }
+      } catch { /* noop */ }
+    })();
+  }, [activeCompanyId]);
+
 
   // ── Fetch analytics ──────────────────────────────────────────
 

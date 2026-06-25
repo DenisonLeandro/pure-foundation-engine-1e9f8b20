@@ -32,7 +32,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ALL_PLATFORMS, PLATFORMS } from "@/lib/platforms";
 import type { Platform } from "@/types";
 import * as api from "@/lib/api";
-import { userStorage } from "@/lib/storage";
+import { companyStorage } from "@/lib/companyStorage";
 
 // ─── Constantes ────────────────────────────────────────────────
 
@@ -52,15 +52,16 @@ const PROFILE_URL_PLACEHOLDERS: Record<string, string> = {
   bluesky:   "https://bsky.app/profile/seu.handle",
 };
 
-// ─── Helpers localStorage ───────────────────────────────────────
+// ─── Helpers localStorage (escopo por empresa) ──────────────────
 
-function loadProfileUrls(): Record<string, string> {
-  try { return JSON.parse(userStorage.get(PROFILE_URLS_KEY) || "{}"); }
+function loadProfileUrls(companyId: string | null): Record<string, string> {
+  try { return JSON.parse(companyStorage.get(companyId, PROFILE_URLS_KEY) || "{}"); }
   catch { return {}; }
 }
-function saveProfileUrls(urls: Record<string, string>) {
-  userStorage.set(PROFILE_URLS_KEY, JSON.stringify(urls));
+function saveProfileUrls(companyId: string | null, urls: Record<string, string>) {
+  companyStorage.set(companyId, PROFILE_URLS_KEY, JSON.stringify(urls));
 }
+
 
 // ─── Props ─────────────────────────────────────────────────────
 
@@ -83,7 +84,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   const [authUrl, setAuthUrl]         = useState<string | null>(null);   // fallback link
   const [error, setError]             = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
-  const [profileUrls, setProfileUrls] = useState<Record<string, string>>(loadProfileUrls);
+  const [profileUrls, setProfileUrls] = useState<Record<string, string>>(() => loadProfileUrls(activeCompanyId));
 
   // Bluesky
   const [bskyHandle, setBskyHandle]     = useState("");
@@ -337,8 +338,9 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   const updateProfileUrl = (platform: string, url: string) => {
     const updated = { ...profileUrls, [platform]: url };
     setProfileUrls(updated);
-    saveProfileUrls(updated);
+    saveProfileUrls(activeCompanyId, updated);
   };
+
 
   // ── Render ────────────────────────────────────────────────────
   return (
