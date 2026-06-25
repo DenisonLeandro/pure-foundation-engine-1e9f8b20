@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Building2, CheckCircle2, Link2, Loader2, LogOut, Plus } from "lucide-react";
+import { Building2, CheckCircle2, Link2, Loader2, LogOut, Plus, Trash2 } from "lucide-react";
 
 type LegacyBrand = {
   id: string;
@@ -56,6 +56,7 @@ export default function CreateCompany() {
   const [legacyBrands, setLegacyBrands] = useState<LegacyBrand[]>([]);
   const [ownedCompanies, setOwnedCompanies] = useState<OwnedCompany[]>([]);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteValue, setInviteValue] = useState("");
 
@@ -249,6 +250,31 @@ export default function CreateCompany() {
     navigate(token ? `/aceitar-convite?token=${encodeURIComponent(token)}` : "/aceitar-convite");
   };
 
+  const handleDeleteCompany = async (company: OwnedCompany) => {
+    if (!confirm(`Deletar "${company.name}" permanentemente? Esta ação não pode ser desfeita.`)) return;
+    if (!confirm("Tem certeza? Todos os dados da empresa serão removidos.")) return;
+
+    setDeletingId(company.id);
+    try {
+      const { error } = await (supabase as any)
+        .from("companies")
+        .delete()
+        .eq("id", company.id);
+
+      if (error) throw error;
+      toast({ title: `"${company.name}" deletada com sucesso` });
+      await loadLegacyOptions();
+    } catch (error) {
+      toast({
+        title: "Erro ao deletar empresa",
+        description: error instanceof Error ? error.message : "Tente novamente em instantes.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate("/login", { replace: true });
@@ -325,6 +351,7 @@ export default function CreateCompany() {
 
                 {unlinkedCompanies.map((company) => {
                   const loading = actionId === `company:${company.id}`;
+                  const isDeleting = deletingId === company.id;
                   return (
                     <div key={company.id} className="rounded-lg border border-border p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -332,11 +359,23 @@ export default function CreateCompany() {
                           <h3 className="truncate font-semibold">{company.name}</h3>
                           <p className="text-sm text-muted-foreground">Empresa que você criou e ainda não está vinculada</p>
                         </div>
-                        <Button type="button" variant="secondary" onClick={() => handleConnectCompany(company)} disabled={!!actionId} className="shrink-0">
-                          {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
-                          Reivindicar empresa
-                        </Button>
-
+                        <div className="flex gap-2 shrink-0">
+                          <Button type="button" variant="secondary" onClick={() => handleConnectCompany(company)} disabled={!!actionId || !!deletingId} className="shrink-0">
+                            {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
+                            Reivindicar empresa
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteCompany(company)}
+                            disabled={!!actionId || !!deletingId}
+                            className="h-10 w-10 text-muted-foreground hover:text-destructive shrink-0"
+                            title="Deletar empresa"
+                          >
+                            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
