@@ -235,7 +235,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
           handle: bskyHandle,
           app_password: bskyPassword,
         });
-        const accs = await loadAccounts();
+        const { accs } = await loadAccounts();
         knownIdsRef.current = new Set(accs.map((a) => a.id));
 
         // Link Bluesky account to company
