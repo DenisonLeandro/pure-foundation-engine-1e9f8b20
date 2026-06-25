@@ -125,10 +125,32 @@ export function useImageSearch() {
 
 // ─── Post for Me (accounts + posting + analytics) ───────────────
 
+/**
+ * List ALL PFM accounts available to the API key.
+ * Note: Returns all accounts, not filtered by company.
+ * Use useCompanySocialAccounts() for per-company filtering.
+ */
 export function usePfmAccounts(platform?: string) {
   return useQuery({
     queryKey: ["pfm", "accounts", platform],
     queryFn: () => api.pfmListAccounts(platform),
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * List social accounts linked to the active company.
+ * Filters PFM accounts based on company_social_accounts table.
+ */
+export function useCompanySocialAccounts(companyId: string | null, platform?: string) {
+  const { isConfigured } = useApp();
+  return useQuery({
+    queryKey: ["company", "social-accounts", companyId, platform],
+    queryFn: async () => {
+      if (!companyId) return [];
+      return api.listCompanySocialAccounts(companyId, platform);
+    },
+    enabled: isConfigured && !!companyId,
     staleTime: 60_000,
   });
 }

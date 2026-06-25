@@ -27,6 +27,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/contexts/CompanyContext";
+import { useQueryClient } from "@tanstack/react-query";
 import { ALL_PLATFORMS, PLATFORMS } from "@/lib/platforms";
 import type { Platform } from "@/types";
 import * as api from "@/lib/api";
@@ -71,6 +73,8 @@ interface ConnectAccountDialogProps {
 
 export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialogProps) {
   const { toast } = useToast();
+  const { activeCompanyId } = useCompany();
+  const queryClient = useQueryClient();
 
   // ── Estado ────────────────────────────────────────────────────
   const [accounts, setAccounts]       = useState<api.PfmAccount[]>([]);
@@ -145,6 +149,24 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
 
         const pfmPlatform = (newAcc.platform === "x" ? "twitter" : newAcc.platform) as Platform;
         const cfg = PLATFORMS[pfmPlatform] || { name: newAcc.platform };
+
+        // Link conta à empresa ativa
+        if (activeCompanyId) {
+          try {
+            await api.linkSocialAccountToCompany(
+              activeCompanyId,
+              newAcc.id,
+              newAcc.platform,
+              newAcc.username,
+              newAcc.name || undefined
+            );
+            // Invalidate company social accounts query
+            queryClient.invalidateQueries({ queryKey: ["company", "social-accounts"] });
+          } catch (err) {
+            console.error("[ConnectAccountDialog] Erro ao linkar conta à empresa:", err);
+          }
+        }
+
         toast({
           title: `${cfg.name} conectado!`,
           description: `@${newAcc.username || newAcc.name || "conta vinculada"}`,
@@ -169,7 +191,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
         );
       }
     }, POLL_TIMEOUT_MS);
-  }, [stopPolling, loadAccounts, toast, connecting]);
+  }, [stopPolling, loadAccounts, toast, connecting, activeCompanyId, queryClient]);
 
   // ── Conectar plataforma ────────────────────────────────────────
   const handleConnect = useCallback(async (platform: Platform) => {
@@ -200,6 +222,24 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
         });
         const accs = await loadAccounts();
         knownIdsRef.current = new Set(accs.map((a) => a.id));
+
+        // Link Bluesky account to company
+        const bskyAcc = accs.find((a) => a.platform === "bluesky" && a.username === bskyHandle);
+        if (bskyAcc && activeCompanyId) {
+          try {
+            await api.linkSocialAccountToCompany(
+              activeCompanyId,
+              bskyAcc.id,
+              "bluesky",
+              bskyHandle,
+              bskyAcc.name || undefined
+            );
+            queryClient.invalidateQueries({ queryKey: ["company", "social-accounts"] });
+          } catch (err) {
+            console.error("[ConnectAccountDialog] Erro ao linkar Bluesky à empresa:", err);
+          }
+        }
+
         setConnecting(null);
         toast({ title: "Bluesky conectado!" });
         return;
@@ -270,15 +310,24 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
     setDisconnecting(account.id);
     try {
       await api.pfmDisconnectAccount(account.id);
+      // Also remove from company_social_accounts
+      if (activeCompanyId) {
+        try {
+          await api.unlinkSocialAccountFromCompany(activeCompanyId, account.id);
+        } catch (e) {
+          console.warn("[ConnectAccountDialog] Erro ao remover de company_social_accounts:", e);
+        }
+      }
       const accs = await loadAccounts();
       knownIdsRef.current = new Set(accs.map((a) => a.id));
+      queryClient.invalidateQueries({ queryKey: ["company", "social-accounts"] });
       toast({ title: "Conta desconectada" });
     } catch (err) {
       toast({ title: "Erro ao desconectar", description: err instanceof Error ? err.message : "", variant: "destructive" });
     } finally {
       setDisconnecting(null);
     }
-  }, [loadAccounts, toast]);
+  }, [loadAccounts, toast, activeCompanyId, queryClient]);
 
   // ── Computed ──────────────────────────────────────────────────
   const connectedMap = new Map(
