@@ -521,6 +521,42 @@ export type Database = {
           },
         ]
       }
+      company_invite_companies: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          invite_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          invite_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          invite_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_invite_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_invite_companies_invite_id_fkey"
+            columns: ["invite_id"]
+            isOneToOne: false
+            referencedRelation: "company_invites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_invites: {
         Row: {
           accepted_at: string | null
@@ -612,6 +648,44 @@ export type Database = {
           },
         ]
       }
+      company_social_accounts: {
+        Row: {
+          company_id: string
+          created_at: string
+          full_name: string | null
+          id: string
+          pfm_account_id: string
+          platform: string
+          username: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          pfm_account_id: string
+          platform: string
+          username?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          pfm_account_id?: string
+          platform?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_social_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       creations: {
         Row: {
           caption: string | null
@@ -689,6 +763,7 @@ export type Database = {
       post_history: {
         Row: {
           account_id: string
+          company_id: string | null
           created_at: string
           error_message: string | null
           id: string
@@ -704,6 +779,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          company_id?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
@@ -719,6 +795,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          company_id?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
@@ -732,7 +809,15 @@ export type Database = {
           text_content?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "post_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       saved_sources: {
         Row: {
