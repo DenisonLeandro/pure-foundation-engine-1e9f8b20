@@ -138,19 +138,21 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           {theme === "dark" ? "Modo Claro" : "Modo Escuro"}
         </Button>
-        <NavLink to="/setup" onClick={onNavigate}>
-          <div
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-              location.pathname === "/setup"
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            )}
-          >
-            <Settings className="h-4 w-4" />
-            Configurações
-          </div>
-        </NavLink>
+        {accountType !== "employee" && (
+          <NavLink to="/setup" onClick={onNavigate}>
+            <div
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                location.pathname === "/setup"
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <Settings className="h-4 w-4" />
+              Configurações
+            </div>
+          </NavLink>
+        )}
         <Button
           variant="ghost"
           size="sm"
