@@ -135,7 +135,7 @@ export async function getUserConfig(
 
   const { data, error } = await admin
     .from("user_configs")
-    .select("*")
+    .select("postforme_api_key, blotato_api_key, pexels_api_key, firecrawl_api_key, higgsfield_api_id, higgsfield_api_secret, apify_api_token")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -143,7 +143,15 @@ export async function getUserConfig(
     return jsonResponse({ error: "Falha ao carregar config do usuário" }, 500, corsHeaders);
   }
 
-  const config = (data ?? { user_id: userId }) as CompanyConfigRow;
+  const config = (data ?? {
+    postforme_api_key: null,
+    blotato_api_key: null,
+    pexels_api_key: null,
+    firecrawl_api_key: null,
+    higgsfield_api_id: null,
+    higgsfield_api_secret: null,
+    apify_api_token: null,
+  }) as CompanyConfigRow;
   return { config };
 }
 
