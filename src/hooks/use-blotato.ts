@@ -155,6 +155,31 @@ export function useCompanySocialAccounts(companyId: string | null, platform?: st
   });
 }
 
+/**
+ * List PFM accounts intersected with the active company's links.
+ * This is the company-scoped version of usePfmAccounts.
+ * Owners of multiple companies will only see the accounts that belong
+ * to the currently active company.
+ */
+export function useCompanyPfmAccounts(companyId: string | null, platform?: string) {
+  const { isConfigured } = useApp();
+  return useQuery({
+    queryKey: ["company", "pfm-accounts", companyId, platform],
+    queryFn: async () => {
+      if (!companyId) return [] as api.PfmAccount[];
+      const [pfm, links] = await Promise.all([
+        api.pfmListAccounts(platform),
+        api.listCompanySocialAccounts(companyId, platform),
+      ]);
+      const linkedIds = new Set(links.map((l) => l.pfm_account_id));
+      return pfm.filter((a) => linkedIds.has(a.id));
+    },
+    enabled: isConfigured && !!companyId,
+    staleTime: 60_000,
+  });
+}
+
+
 export function usePfmCreatePost() {
   const queryClient = useQueryClient();
   return useMutation({
