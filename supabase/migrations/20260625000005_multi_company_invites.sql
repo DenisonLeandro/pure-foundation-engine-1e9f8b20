@@ -1,14 +1,7 @@
 -- =====================================================
 -- Enable multi-company invites
 -- =====================================================
--- Allow users to be invited to multiple companies at once.
---
--- New table: company_invite_companies (many-to-many)
--- Links a single invite to multiple companies.
---
--- Backward compatibility:
--- - Old invites have company_id set, new ones will use this table
--- - Accept logic must check both
+-- Allow invites to be sent to multiple companies at once
 
 CREATE TABLE IF NOT EXISTS public.company_invite_companies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -21,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.company_invite_companies (
 
 ALTER TABLE public.company_invite_companies ENABLE ROW LEVEL SECURITY;
 
--- Managers can view invites they created (via invite FK)
+-- Managers can view company invites they created
 CREATE POLICY "managers can view company invite companies"
   ON public.company_invite_companies FOR SELECT
   TO authenticated
@@ -33,7 +26,7 @@ CREATE POLICY "managers can view company invite companies"
     )
   );
 
--- Managers can add companies to their invites
+-- Managers can add companies to invites
 CREATE POLICY "managers can add companies to invites"
   ON public.company_invite_companies FOR INSERT
   TO authenticated
@@ -57,9 +50,12 @@ CREATE POLICY "managers can remove companies from invites"
     )
   );
 
--- Index for fast lookups
+-- Indexes for fast lookups
 CREATE INDEX IF NOT EXISTS idx_company_invite_companies_invite
   ON public.company_invite_companies (invite_id);
 
 CREATE INDEX IF NOT EXISTS idx_company_invite_companies_company
   ON public.company_invite_companies (company_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.company_invite_companies TO authenticated;
+GRANT ALL ON public.company_invite_companies TO service_role;
