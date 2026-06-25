@@ -154,9 +154,10 @@ export default function Dashboard() {
     try {
       // Use Apify for REAL analytics (followers, likes, engagement)
       const savedProfileUrls: Record<string, string> = (() => {
-        try { return JSON.parse(userStorage.get("profile_urls") || "{}"); }
+        try { return JSON.parse(companyStorage.get(activeCompanyId, "profile_urls") || "{}"); }
         catch { return {}; }
       })();
+
 
       const accountsList = api.buildAnalyticsAccounts(pfmAccounts, savedProfileUrls);
 

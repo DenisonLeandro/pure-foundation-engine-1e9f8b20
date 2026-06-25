@@ -44,6 +44,8 @@ import * as api from "@/lib/api";
 import type { ProfileAnalytics } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import { userStorage } from "@/lib/storage";
+import { companyStorage } from "@/lib/companyStorage";
+
 import {
   BarChart,
   Bar,
@@ -327,29 +329,30 @@ export default function Analytics() {
   const pfmAccountsQuery = useCompanyPfmAccounts(activeCompanyId);
 
 
-  // Analytics data (persisted)
+  // Analytics data (persisted por empresa)
   const [analytics, setAnalyticsState] = useState<ProfileAnalytics[]>(() => {
     try {
-      const saved = userStorage.get("analytics");
+      const saved = companyStorage.get(activeCompanyId, "analytics");
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
   const setAnalytics = (data: ProfileAnalytics[]) => {
     setAnalyticsState(data);
-    userStorage.set("analytics", JSON.stringify(data));
+    companyStorage.set(activeCompanyId, "analytics", JSON.stringify(data));
   };
 
   const [isFetching, setIsFetching] = useState(false);
   const [enrichEnabled, setEnrichEnabled] = useState(() => {
-    try { return userStorage.get("enrich_analytics") === "true"; }
+    try { return companyStorage.get(activeCompanyId, "enrich_analytics") === "true"; }
     catch { return false; }
   });
   const [structuredInsights, setStructuredInsights] = useState<StructuredInsights>(() => {
     try {
-      const saved = userStorage.get("structured_insights");
+      const saved = companyStorage.get(activeCompanyId, "structured_insights");
       return saved ? JSON.parse(saved) : { general: null, platforms: null, computed: null };
     } catch { return { general: null, platforms: null, computed: null }; }
   });
+
   const [isFetchingInsights, setIsFetchingInsights] = useState(false);
   const [insightsExpanded, setInsightsExpanded] = useState(true);
   const [insightsTab, setInsightsTab] = useState("geral");
@@ -367,9 +370,10 @@ export default function Analytics() {
     setIsFetching(true);
     try {
       const savedProfileUrls: Record<string, string> = (() => {
-        try { return JSON.parse(userStorage.get("profile_urls") || "{}"); }
+        try { return JSON.parse(companyStorage.get(activeCompanyId, "profile_urls") || "{}"); }
         catch { return {}; }
       })();
+
 
       const accountsList = api.buildAnalyticsAccounts(pfmAccounts, savedProfileUrls);
 
@@ -389,6 +393,7 @@ export default function Analytics() {
         if (uid && result.results.length) {
           const rows = result.results.map((p) => ({
             user_id: uid,
+            company_id: activeCompanyId,
             platform: p.platform,
             username: p.username,
             display_name: p.displayName ?? null,
@@ -407,6 +412,7 @@ export default function Analytics() {
           const { error: insErr } = await supabase.from("analytics_snapshots").insert(rows);
           if (insErr) console.warn("[Analytics] falha ao persistir snapshots:", insErr);
         }
+
       } catch (persistErr) {
         console.warn("[Analytics] erro inesperado ao salvar snapshots:", persistErr);
       }
