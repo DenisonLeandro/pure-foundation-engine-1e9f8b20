@@ -20,6 +20,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import UpdatePassword from "./pages/UpdatePassword";
 import CreateCompany from "./pages/CreateCompany";
 import AcceptInvite from "./pages/AcceptInvite";
+import WaitingInvite from "./pages/WaitingInvite";
 
 // App pages (lazy loaded)
 const Setup = lazy(() => import("./pages/Setup"));
