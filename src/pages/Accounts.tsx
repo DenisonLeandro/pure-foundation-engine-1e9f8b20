@@ -6,15 +6,17 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConnectAccountDialog } from "@/components/ConnectAccountDialog";
 import { useApp } from "@/contexts/use-app";
-import { usePfmAccounts } from "@/hooks/use-blotato";
+import { useCompanySocialAccounts } from "@/hooks/use-blotato";
+import { useCompany } from "@/contexts/CompanyContext";
 import { ALL_PLATFORMS, PLATFORMS } from "@/lib/platforms";
-import { pfmDisconnectAccount } from "@/lib/api";
+import { pfmDisconnectAccount, unlinkSocialAccountFromCompany } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function Accounts() {
   const { accounts } = useApp();
-  const pfmAccountsQuery = usePfmAccounts();
+  const { activeCompanyId } = useCompany();
+  const companySocialAccountsQuery = useCompanySocialAccounts(activeCompanyId);
   const [connectOpen, setConnectOpen] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -25,7 +27,16 @@ export default function Accounts() {
     setDisconnectingId(pfmId);
     try {
       await pfmDisconnectAccount(pfmId);
+      // Also remove from company_social_accounts
+      if (activeCompanyId) {
+        try {
+          await unlinkSocialAccountFromCompany(activeCompanyId, pfmId);
+        } catch (e) {
+          console.warn("[Accounts] Erro ao remover de company_social_accounts:", e);
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["pfm", "accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["company", "social-accounts"] });
       toast({ title: `${platformName} desconectado` });
     } catch (err) {
       toast({ title: "Erro ao desconectar", description: err instanceof Error ? err.message : "Erro desconhecido", variant: "destructive" });
@@ -43,11 +54,11 @@ export default function Accounts() {
             <Users className="h-6 w-6 text-violet-500" />
             Contas Conectadas
           </h1>
-          <p className="mt-1 text-muted-foreground">Gerencie suas redes sociais conectadas via integração</p>
+          <p className="mt-1 text-muted-foreground">Contas de redes sociais desta empresa</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => pfmAccountsQuery.refetch()} disabled={pfmAccountsQuery.isFetching}>
-            {pfmAccountsQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+          <Button variant="outline" size="sm" onClick={() => companySocialAccountsQuery.refetch()} disabled={companySocialAccountsQuery.isFetching}>
+            {companySocialAccountsQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
             Atualizar
           </Button>
           <Button
@@ -65,18 +76,18 @@ export default function Accounts() {
       <ConnectAccountDialog open={connectOpen} onOpenChange={setConnectOpen} />
 
       {/* Error */}
-      {pfmAccountsQuery.isError && (
+      {companySocialAccountsQuery.isError && (
         <div className="flex items-start gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
             <p className="font-medium">Erro ao carregar contas</p>
-            <p className="mt-1 text-xs">{pfmAccountsQuery.error?.message}</p>
+            <p className="mt-1 text-xs">{companySocialAccountsQuery.error?.message}</p>
           </div>
         </div>
       )}
 
       {/* Loading */}
-      {pfmAccountsQuery.isLoading && (
+      {companySocialAccountsQuery.isLoading && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>
@@ -92,17 +103,17 @@ export default function Accounts() {
         </div>
       )}
 
-      {/* Connected Accounts via PFM — source of truth */}
-      {(pfmAccountsQuery.data?.length ?? 0) > 0 && (
+      {/* Connected Accounts — filtered by company */}
+      {(companySocialAccountsQuery.data?.length ?? 0) > 0 && (
         <div>
           <h2 className="mb-4 text-lg font-semibold text-green-600">
-            Conectadas via Post for Me ({pfmAccountsQuery.data!.length})
+            Contas conectadas ({companySocialAccountsQuery.data!.length})
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {pfmAccountsQuery.data!.map((account) => {
+            {companySocialAccountsQuery.data!.map((account) => {
               const cfg = PLATFORMS[account.platform as keyof typeof PLATFORMS];
               return (
-                <Card key={account.id} className="border-green-500/30">
+                <Card key={account.pfm_account_id} className="border-green-500/30">
                   <CardContent className="flex items-center gap-4 p-5">
                     <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-white text-xl shadow-lg ${cfg?.bgColor ?? "bg-gray-500"}`}>
                       {cfg?.icon ?? "🌐"}
@@ -113,7 +124,7 @@ export default function Accounts() {
                         <Badge className="bg-green-500/10 text-green-600 text-[10px]">ativo</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground truncate">
-                        {account.username ? `@${account.username}` : account.name || "—"}
+                        {account.username ? `@${account.username}` : account.full_name || "—"}
                       </p>
                     </div>
                     <Button
@@ -121,10 +132,10 @@ export default function Accounts() {
                       size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
                       title="Desconectar"
-                      disabled={disconnectingId === account.id}
-                      onClick={() => handleDisconnect(account.id, cfg?.name ?? account.platform)}
+                      disabled={disconnectingId === account.pfm_account_id}
+                      onClick={() => handleDisconnect(account.pfm_account_id, cfg?.name ?? account.platform)}
                     >
-                      {disconnectingId === account.id
+                      {disconnectingId === account.pfm_account_id
                         ? <Loader2 className="h-4 w-4 animate-spin" />
                         : <Unlink className="h-4 w-4" />
                       }
