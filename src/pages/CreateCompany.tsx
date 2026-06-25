@@ -318,6 +318,7 @@ export default function CreateCompany() {
                   const existingCompany = findCompanyForBrand(brand);
                   const alreadyMember = !!existingCompany && memberCompanyIds.has(existingCompany.id);
                   const loading = actionId === `brand:${brand.id}`;
+                  const isDeleting = existingCompany && deletingId === existingCompany.id;
                   return (
                     <div key={brand.id} className="rounded-lg border border-border p-4">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -339,11 +340,25 @@ export default function CreateCompany() {
                             </p>
                           </div>
                         </div>
-                        <Button type="button" onClick={() => handleUseBrand(brand)} disabled={!!actionId} className="shrink-0">
-                          {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
-                          {alreadyMember ? "Acessar empresa" : "Converter minha marca"}
-                        </Button>
-
+                        <div className="flex gap-2 shrink-0">
+                          <Button type="button" onClick={() => handleUseBrand(brand)} disabled={!!actionId || !!deletingId} className="shrink-0">
+                            {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
+                            {alreadyMember ? "Acessar empresa" : "Converter minha marca"}
+                          </Button>
+                          {existingCompany && alreadyMember && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteCompany(existingCompany)}
+                              disabled={!!actionId || !!deletingId}
+                              className="h-10 w-10 text-muted-foreground hover:text-destructive shrink-0"
+                              title="Deletar empresa"
+                            >
+                              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
