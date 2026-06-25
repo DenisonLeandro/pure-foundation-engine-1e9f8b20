@@ -79,6 +79,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
 
   // ── Estado ────────────────────────────────────────────────────
   const [accounts, setAccounts]       = useState<api.PfmAccount[]>([]);
+  const [linkedIds, setLinkedIds]     = useState<Set<string>>(new Set());
   const [loading, setLoading]         = useState(false);
   const [connecting, setConnecting]   = useState<Platform | null>(null);
   const [authUrl, setAuthUrl]         = useState<string | null>(null);   // fallback link
@@ -94,6 +95,8 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   // Refs
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimeoutRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // knownIds = PFM accounts JÁ vinculados à empresa ativa. Quando o polling
+  // detecta um PFM account fora desse set, ele é vinculado à empresa atual.
   const knownIdsRef     = useRef<Set<string>>(new Set());
   const popupRef        = useRef<Window | null>(null);
 
@@ -103,14 +106,21 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
     if (pollTimeoutRef.current)  { clearTimeout(pollTimeoutRef.current);   pollTimeoutRef.current = null; }
   }, []);
 
-  // ── Carregar contas ────────────────────────────────────────────
-  const loadAccounts = useCallback(async (): Promise<api.PfmAccount[]> => {
+  // ── Carregar contas (PFM + vínculos da empresa) ───────────────
+  const loadAccounts = useCallback(async (): Promise<{ accs: api.PfmAccount[]; linked: Set<string> }> => {
     try {
-      const accs = await api.pfmListAccounts();
+      const [accs, links] = await Promise.all([
+        api.pfmListAccounts(),
+        activeCompanyId
+          ? api.listCompanySocialAccounts(activeCompanyId).catch(() => [])
+          : Promise.resolve([] as Awaited<ReturnType<typeof api.listCompanySocialAccounts>>),
+      ]);
+      const linked = new Set(links.map((l) => l.pfm_account_id));
       setAccounts(accs);
-      return accs;
-    } catch { return []; }
-  }, []);
+      setLinkedIds(linked);
+      return { accs, linked };
+    } catch { return { accs: [], linked: new Set<string>() }; }
+  }, [activeCompanyId]);
 
   // ── Inicializar ao abrir ───────────────────────────────────────
   useEffect(() => {
@@ -119,8 +129,9 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
       setError(null);
       setAuthUrl(null);
       setLoading(true);
-      loadAccounts().then((accs) => {
-        knownIdsRef.current = new Set(accs.map((a) => a.id));
+      setProfileUrls(loadProfileUrls(activeCompanyId));
+      loadAccounts().then(({ linked }) => {
+        knownIdsRef.current = new Set(linked);
         setLoading(false);
       });
     } else {
@@ -130,7 +141,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
       }
     }
     return stopPolling;
-  }, [open, loadAccounts, stopPolling]);
+  }, [open, activeCompanyId, loadAccounts, stopPolling]);
 
   // ── Iniciar polling ────────────────────────────────────────────
   // Polling corre INDEPENDENTE do popup. O popup fecha ao redirecionar
