@@ -219,14 +219,48 @@ export function useCompanyPfmPosts(
       const items: any[] = Array.isArray(postsRes)
         ? postsRes
         : (postsRes?.data ?? postsRes?.items ?? postsRes?.posts ?? []);
+      if (items[0]) console.debug("[pfm-posts] sample shape", items[0]);
+
+      const collectIds = (p: any): string[] => {
+        const ids = new Set<string>();
+        const pushVal = (v: any) => {
+          if (!v) return;
+          if (typeof v === "string") ids.add(v);
+          else if (typeof v === "object") {
+            if (typeof v.id === "string") ids.add(v.id);
+            if (typeof v.social_account_id === "string") ids.add(v.social_account_id);
+            if (typeof v.socialAccountId === "string") ids.add(v.socialAccountId);
+            if (typeof v.account_id === "string") ids.add(v.account_id);
+            if (typeof v.accountId === "string") ids.add(v.accountId);
+          }
+        };
+        pushVal(p?.social_account_id);
+        pushVal(p?.socialAccountId);
+        pushVal(p?.account_id);
+        pushVal(p?.accountId);
+        pushVal(p?.account);
+        pushVal(p?.target?.account_id);
+        pushVal(p?.target?.social_account_id);
+        const arrays = [
+          p?.social_accounts,
+          p?.socialAccounts,
+          p?.social_account_ids,
+          p?.socialAccountIds,
+          p?.account_ids,
+          p?.accountIds,
+          p?.account_configurations,
+          p?.accountConfigurations,
+        ];
+        for (const a of arrays) {
+          if (Array.isArray(a)) a.forEach(pushVal);
+        }
+        return [...ids];
+      };
+
       return items.filter((p: any) => {
-        const accId =
-          p?.social_account_id ||
-          p?.account_id ||
-          p?.account?.id ||
-          p?.target?.account_id ||
-          (Array.isArray(p?.social_account_ids) ? p.social_account_ids[0] : null);
-        return accId ? linkedIds.has(accId) : false;
+        const ids = collectIds(p);
+        if (ids.length === 0) return true; // sem metadata reconhecível → não esconde
+        return ids.some((id) => linkedIds.has(id));
       });
     },
     enabled: isConfigured && !!companyId,
