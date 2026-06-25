@@ -1,14 +1,19 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { userStorage } from "@/lib/storage";
 import type { User, Session } from "@supabase/supabase-js";
+
+export type AccountType = "owner" | "employee";
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   isAuthEnabled: boolean;
-  signUp: (email: string, password: string, name?: string) => Promise<{ error: string | null }>;
+  accountType: AccountType | null;
+  accountTypeLoading: boolean;
+  refreshAccountType: () => Promise<void>;
+  signUp: (email: string, password: string, name?: string, accountType?: AccountType) => Promise<{ error: string | null }>;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: string | null }>;
@@ -21,10 +26,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accountType, setAccountType] = useState<AccountType | null>(null);
+  const [accountTypeLoading, setAccountTypeLoading] = useState(false);
+
+  const fetchAccountType = useCallback(async (uid: string | null) => {
+    if (!uid || !supabaseConfigured) {
+      setAccountType(null);
+      return;
+    }
+    setAccountTypeLoading(true);
+    try {
+      // Cast to any because the generated Supabase types may not include `profiles` yet on first deploy.
+      // Default to 'owner' on any miss to preserve existing user behavior.
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => {
+          select: (cols: string) => {
+            eq: (k: string, v: string) => {
+              maybeSingle: () => Promise<{ data: { account_type?: string } | null; error: { message: string } | null }>;
+            };
+          };
+        };
+      })
+        .from("profiles")
+        .select("account_type")
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (error) {
+        console.warn("[AuthContext] profile fetch failed:", error.message);
+        setAccountType("owner");
+      } else {
+        const t = data?.account_type;
+        setAccountType(t === "employee" ? "employee" : "owner");
+      }
+    } catch (e) {
+      console.warn("[AuthContext] profile fetch threw:", e);
+      setAccountType("owner");
+    } finally {
+      setAccountTypeLoading(false);
+    }
+  }, []);
+
+  const refreshAccountType = useCallback(async () => {
+    await fetchAccountType(user?.id ?? null);
+  }, [fetchAccountType, user?.id]);
 
   useEffect(() => {
     if (!supabaseConfigured) {
-      // Supabase not configured — skip auth, allow access
       console.info("[boot][AuthContext] backend não configurado; liberando auth");
       setLoading(false);
       return;
@@ -33,13 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let done = false;
     const finish = () => { if (!done) { done = true; setLoading(false); } };
 
-    // Safety net: never let the auth loader stall forever (8s).
     const safety = window.setTimeout(() => {
       if (!done) console.warn("[AuthContext] getSession timeout — liberando UI");
       finish();
     }, 8000);
 
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       console.info("[boot][AuthContext] getSession resolvido", { hasUser: !!s?.user });
       setSession(s);
@@ -50,7 +95,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       finish();
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
       console.info("[boot][AuthContext] auth event", { event, hasUser: !!s?.user });
       setSession(s);
@@ -61,13 +105,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { window.clearTimeout(safety); subscription.unsubscribe(); };
   }, []);
 
+  useEffect(() => {
+    fetchAccountType(user?.id ?? null);
+  }, [user?.id, fetchAccountType]);
 
-  const signUp = async (email: string, password: string, name?: string) => {
+
+  const signUp = async (email: string, password: string, name?: string, accountType: AccountType = "owner") => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: name || "" } },
+        options: { data: { full_name: name || "", account_type: accountType } },
       });
       return { error: error?.message ?? null };
     } catch (err) {
@@ -90,7 +138,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    // 1) Limpa estado local primeiro — não depende de rede.
     try { userStorage.clearUser(); } catch (e) { console.warn("[auth] clearUser falhou:", e); }
     try {
       Object.keys(localStorage)
@@ -99,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) { console.warn("[auth] limpar token supabase falhou:", e); }
     setSession(null);
     setUser(null);
-    // 2) signOut local (não faz request de rede) — apenas para disparar SIGNED_OUT.
+    setAccountType(null);
     try { await supabase.auth.signOut({ scope: "local" }); }
     catch (err) { console.warn("[auth] signOut falhou:", err); }
   };
@@ -130,6 +177,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       loading,
       isAuthEnabled: supabaseConfigured,
+      accountType,
+      accountTypeLoading,
+      refreshAccountType,
       signUp,
       signIn,
       signOut,

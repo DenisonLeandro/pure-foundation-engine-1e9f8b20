@@ -819,6 +819,30 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          account_type: string
+          created_at: string
+          display_name: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_type?: string
+          created_at?: string
+          display_name?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_type?: string
+          created_at?: string
+          display_name?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       saved_sources: {
         Row: {
           content: string | null
@@ -1041,6 +1065,7 @@ export type Database = {
         Args: { _company: string; _user: string }
         Returns: boolean
       }
+      is_owner_account: { Args: { _user_id: string }; Returns: boolean }
       update_company_integration_keys: {
         Args: { _company_id: string; _patch: Json }
         Returns: Json

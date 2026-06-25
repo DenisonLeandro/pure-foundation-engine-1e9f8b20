@@ -20,6 +20,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import UpdatePassword from "./pages/UpdatePassword";
 import CreateCompany from "./pages/CreateCompany";
 import AcceptInvite from "./pages/AcceptInvite";
+import WaitingInvite from "./pages/WaitingInvite";
 
 // App pages (lazy loaded)
 const Setup = lazy(() => import("./pages/Setup"));
@@ -77,32 +78,41 @@ function RoutePage({ children }: { children: React.ReactNode }) {
 }
 
 function RequireSetupAccess({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, accountType, accountTypeLoading } = useAuth();
   const { configLoading } = useApp();
 
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
-  if (configLoading) return <PageLoader />;
+  if (configLoading || accountTypeLoading) return <PageLoader />;
+  // Funcionários não acessam Setup/Chaves
+  if (accountType === "employee") return <Navigate to="/aguardando-convite" replace />;
   return <>{children}</>;
 }
 
 function RequireAppAccess({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, accountType, accountTypeLoading } = useAuth();
   const { configLoading } = useApp();
   const { companies, loading: companyLoading, activeCompanyId } = useCompany();
 
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
-  if (configLoading || companyLoading) return <PageLoader />;
-  if (companies.length === 0) return <Navigate to="/criar-empresa" replace />;
-  if (!activeCompanyId) return <Navigate to="/criar-empresa" replace />;
+  if (configLoading || companyLoading || accountTypeLoading) return <PageLoader />;
+  if (companies.length === 0) {
+    // Funcionário sem empresa → tela de "aguardando convite". Dono → criar empresa.
+    return <Navigate to={accountType === "employee" ? "/aguardando-convite" : "/criar-empresa"} replace />;
+  }
+  if (!activeCompanyId) {
+    return <Navigate to={accountType === "employee" ? "/aguardando-convite" : "/criar-empresa"} replace />;
+  }
   return <>{children}</>;
 }
 
 function RequireCompanyShell({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) return <PageLoader />;
+  const { user, loading, accountType, accountTypeLoading } = useAuth();
+  if (loading || accountTypeLoading) return <PageLoader />;
   if (!user) return <Navigate to="/login" replace />;
+  // Funcionário não pode criar empresa
+  if (accountType === "employee") return <Navigate to="/aguardando-convite" replace />;
   return <>{children}</>;
 }
 // Redirect to dashboard if already authenticated
@@ -151,6 +161,7 @@ const App = () => (
 
                       {/* Convite */}
                       <Route path="/aceitar-convite" element={<AcceptInvite />} />
+                      <Route path="/aguardando-convite" element={<WaitingInvite />} />
 
                       {/* Criar empresa (autenticado, sem exigir empresa) */}
                       <Route path="/criar-empresa" element={<RequireCompanyShell><CreateCompany /></RequireCompanyShell>} />

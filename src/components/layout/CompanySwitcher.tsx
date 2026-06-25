@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Building2, Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,8 +17,17 @@ import { cn } from "@/lib/utils";
 export function CompanySwitcher() {
   const navigate = useNavigate();
   const { companies, activeCompany, activeCompanyId, role, setActiveCompanyId } = useCompany();
+  const { accountType } = useAuth();
+  const canCreateCompany = accountType !== "employee";
 
   if (!activeCompany) {
+    if (!canCreateCompany) {
+      return (
+        <Button variant="ghost" size="sm" className="w-full justify-start gap-2" disabled>
+          <Building2 className="h-4 w-4" /> Aguardando convite
+        </Button>
+      );
+    }
     return (
       <Button variant="ghost" size="sm" className="w-full justify-start gap-2" onClick={() => navigate("/criar-empresa")}>
         <Plus className="h-4 w-4" /> Criar empresa
@@ -63,10 +73,14 @@ export function CompanySwitcher() {
             {company.id === activeCompanyId && <Check className="h-4 w-4 text-primary" />}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate("/criar-empresa")} className="gap-2">
-          <Plus className="h-4 w-4" /> Criar nova empresa
-        </DropdownMenuItem>
+        {canCreateCompany && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate("/criar-empresa")} className="gap-2">
+              <Plus className="h-4 w-4" /> Criar nova empresa
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
