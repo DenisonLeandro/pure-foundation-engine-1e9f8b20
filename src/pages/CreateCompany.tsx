@@ -395,6 +395,31 @@ export default function CreateCompany() {
                     </div>
                   );
                 })}
+
+                {ownedCompanies.filter(c => memberCompanyIds.has(c.id)).map((company) => {
+                  const isDeleting = deletingId === company.id;
+                  return (
+                    <div key={company.id} className="rounded-lg border border-border p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="truncate font-semibold">{company.name}</h3>
+                          <p className="text-sm text-muted-foreground">Empresa que você já está usando</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteCompany(company)}
+                          disabled={!!actionId || !!deletingId}
+                          className="h-10 w-10 text-muted-foreground hover:text-destructive shrink-0"
+                          title="Deletar empresa"
+                        >
+                          {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </Card>
 
