@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
-import { getCompanyConfig } from "../_shared/company-secrets.ts";
+import { getUserConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Social Analytics Edge Function — via Apify Actors
@@ -875,7 +875,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const cfg = await getCompanyConfig(companyId, authResult.user.id, corsHeaders);
+    const cfg = await getUserConfig(authResult.user.id, corsHeaders);
     if (cfg instanceof Response) return cfg; // 403 se não membro
 
     const apifyToken = cfg.config.apify_api_token;

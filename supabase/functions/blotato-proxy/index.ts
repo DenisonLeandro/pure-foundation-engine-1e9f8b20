@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
-import { getCompanyConfig } from "../_shared/company-secrets.ts";
+import { getUserConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Blotato REST API Proxy — modelo seguro por empresa.
@@ -268,7 +268,7 @@ Deno.serve(async (req: Request) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const cfgResult = await getCompanyConfig(companyId, auth.user.id, corsHeaders);
+      const cfgResult = await getUserConfig(auth.user.id, corsHeaders);
       if (cfgResult instanceof Response) return cfgResult;
       apiKey = cfgResult.config.blotato_api_key;
       if (!apiKey) {

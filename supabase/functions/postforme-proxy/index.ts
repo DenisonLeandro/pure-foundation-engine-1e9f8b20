@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
-import { getCompanyConfig } from "../_shared/company-secrets.ts";
+import { getUserConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Post for Me API Proxy
@@ -290,7 +290,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Resolução da chave Post for Me ─────────────────────────────
-    // Caminho principal: companyId → membership → company_configs.postforme_api_key
+    // Agora busca em user_configs do usuário autenticado (as chaves são hereditárias).
     // Caminho de validação (TODO remover): header x-pfm-api-key apenas para
     // tool=pfm_list_accounts e validateKey=true, usado pelo Setup/ManageKeysView.
     let apiKey: string | null = null;
@@ -305,18 +305,12 @@ Deno.serve(async (req: Request) => {
       }
       apiKey = headerKey;
     } else {
-      if (!companyId) {
-        return new Response(
-          JSON.stringify({ error: "Empresa não informada." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const cfgResult = await getCompanyConfig(companyId, auth.user.id, corsHeaders);
+      const cfgResult = await getUserConfig(auth.user.id, corsHeaders);
       if (cfgResult instanceof Response) return cfgResult;
       apiKey = cfgResult.config.postforme_api_key;
       if (!apiKey) {
         return new Response(
-          JSON.stringify({ error: "Post for Me não configurado para esta empresa." }),
+          JSON.stringify({ error: "Post for Me não configurado na sua conta." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
