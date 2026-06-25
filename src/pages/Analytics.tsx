@@ -477,7 +477,7 @@ export default function Analytics() {
       };
 
       setStructuredInsights(newInsights);
-      userStorage.set("structured_insights", JSON.stringify(newInsights));
+      companyStorage.set(activeCompanyId, "structured_insights", JSON.stringify(newInsights));
       toast({ title: "✨ Insights estratégicos gerados!" });
     } catch (err: any) {
       toast({ title: "Erro ao gerar insights", description: err?.message || "Erro", variant: "destructive" });
@@ -597,7 +597,7 @@ export default function Analytics() {
             onClick={() => {
               const next = !enrichEnabled;
               setEnrichEnabled(next);
-              userStorage.set("enrich_analytics", String(next));
+              companyStorage.set(activeCompanyId, "enrich_analytics", String(next));
             }}
             className={enrichEnabled ? "bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white" : ""}
           >
