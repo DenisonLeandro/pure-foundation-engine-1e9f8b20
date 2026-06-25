@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { userStorage } from "@/lib/storage";
 import { setPfmActiveCompany, setBlotatoActiveCompany, setFirecrawlActiveCompany, setHiggsfieldActiveCompany, setApifyActiveCompany } from "@/lib/api";
 import { setGalleryActiveCompany } from "@/lib/gallery";
 import type { CompanyRole } from "@/lib/permissions";
+
 
 export interface Company {
   id: string;
