@@ -875,29 +875,56 @@ export type Database = {
       }
       user_configs: {
         Row: {
+          anthropic_api_key: string | null
+          apify_api_token: string | null
+          blotato_api_key: string | null
           brand_logo_url: string | null
           brand_name: string
           created_at: string
+          firecrawl_api_key: string | null
+          higgsfield_api_id: string | null
+          higgsfield_api_secret: string | null
           id: string
           onboarding_completed: boolean
+          pexels_api_key: string | null
+          postforme_api_key: string | null
+          unsplash_api_key: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          anthropic_api_key?: string | null
+          apify_api_token?: string | null
+          blotato_api_key?: string | null
           brand_logo_url?: string | null
           brand_name?: string
           created_at?: string
+          firecrawl_api_key?: string | null
+          higgsfield_api_id?: string | null
+          higgsfield_api_secret?: string | null
           id?: string
           onboarding_completed?: boolean
+          pexels_api_key?: string | null
+          postforme_api_key?: string | null
+          unsplash_api_key?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          anthropic_api_key?: string | null
+          apify_api_token?: string | null
+          blotato_api_key?: string | null
           brand_logo_url?: string | null
           brand_name?: string
           created_at?: string
+          firecrawl_api_key?: string | null
+          higgsfield_api_id?: string | null
+          higgsfield_api_secret?: string | null
           id?: string
           onboarding_completed?: boolean
+          pexels_api_key?: string | null
+          postforme_api_key?: string | null
+          unsplash_api_key?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -977,20 +1004,23 @@ export type Database = {
           anthropic_api_key: string | null
           apify_api_token: string | null
           blotato_api_key: string | null
-          company_id: string
+          brand_logo_url: string | null
+          brand_name: string
           created_at: string
           firecrawl_api_key: string | null
           higgsfield_api_id: string | null
           higgsfield_api_secret: string | null
           id: string
+          onboarding_completed: boolean
           pexels_api_key: string | null
           postforme_api_key: string | null
           unsplash_api_key: string | null
           updated_at: string
+          user_id: string | null
         }
         SetofOptions: {
           from: "*"
-          to: "company_configs"
+          to: "user_configs"
           isOneToOne: true
           isSetofReturn: false
         }
