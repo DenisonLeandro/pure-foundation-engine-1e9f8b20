@@ -49,7 +49,7 @@ const navItems = [
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
-  const { user, signOut } = useAuth();
+  const { user, signOut, accountType } = useAuth();
   const { role } = useCompany();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
