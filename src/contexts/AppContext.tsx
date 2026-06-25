@@ -2,10 +2,12 @@ import { useState, useEffect, useRef, useCallback, ReactNode } from "react";
 import type { AppConfig, IntegrationKeyPatch, IntegrationsStatus, SocialAccount, ScheduledPost } from "@/types";
 import { DEFAULT_INTEGRATIONS } from "@/types";
 import { userStorage } from "@/lib/storage";
+import { wipeKeysForUser } from "@/lib/companyStorage";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseConfigured } from "@/lib/supabase";
 import { AppContext } from "./app-context";
 import { useCompany } from "@/contexts/CompanyContext";
+
 
 // Hard ceiling for the boot loader.
 const BOOT_TIMEOUT_MS = 8000;
@@ -72,7 +74,17 @@ function purgeLegacyStorageKeys() {
     const candidates = ["pfmUserKey", "pfm_user_key", "openai_api_key", "anthropic_api_key"];
     for (const k of candidates) userStorage.remove(k);
   } catch { /* noop */ }
+  // One-shot cleanup: remove leaked cross-company data caused by the old
+  // companyStorage migration. Each company will repopulate from its own DB.
+  try {
+    const FLAG = "app_uc_reset_v1";
+    if (!localStorage.getItem(FLAG)) {
+      wipeKeysForUser(["analytics", "profile_urls", "structured_insights", "enrich_analytics"]);
+      localStorage.setItem(FLAG, "1");
+    }
+  } catch { /* noop */ }
 }
+
 
 const DEFAULT_CONFIG: AppConfig = {
   brandName: "Minha Empresa",

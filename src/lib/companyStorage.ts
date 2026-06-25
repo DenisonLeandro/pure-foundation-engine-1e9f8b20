@@ -2,8 +2,9 @@
  * companyStorage.ts — localStorage com escopo por (usuário, empresa).
  *
  * Chaves: app_uc:<userId>:<companyId>:<key>
- * Migra one-shot do userStorage (app_u:<userId>:<key>) na primeira leitura
- * para a empresa atual, preservando dados antigos sem vazar entre empresas.
+ * Cada empresa começa vazia. Não há migração automática a partir de chaves
+ * legadas globais (`app_u:<uid>:<key>` ou chaves sem prefixo), porque isso
+ * copiava dados de uma empresa para outra do mesmo dono.
  */
 
 function getCurrentUserId(): string | null {
@@ -31,31 +32,9 @@ function scopedKey(companyId: string | null | undefined, key: string): string {
   return `app_uc:${u}:${c}:${key}`;
 }
 
-function legacyUserKey(key: string): string {
-  const uid = getCurrentUserId();
-  return uid ? `app_u:${uid}:${key}` : `app_anon:${key}`;
-}
-
-/**
- * Storage por empresa. Se a chave ainda não existir para a empresa atual,
- * faz uma migração one-shot a partir do userStorage (legado), copiando
- * para a empresa ativa e removendo a chave global, de modo que outras
- * empresas do mesmo dono começam vazias.
- */
 export const companyStorage = {
   get(companyId: string | null | undefined, key: string): string | null {
-    const scoped = scopedKey(companyId, key);
-    const v = localStorage.getItem(scoped);
-    if (v !== null) return v;
-    // One-shot migration from legacy user-scoped key into current company
-    const legacy = legacyUserKey(key);
-    const lv = localStorage.getItem(legacy);
-    if (lv !== null && companyId) {
-      localStorage.setItem(scoped, lv);
-      localStorage.removeItem(legacy);
-      return lv;
-    }
-    return null;
+    return localStorage.getItem(scopedKey(companyId, key));
   },
   set(companyId: string | null | undefined, key: string, value: string): void {
     localStorage.setItem(scopedKey(companyId, key), value);
@@ -64,3 +43,34 @@ export const companyStorage = {
     localStorage.removeItem(scopedKey(companyId, key));
   },
 };
+
+/**
+ * Apaga, para o usuário atual, todas as entradas `app_uc:<uid>:*:<key>` e
+ * a versão legada `app_u:<uid>:<key>` / chave global `<key>`. Usado pela
+ * limpeza one-shot no boot para sanear contaminação cruzada entre empresas.
+ */
+export function wipeKeysForUser(keys: string[]): void {
+  try {
+    const uid = getCurrentUserId();
+    const all = Object.keys(localStorage);
+    for (const k of keys) {
+      // legacy global e legacy user-scoped
+      localStorage.removeItem(k);
+      if (uid) localStorage.removeItem(`app_u:${uid}:${k}`);
+    }
+    // todas as entradas company-scoped do usuário para esses keys
+    if (!uid) return;
+    const prefix = `app_uc:${uid}:`;
+    for (const k of all) {
+      if (!k.startsWith(prefix)) continue;
+      for (const target of keys) {
+        if (k.endsWith(`:${target}`)) {
+          localStorage.removeItem(k);
+          break;
+        }
+      }
+    }
+  } catch {
+    /* noop */
+  }
+}
