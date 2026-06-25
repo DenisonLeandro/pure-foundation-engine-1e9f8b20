@@ -27,7 +27,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApp } from "@/contexts/use-app";
-import { usePfmAccounts, usePfmPosts } from "@/hooks/use-blotato";
+import { useCompanyPfmAccounts, usePfmPosts } from "@/hooks/use-blotato";
+import { useCompany } from "@/contexts/CompanyContext";
+
 import { ALL_PLATFORMS, PLATFORMS } from "@/lib/platforms";
 import { useToast } from "@/hooks/use-toast";
 import * as api from "@/lib/api";
@@ -78,8 +80,10 @@ function platformIcon(platform: string): React.ReactNode {
 export default function Dashboard() {
   const { accounts, config, configLoading } = useApp();
   const scheduledPostsQuery = usePfmPosts({ status: "scheduled", limit: 50 });
-  const pfmAccountsQuery = usePfmAccounts();
+  const { activeCompanyId } = useCompany();
+  const pfmAccountsQuery = useCompanyPfmAccounts(activeCompanyId);
   const { toast } = useToast();
+
   const [apisBannerDismissed, setApisBannerDismissed] = useState(false);
   const showApisBanner = !configLoading && !config.integrations.postforme && !apisBannerDismissed;
 

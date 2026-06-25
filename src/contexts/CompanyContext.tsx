@@ -1,10 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 import { userStorage } from "@/lib/storage";
 import { setPfmActiveCompany, setBlotatoActiveCompany, setFirecrawlActiveCompany, setHiggsfieldActiveCompany, setApifyActiveCompany } from "@/lib/api";
 import { setGalleryActiveCompany } from "@/lib/gallery";
 import type { CompanyRole } from "@/lib/permissions";
+
 
 export interface Company {
   id: string;
@@ -40,9 +42,11 @@ const ACTIVE_KEY = "activeCompanyId";
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const [companies, setCompanies] = useState<CompanyMembership[]>([]);
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
 
   const userId = user?.id ?? null;
 
@@ -88,9 +92,23 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, [authLoading, userId, refreshCompanies]);
 
   const setActiveCompanyId = useCallback((id: string) => {
-    setActiveCompanyIdState(id);
+    setActiveCompanyIdState((prev) => {
+      if (prev !== id) {
+        // Drop any cached query that was scoped to the previous company
+        queryClient.invalidateQueries({
+          predicate: (q) =>
+            Array.isArray(q.queryKey) &&
+            q.queryKey.some((part) => typeof part === "string" && part === prev),
+        });
+        // Also drop everything that scopes by "company" namespace
+        queryClient.invalidateQueries({ queryKey: ["company"] });
+        queryClient.invalidateQueries({ queryKey: ["pfm"] });
+      }
+      return id;
+    });
     userStorage.set(ACTIVE_KEY, id);
-  }, []);
+  }, [queryClient]);
+
 
   // Mantém o módulo Post for Me ciente da empresa ativa para enviar companyId no body.
   useEffect(() => {

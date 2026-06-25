@@ -19,7 +19,9 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePfmAccounts, usePfmCreatePost } from "@/hooks/use-blotato";
+import { useCompanyPfmAccounts, usePfmCreatePost } from "@/hooks/use-blotato";
+import { useCompany } from "@/contexts/CompanyContext";
+
 import { pfmCreateUploadUrl, aiAssist } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import { brandTextHint, type BrandProfile } from "@/lib/brand";
@@ -55,7 +57,9 @@ export function OutputScreen({
   onSaved?: (id: string) => void;
 }) {
   const { user } = useAuth();
-  const { data: accounts = [], isLoading: acctLoading } = usePfmAccounts();
+  const { activeCompanyId } = useCompany();
+  const { data: accounts = [], isLoading: acctLoading } = useCompanyPfmAccounts(activeCompanyId);
+
   const createPost = usePfmCreatePost();
 
   const [slideIdx, setSlideIdx] = useState(0);

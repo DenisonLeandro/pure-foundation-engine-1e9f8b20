@@ -5,27 +5,31 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConnectAccountDialog } from "@/components/ConnectAccountDialog";
-import { usePfmAccounts } from "@/hooks/use-blotato";
+import { useCompanyPfmAccounts } from "@/hooks/use-blotato";
+import { useCompany } from "@/contexts/CompanyContext";
 import { PLATFORMS } from "@/lib/platforms";
-import { pfmDisconnectAccount } from "@/lib/api";
+import { unlinkSocialAccountFromCompany } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function ManageAccountsView() {
-  const pfmAccountsQuery = usePfmAccounts();
+  const { activeCompanyId } = useCompany();
+  const pfmAccountsQuery = useCompanyPfmAccounts(activeCompanyId);
   const [connectOpen, setConnectOpen] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const handleDisconnect = async (pfmId: string, platformName: string) => {
-    if (!confirm(`Desconectar conta do ${platformName}?`)) return;
+    if (!activeCompanyId) return;
+    if (!confirm(`Remover ${platformName} desta empresa?`)) return;
     setDisconnectingId(pfmId);
     try {
-      await pfmDisconnectAccount(pfmId);
-      queryClient.invalidateQueries({ queryKey: ["pfm", "accounts"] });
-      toast({ title: `${platformName} desconectado` });
+      await unlinkSocialAccountFromCompany(activeCompanyId, pfmId);
+      queryClient.invalidateQueries({ queryKey: ["company"] });
+      toast({ title: `${platformName} removido` });
     } catch (err) {
+
       toast({ title: "Erro ao desconectar", description: err instanceof Error ? err.message : "", variant: "destructive" });
     } finally {
       setDisconnectingId(null);
