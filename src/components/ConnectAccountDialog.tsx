@@ -161,16 +161,12 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
         (a) => (a.platform === apiPlatform || a.platform === platform) && !linked.has(a.id)
       );
 
-      // Preferência: conta nova no PFM (não existia antes do click).
-      let target = candidates.find((a) => !knownIdsRef.current.has(a.id));
-
-      // Fallback: usuário reautorizou uma conta já existente no PFM para esta empresa
-      // (caso típico: a conta foi conectada antes em OUTRA empresa do mesmo dono).
-      // Só aceitamos esse fallback depois que o popup já fechou, para evitar
-      // vincular automaticamente sem o usuário concluir o OAuth.
-      if (!target && popupRef.current && popupRef.current.closed && candidates.length > 0) {
-        target = candidates[0];
-      }
+      // SÓ vinculamos quando o PFM expõe um pfm_account_id NOVO (não existia
+      // antes do clique). Isso garante que o popup de login da rede apareceu
+      // e o usuário concluiu o OAuth com uma conta de fato. Reaproveitar uma
+      // conta já existente no PFM (vinda de outra empresa do mesmo dono) é
+      // feito via botão explícito "Vincular a esta empresa" na lista.
+      const target = candidates.find((a) => !knownIdsRef.current.has(a.id));
 
       if (target) {
         const newAcc = target;
