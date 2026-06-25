@@ -79,6 +79,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
 
   // ── Estado ────────────────────────────────────────────────────
   const [accounts, setAccounts]       = useState<api.PfmAccount[]>([]);
+  const [linkedIds, setLinkedIds]     = useState<Set<string>>(new Set());
   const [loading, setLoading]         = useState(false);
   const [connecting, setConnecting]   = useState<Platform | null>(null);
   const [authUrl, setAuthUrl]         = useState<string | null>(null);   // fallback link
@@ -94,6 +95,8 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   // Refs
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollTimeoutRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // knownIds = PFM accounts JÁ vinculados à empresa ativa. Quando o polling
+  // detecta um PFM account fora desse set, ele é vinculado à empresa atual.
   const knownIdsRef     = useRef<Set<string>>(new Set());
   const popupRef        = useRef<Window | null>(null);
 
@@ -103,14 +106,21 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
     if (pollTimeoutRef.current)  { clearTimeout(pollTimeoutRef.current);   pollTimeoutRef.current = null; }
   }, []);
 
-  // ── Carregar contas ────────────────────────────────────────────
-  const loadAccounts = useCallback(async (): Promise<api.PfmAccount[]> => {
+  // ── Carregar contas (PFM + vínculos da empresa) ───────────────
+  const loadAccounts = useCallback(async (): Promise<{ accs: api.PfmAccount[]; linked: Set<string> }> => {
     try {
-      const accs = await api.pfmListAccounts();
+      const [accs, links] = await Promise.all([
+        api.pfmListAccounts(),
+        activeCompanyId
+          ? api.listCompanySocialAccounts(activeCompanyId).catch(() => [])
+          : Promise.resolve([] as Awaited<ReturnType<typeof api.listCompanySocialAccounts>>),
+      ]);
+      const linked = new Set(links.map((l) => l.pfm_account_id));
       setAccounts(accs);
-      return accs;
-    } catch { return []; }
-  }, []);
+      setLinkedIds(linked);
+      return { accs, linked };
+    } catch { return { accs: [], linked: new Set<string>() }; }
+  }, [activeCompanyId]);
 
   // ── Inicializar ao abrir ───────────────────────────────────────
   useEffect(() => {
@@ -119,7 +129,10 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
       setError(null);
       setAuthUrl(null);
       setLoading(true);
-      loadAccounts().then((accs) => {
+      setProfileUrls(loadProfileUrls(activeCompanyId));
+      loadAccounts().then(({ accs }) => {
+        // Snapshot de TODOS os ids PFM no momento da abertura — usado para
+        // distinguir "conta nova autorizada agora" de "conta já existente no PFM".
         knownIdsRef.current = new Set(accs.map((a) => a.id));
         setLoading(false);
       });
@@ -130,7 +143,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
       }
     }
     return stopPolling;
-  }, [open, loadAccounts, stopPolling]);
+  }, [open, activeCompanyId, loadAccounts, stopPolling]);
 
   // ── Iniciar polling ────────────────────────────────────────────
   // Polling corre INDEPENDENTE do popup. O popup fecha ao redirecionar
@@ -140,18 +153,34 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
     stopPolling();
 
     pollIntervalRef.current = setInterval(async () => {
-      const accs = await loadAccounts();
-      const newAcc = accs.find((a) => !knownIdsRef.current.has(a.id));
+      const { accs, linked } = await loadAccounts();
+      const apiPlatform = platform === "twitter" ? "x" : platform;
 
-      if (newAcc) {
-        // ✅ Nova conta detectada
+      // Candidatos: contas PFM dessa plataforma que NÃO estão vinculadas à empresa ativa.
+      const candidates = accs.filter(
+        (a) => (a.platform === apiPlatform || a.platform === platform) && !linked.has(a.id)
+      );
+
+      // Preferência: conta nova no PFM (não existia antes do click).
+      let target = candidates.find((a) => !knownIdsRef.current.has(a.id));
+
+      // Fallback: usuário reautorizou uma conta já existente no PFM para esta empresa
+      // (caso típico: a conta foi conectada antes em OUTRA empresa do mesmo dono).
+      // Só aceitamos esse fallback depois que o popup já fechou, para evitar
+      // vincular automaticamente sem o usuário concluir o OAuth.
+      if (!target && popupRef.current && popupRef.current.closed && candidates.length > 0) {
+        target = candidates[0];
+      }
+
+      if (target) {
+        const newAcc = target;
         stopPolling();
         knownIdsRef.current.add(newAcc.id);
 
         const pfmPlatform = (newAcc.platform === "x" ? "twitter" : newAcc.platform) as Platform;
         const cfg = PLATFORMS[pfmPlatform] || { name: newAcc.platform };
 
-        // Link conta à empresa ativa
+        // Vincula à empresa ativa (idempotente via upsert).
         if (activeCompanyId) {
           try {
             await api.linkSocialAccountToCompany(
@@ -161,8 +190,10 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
               newAcc.username,
               newAcc.name || undefined
             );
-            // Invalidate company social accounts query
             queryClient.invalidateQueries({ queryKey: ["company", "social-accounts"] });
+            queryClient.invalidateQueries({ queryKey: ["company", "pfm-accounts"] });
+            queryClient.invalidateQueries({ queryKey: ["company", "pfm-posts"] });
+            await loadAccounts();
           } catch (err) {
             console.error("[ConnectAccountDialog] Erro ao linkar conta à empresa:", err);
           }
@@ -221,7 +252,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
           handle: bskyHandle,
           app_password: bskyPassword,
         });
-        const accs = await loadAccounts();
+        const { accs } = await loadAccounts();
         knownIdsRef.current = new Set(accs.map((a) => a.id));
 
         // Link Bluesky account to company
@@ -306,33 +337,36 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   }, [stopPolling]);
 
   // ── Desconectar conta ─────────────────────────────────────────
+  // Apenas remove o vínculo desta conta com a EMPRESA ATIVA.
+  // A conta continua existindo no Post for Me e pode estar vinculada a
+  // outras empresas do mesmo dono — não chamamos pfm_disconnect_account
+  // para não derrubá-la globalmente.
   const handleDisconnect = useCallback(async (account: api.PfmAccount) => {
-    if (!confirm(`Desconectar ${PLATFORMS[account.platform as Platform]?.name ?? account.platform}?`)) return;
+    if (!confirm(`Desvincular ${PLATFORMS[account.platform as Platform]?.name ?? account.platform} desta empresa?`)) return;
     setDisconnecting(account.id);
     try {
-      await api.pfmDisconnectAccount(account.id);
-      // Also remove from company_social_accounts
       if (activeCompanyId) {
-        try {
-          await api.unlinkSocialAccountFromCompany(activeCompanyId, account.id);
-        } catch (e) {
-          console.warn("[ConnectAccountDialog] Erro ao remover de company_social_accounts:", e);
-        }
+        await api.unlinkSocialAccountFromCompany(activeCompanyId, account.id);
       }
-      const accs = await loadAccounts();
+      const { accs } = await loadAccounts();
       knownIdsRef.current = new Set(accs.map((a) => a.id));
       queryClient.invalidateQueries({ queryKey: ["company", "social-accounts"] });
-      toast({ title: "Conta desconectada" });
+      queryClient.invalidateQueries({ queryKey: ["company", "pfm-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["company", "pfm-posts"] });
+      toast({ title: "Conta desvinculada desta empresa" });
     } catch (err) {
-      toast({ title: "Erro ao desconectar", description: err instanceof Error ? err.message : "", variant: "destructive" });
+      toast({ title: "Erro ao desvincular", description: err instanceof Error ? err.message : "", variant: "destructive" });
     } finally {
       setDisconnecting(null);
     }
   }, [loadAccounts, toast, activeCompanyId, queryClient]);
 
   // ── Computed ──────────────────────────────────────────────────
+  // Mostra como conectadas APENAS as contas vinculadas à empresa ativa.
   const connectedMap = new Map(
-    accounts.map((a) => [(a.platform === "x" ? "twitter" : a.platform) as Platform, a])
+    accounts
+      .filter((a) => linkedIds.has(a.id))
+      .map((a) => [(a.platform === "x" ? "twitter" : a.platform) as Platform, a])
   );
 
   const updateProfileUrl = (platform: string, url: string) => {

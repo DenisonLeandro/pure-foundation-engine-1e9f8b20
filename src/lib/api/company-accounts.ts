@@ -55,13 +55,16 @@ export async function linkSocialAccountToCompany(
 ): Promise<CompanySocialAccount> {
   const { data, error } = await supabase
     .from("company_social_accounts")
-    .insert({
-      company_id: companyId,
-      pfm_account_id: pfmAccountId,
-      platform,
-      username,
-      full_name: fullName || null,
-    })
+    .upsert(
+      {
+        company_id: companyId,
+        pfm_account_id: pfmAccountId,
+        platform,
+        username,
+        full_name: fullName || null,
+      },
+      { onConflict: "company_id,pfm_account_id" }
+    )
     .select()
     .single();
 

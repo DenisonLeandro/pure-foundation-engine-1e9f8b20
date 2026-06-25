@@ -1,33 +1,33 @@
-## Problema
+## Plano
 
-Os agendamentos do Denison sumiram da `/agenda` (e do card do Dashboard) depois que o `useCompanyPfmPosts` passou a cruzar os posts do Post for Me com as contas vinculadas à empresa em `company_social_accounts`.
+Corrigir o modal **Conectar Redes Sociais** para que ele mostre como conectadas apenas as contas vinculadas à empresa ativa.
 
-As 5 contas do Denison estão corretamente vinculadas na tabela (TikTok/YouTube/Twitter/Facebook/Instagram → empresa `504437ac…`), então o vínculo está OK. O filtro é que está cego para o formato real do post devolvido pela API do Post for Me.
+### O que vou ajustar
 
-Hoje o filtro só procura o id da conta nestes campos:
-- `social_account_id`, `account_id`, `account.id`, `target.account_id`, `social_account_ids[0]`
+1. **Separar “contas existentes no Post for Me” de “contas vinculadas à empresa”**
+   - Hoje o modal chama a lista geral de contas e por isso a empresa Teste enxerga contas do Denison.
+   - Vou carregar também `company_social_accounts` da empresa ativa e usar isso para decidir o estado visual do botão.
 
-Mas o endpoint `pfm_create_post` recebe `social_accounts: string[]` (plural), então a resposta do `pfm_list_posts` traz o id em campos como `social_accounts[]` (array de strings ou de objetos `{id}`), `socialAccounts`, `socialAccountIds`, `account_configurations[].social_account_id` etc. Nenhum desses bate com o filtro atual → todo post cai fora e a agenda fica vazia.
+2. **Na empresa Teste, mostrar “Conectar” para redes ainda não vinculadas**
+   - Se uma conta existe no Post for Me, mas não está ligada à empresa Teste, ela não deve aparecer como conectada/reconectar.
+   - Ela só deve aparecer como conectada depois de ser vinculada à empresa Teste.
 
-## Correção (apenas leitura/UI, sem mexer em nada que já funciona)
+3. **Ao conectar/reconectar, vincular a conta detectada à empresa atual**
+   - Depois do OAuth, o sistema continuará detectando a nova conta.
+   - Se a conta já existir no Post for Me, mas ainda não estiver vinculada à empresa atual, ela será registrada em `company_social_accounts` para essa empresa.
 
-Arquivo: `src/hooks/use-blotato.ts`, função `useCompanyPfmPosts`.
+4. **Não apagar nem migrar nada automaticamente**
+   - As contas já vinculadas ao Denison continuam lá.
+   - A empresa Teste fica limpa até você conectar contas nela.
+   - Nenhum post agendado/publicado será alterado.
 
-1. Extrair **todos** os ids possíveis de conta de cada post, cobrindo as variações:
-   - `social_account_id`, `socialAccountId`, `account_id`, `accountId`
-   - `account.id`, `target.account_id`, `target.social_account_id`
-   - `social_accounts` (array de string OU array de `{id|social_account_id}`)
-   - `socialAccounts`, `social_account_ids`, `socialAccountIds`, `account_ids`
-   - `account_configurations[].social_account_id` / `accountConfigurations[].socialAccountId`
-2. Manter um post se **qualquer** id extraído estiver em `linkedIds`.
-3. Se a extração não achar **nenhum** id (post sem metadata reconhecível), manter o post visível — é o mesmo comportamento de antes da quebra e é seguro porque a chave do Post for Me já é por dono. Posts com ids reconhecidos mas de contas de outra empresa continuam filtrados normalmente.
-4. Adicionar um `console.debug("[pfm-posts] sample", items[0])` temporário (1 linha) só para confirmar o shape real na primeira carga; removo depois que você confirmar que voltou.
+### Arquivos previstos
 
-Nada muda em:
-- agendamento, criação, publicação, edição de posts
-- isolamento das outras entidades por empresa (fontes, analytics, autopilot, dashboard)
-- empresa Teste continua zerada (as contas dela não existem em `company_social_accounts`)
+- `src/components/ConnectAccountDialog.tsx`
+- Possivelmente `src/lib/api/company-accounts.ts` para tornar o vínculo idempotente, evitando erro se tentar vincular a mesma conta duas vezes.
 
-## Resultado esperado
+### Resultado esperado
 
-Ao trocar para o Denison, `/agenda` e o card "Próximos posts" do Dashboard voltam a listar exatamente os mesmos agendados de antes — nada foi apagado, só estavam sendo escondidos pelo filtro.
+- Abrindo o modal na empresa **Denison**, aparecem as contas do Denison conectadas.
+- Abrindo na empresa **Teste**, essas contas não aparecem como conectadas; os botões ficam em **Conectar**.
+- Ao conectar uma rede na empresa Teste, ela passa a pertencer somente à empresa Teste dentro do app.
