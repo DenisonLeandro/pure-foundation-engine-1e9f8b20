@@ -85,6 +85,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   const [authUrl, setAuthUrl]         = useState<string | null>(null);   // fallback link
   const [error, setError]             = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [linkingExisting, setLinkingExisting] = useState<string | null>(null);
   const [profileUrls, setProfileUrls] = useState<Record<string, string>>(() => loadProfileUrls(activeCompanyId));
 
   // Bluesky
