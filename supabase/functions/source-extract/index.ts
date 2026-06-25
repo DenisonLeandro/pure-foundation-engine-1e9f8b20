@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
-import { getCompanyConfig } from "../_shared/company-secrets.ts";
+import { getUserConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Source Extract — substitui blotato_create_source para extração de conteúdo.
@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const cfg = await getCompanyConfig(companyId, auth.user.id, corsHeaders);
+      const cfg = await getUserConfig(auth.user.id, corsHeaders);
       if (cfg instanceof Response) return cfg;
       const firecrawlKey = cfg.config.firecrawl_api_key;
       if (!firecrawlKey) {

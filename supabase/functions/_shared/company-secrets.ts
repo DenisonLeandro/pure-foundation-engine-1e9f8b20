@@ -121,6 +121,33 @@ export async function requireCompanyRole(
 }
 
 /**
+ * Busca chaves de API do usuário em user_configs.
+ * NUNCA devolva este objeto (ou subcampos sensíveis) no body da resposta da função.
+ *
+ * Retorna config vazia (todas as chaves null) caso o usuário ainda não tenha registro.
+ */
+export async function getUserConfig(
+  userId: string,
+  corsHeaders: Record<string, string> = {},
+): Promise<Response | { config: CompanyConfigRow }> {
+  const admin = adminClient();
+  if (admin instanceof Response) return admin;
+
+  const { data, error } = await admin
+    .from("user_configs")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    return jsonResponse({ error: "Falha ao carregar config do usuário" }, 500, corsHeaders);
+  }
+
+  const config = (data ?? { user_id: userId }) as CompanyConfigRow;
+  return { config };
+}
+
+/**
  * Valida membership e retorna a linha de company_configs para uso INTERNO da edge.
  * NUNCA devolva este objeto (ou subcampos sensíveis) no body da resposta da função.
  *

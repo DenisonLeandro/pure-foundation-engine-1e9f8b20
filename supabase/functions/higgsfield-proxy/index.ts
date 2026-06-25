@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
-import { getCompanyConfig } from "../_shared/company-secrets.ts";
+import { getUserConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Higgsfield AI Video Generation Proxy
@@ -181,7 +181,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const cfg = await getCompanyConfig(companyId, authResult.user.id, corsHeaders);
+    const cfg = await getUserConfig(authResult.user.id, corsHeaders);
     if (cfg instanceof Response) return cfg;
 
     const apiId = cfg.config.higgsfield_api_id;
