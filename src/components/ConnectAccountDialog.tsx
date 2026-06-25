@@ -487,6 +487,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
             const isConnecting = connecting === platform;
             const isBluesky  = platform === "bluesky";
             const isDisconnecting = disconnecting === account?.id;
+            const reusable = !isConnected ? (reusableByPlatform.get(platform) || []) : [];
 
             return (
               <div key={platform} className="space-y-1">
