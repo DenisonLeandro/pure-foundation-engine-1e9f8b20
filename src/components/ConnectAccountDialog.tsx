@@ -130,8 +130,10 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
       setAuthUrl(null);
       setLoading(true);
       setProfileUrls(loadProfileUrls(activeCompanyId));
-      loadAccounts().then(({ linked }) => {
-        knownIdsRef.current = new Set(linked);
+      loadAccounts().then(({ accs }) => {
+        // Snapshot de TODOS os ids PFM no momento da abertura — usado para
+        // distinguir "conta nova autorizada agora" de "conta já existente no PFM".
+        knownIdsRef.current = new Set(accs.map((a) => a.id));
         setLoading(false);
       });
     } else {
