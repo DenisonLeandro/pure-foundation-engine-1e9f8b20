@@ -337,33 +337,36 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   }, [stopPolling]);
 
   // ── Desconectar conta ─────────────────────────────────────────
+  // Apenas remove o vínculo desta conta com a EMPRESA ATIVA.
+  // A conta continua existindo no Post for Me e pode estar vinculada a
+  // outras empresas do mesmo dono — não chamamos pfm_disconnect_account
+  // para não derrubá-la globalmente.
   const handleDisconnect = useCallback(async (account: api.PfmAccount) => {
-    if (!confirm(`Desconectar ${PLATFORMS[account.platform as Platform]?.name ?? account.platform}?`)) return;
+    if (!confirm(`Desvincular ${PLATFORMS[account.platform as Platform]?.name ?? account.platform} desta empresa?`)) return;
     setDisconnecting(account.id);
     try {
-      await api.pfmDisconnectAccount(account.id);
-      // Also remove from company_social_accounts
       if (activeCompanyId) {
-        try {
-          await api.unlinkSocialAccountFromCompany(activeCompanyId, account.id);
-        } catch (e) {
-          console.warn("[ConnectAccountDialog] Erro ao remover de company_social_accounts:", e);
-        }
+        await api.unlinkSocialAccountFromCompany(activeCompanyId, account.id);
       }
-      const accs = await loadAccounts();
+      const { accs } = await loadAccounts();
       knownIdsRef.current = new Set(accs.map((a) => a.id));
       queryClient.invalidateQueries({ queryKey: ["company", "social-accounts"] });
-      toast({ title: "Conta desconectada" });
+      queryClient.invalidateQueries({ queryKey: ["company", "pfm-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["company", "pfm-posts"] });
+      toast({ title: "Conta desvinculada desta empresa" });
     } catch (err) {
-      toast({ title: "Erro ao desconectar", description: err instanceof Error ? err.message : "", variant: "destructive" });
+      toast({ title: "Erro ao desvincular", description: err instanceof Error ? err.message : "", variant: "destructive" });
     } finally {
       setDisconnecting(null);
     }
   }, [loadAccounts, toast, activeCompanyId, queryClient]);
 
   // ── Computed ──────────────────────────────────────────────────
+  // Mostra como conectadas APENAS as contas vinculadas à empresa ativa.
   const connectedMap = new Map(
-    accounts.map((a) => [(a.platform === "x" ? "twitter" : a.platform) as Platform, a])
+    accounts
+      .filter((a) => linkedIds.has(a.id))
+      .map((a) => [(a.platform === "x" ? "twitter" : a.platform) as Platform, a])
   );
 
   const updateProfileUrl = (platform: string, url: string) => {
