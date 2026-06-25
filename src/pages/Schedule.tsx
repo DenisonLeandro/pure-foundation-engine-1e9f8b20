@@ -26,7 +26,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { usePfmPosts } from "@/hooks/use-blotato";
+import { useCompanyPfmPosts } from "@/hooks/use-blotato";
+import { useCompany } from "@/contexts/CompanyContext";
+
 import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { PLATFORMS } from "@/lib/platforms";
@@ -54,14 +56,16 @@ interface PfmPost {
 export default function Schedule() {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const postsQuery = usePfmPosts({ status: "scheduled", limit: 50 });
+  const { activeCompanyId } = useCompany();
+  const postsQuery = useCompanyPfmPosts(activeCompanyId, { status: "scheduled", limit: 50 });
   const [currentDate, setCurrentDate] = useState(new Date());
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Parse posts from PFM response
-  const posts: PfmPost[] = (postsQuery.data?.data || []).filter(
-    (p: any) => p.status === "scheduled" && p.scheduled_at
+  // useCompanyPfmPosts já devolve array filtrado pela empresa ativa.
+  const posts: PfmPost[] = ((postsQuery.data as any[]) || []).filter(
+    (p: any) => p.status === "scheduled" && p.scheduled_at,
   );
+
 
   const pfmAuthExpired = postsQuery.isError && isPfmAuthError(postsQuery.error);
 

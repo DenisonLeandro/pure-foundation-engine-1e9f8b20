@@ -27,8 +27,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApp } from "@/contexts/use-app";
-import { useCompanyPfmAccounts, usePfmPosts } from "@/hooks/use-blotato";
+import { useCompanyPfmAccounts, useCompanyPfmPosts } from "@/hooks/use-blotato";
 import { useCompany } from "@/contexts/CompanyContext";
+import { companyStorage } from "@/lib/companyStorage";
+
 
 import { ALL_PLATFORMS, PLATFORMS } from "@/lib/platforms";
 import { useToast } from "@/hooks/use-toast";
@@ -79,10 +81,11 @@ function platformIcon(platform: string): React.ReactNode {
 
 export default function Dashboard() {
   const { accounts, config, configLoading } = useApp();
-  const scheduledPostsQuery = usePfmPosts({ status: "scheduled", limit: 50 });
   const { activeCompanyId } = useCompany();
+  const scheduledPostsQuery = useCompanyPfmPosts(activeCompanyId, { status: "scheduled", limit: 50 });
   const pfmAccountsQuery = useCompanyPfmAccounts(activeCompanyId);
   const { toast } = useToast();
+
 
   const [apisBannerDismissed, setApisBannerDismissed] = useState(false);
   const showApisBanner = !configLoading && !config.integrations.postforme && !apisBannerDismissed;
@@ -114,17 +117,18 @@ export default function Dashboard() {
   const [aiInsights, setAiInsights] = useState<string>("");
   const [isFetchingInsights, setIsFetchingInsights] = useState(false);
 
-  // Persist analytics in localStorage so data survives page reload
+  // Persist analytics escopado por empresa (não vaza entre empresas do mesmo dono).
   const [analytics, setAnalyticsState] = useState<ProfileAnalytics[]>(() => {
     try {
-      const saved = userStorage.get("analytics");
+      const saved = companyStorage.get(activeCompanyId, "analytics");
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
   const setAnalytics = (data: ProfileAnalytics[]) => {
     setAnalyticsState(data);
-    userStorage.set("analytics", JSON.stringify(data));
+    companyStorage.set(activeCompanyId, "analytics", JSON.stringify(data));
   };
+
 
   const connectedCount = pfmAccountsQuery.data?.length ?? 0;
   const totalPlatforms = ALL_PLATFORMS.length;
