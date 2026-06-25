@@ -85,6 +85,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   const [authUrl, setAuthUrl]         = useState<string | null>(null);   // fallback link
   const [error, setError]             = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [linkingExisting, setLinkingExisting] = useState<string | null>(null);
   const [profileUrls, setProfileUrls] = useState<Record<string, string>>(() => loadProfileUrls(activeCompanyId));
 
   // Bluesky
@@ -161,16 +162,12 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
         (a) => (a.platform === apiPlatform || a.platform === platform) && !linked.has(a.id)
       );
 
-      // Preferência: conta nova no PFM (não existia antes do click).
-      let target = candidates.find((a) => !knownIdsRef.current.has(a.id));
-
-      // Fallback: usuário reautorizou uma conta já existente no PFM para esta empresa
-      // (caso típico: a conta foi conectada antes em OUTRA empresa do mesmo dono).
-      // Só aceitamos esse fallback depois que o popup já fechou, para evitar
-      // vincular automaticamente sem o usuário concluir o OAuth.
-      if (!target && popupRef.current && popupRef.current.closed && candidates.length > 0) {
-        target = candidates[0];
-      }
+      // SÓ vinculamos quando o PFM expõe um pfm_account_id NOVO (não existia
+      // antes do clique). Isso garante que o popup de login da rede apareceu
+      // e o usuário concluiu o OAuth com uma conta de fato. Reaproveitar uma
+      // conta já existente no PFM (vinda de outra empresa do mesmo dono) é
+      // feito via botão explícito "Vincular a esta empresa" na lista.
+      const target = candidates.find((a) => !knownIdsRef.current.has(a.id));
 
       if (target) {
         const newAcc = target;
@@ -361,6 +358,40 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
     }
   }, [loadAccounts, toast, activeCompanyId, queryClient]);
 
+  // ── Vincular conta PFM existente à empresa ativa ──────────────
+  // Caminho explícito para reaproveitar uma conta que já foi autorizada no
+  // Post for Me em OUTRA empresa do mesmo dono — sem refazer OAuth.
+  const handleLinkExisting = useCallback(async (account: api.PfmAccount) => {
+    if (!activeCompanyId) return;
+    setLinkingExisting(account.id);
+    try {
+      await api.linkSocialAccountToCompany(
+        activeCompanyId,
+        account.id,
+        account.platform,
+        account.username,
+        account.name || undefined
+      );
+      queryClient.invalidateQueries({ queryKey: ["company", "social-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["company", "pfm-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["company", "pfm-posts"] });
+      await loadAccounts();
+      const cfg = PLATFORMS[(account.platform === "x" ? "twitter" : account.platform) as Platform];
+      toast({
+        title: `${cfg?.name ?? account.platform} vinculado a esta empresa`,
+        description: account.username ? `@${account.username}` : account.name || "",
+      });
+    } catch (err) {
+      toast({
+        title: "Erro ao vincular conta",
+        description: err instanceof Error ? err.message : "",
+        variant: "destructive",
+      });
+    } finally {
+      setLinkingExisting(null);
+    }
+  }, [activeCompanyId, loadAccounts, queryClient, toast]);
+
   // ── Computed ──────────────────────────────────────────────────
   // Mostra como conectadas APENAS as contas vinculadas à empresa ativa.
   const connectedMap = new Map(
@@ -368,6 +399,17 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
       .filter((a) => linkedIds.has(a.id))
       .map((a) => [(a.platform === "x" ? "twitter" : a.platform) as Platform, a])
   );
+
+  // Contas PFM que existem no Post for Me mas NÃO estão vinculadas à empresa
+  // ativa — podem ser reaproveitadas via "Vincular a esta empresa".
+  const reusableByPlatform = new Map<Platform, api.PfmAccount[]>();
+  for (const a of accounts) {
+    if (linkedIds.has(a.id)) continue;
+    const p = (a.platform === "x" ? "twitter" : a.platform) as Platform;
+    const arr = reusableByPlatform.get(p) || [];
+    arr.push(a);
+    reusableByPlatform.set(p, arr);
+  }
 
   const updateProfileUrl = (platform: string, url: string) => {
     const updated = { ...profileUrls, [platform]: url };
@@ -445,6 +487,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
             const isConnecting = connecting === platform;
             const isBluesky  = platform === "bluesky";
             const isDisconnecting = disconnecting === account?.id;
+            const reusable = !isConnected ? (reusableByPlatform.get(platform) || []) : [];
 
             return (
               <div key={platform} className="space-y-1">
@@ -519,6 +562,36 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
                     )}
                   </div>
                 </div>
+
+                {/* ── Contas PFM disponíveis para reaproveitar ─── */}
+                {reusable.length > 0 && !isBluesky && (
+                  <div className="ml-[52px] space-y-1.5 rounded-lg border border-dashed border-violet-500/30 bg-violet-500/5 p-2">
+                    <p className="text-[10px] text-muted-foreground">
+                      Já autorizada no Post for Me em outra empresa — vincule sem refazer login:
+                    </p>
+                    {reusable.map((acc) => {
+                      const isLinking = linkingExisting === acc.id;
+                      return (
+                        <div key={acc.id} className="flex items-center justify-between gap-2">
+                          <p className="text-xs text-foreground truncate">
+                            {acc.username ? `@${acc.username}` : acc.name || acc.id}
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-[10px] shrink-0"
+                            disabled={!!connecting || isLinking || !activeCompanyId}
+                            onClick={() => handleLinkExisting(acc)}
+                          >
+                            {isLinking
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <><Link2 className="h-3 w-3 mr-1" />Vincular a esta empresa</>}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* ── Bluesky: form especial ───────────────────── */}
                 {isBluesky && !isConnected && (
