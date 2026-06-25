@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Zap, Loader2, AlertCircle, Mail, Lock, User, Lock as LockIcon } from "lucide-react";
-import { FadeIn, Float, ShimmerText, ScaleIn } from "@/components/AnimatedComponents";
+import { Zap, Loader2, AlertCircle, Mail, Lock, User, Lock as LockIcon, Crown, UserCheck } from "lucide-react";
+import { FadeIn, Float, ShimmerText } from "@/components/AnimatedComponents";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, type AccountType } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
 export default function Signup() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const [accountType, setAccountType] = useState<AccountType>("owner");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,7 +30,6 @@ export default function Signup() {
         .select("registration_enabled")
         .limit(1)
         .maybeSingle();
-      // Sem row → habilitado por padrão
       setRegistrationEnabled(data ? data.registration_enabled : true);
     })();
   }, []);
@@ -46,7 +47,7 @@ export default function Signup() {
     setLoading(true);
     setError("");
 
-    const { error: err } = await signUp(email.trim(), password, name.trim());
+    const { error: err } = await signUp(email.trim(), password, name.trim(), accountType);
     if (err) {
       if (err.includes("already registered")) {
         setError("Este email já está cadastrado. Tente fazer login.");
@@ -55,9 +56,8 @@ export default function Signup() {
       }
       setLoading(false);
     } else {
-      // Com confirmação de email desativada, o signup já loga automaticamente.
-      // Redireciona para o setup/onboarding.
-      navigate("/setup");
+      // Funcionário vai aguardar convite; dono segue para o setup.
+      navigate(accountType === "employee" ? "/aguardando-convite" : "/setup");
     }
   };
 
@@ -93,6 +93,35 @@ export default function Signup() {
     );
   }
 
+  const TypeCard = ({
+    value, icon: Icon, title, desc,
+  }: { value: AccountType; icon: typeof Crown; title: string; desc: string }) => {
+    const active = accountType === value;
+    return (
+      <button
+        type="button"
+        onClick={() => setAccountType(value)}
+        className={cn(
+          "flex-1 rounded-xl border p-3 text-left transition-all",
+          active
+            ? "border-violet-500 bg-violet-500/10 shadow-sm"
+            : "border-border hover:border-violet-500/40 hover:bg-accent/40"
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <div className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-lg",
+            active ? "bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white" : "bg-muted text-muted-foreground"
+          )}>
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="text-sm font-semibold">{title}</div>
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground leading-snug">{desc}</p>
+      </button>
+    );
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden">
       <AnimatedBackground />
@@ -116,6 +145,29 @@ export default function Signup() {
         <Card className="border-border/50 bg-card/80 backdrop-blur-sm">
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Tipo de conta</Label>
+                <div className="flex gap-2">
+                  <TypeCard
+                    value="owner"
+                    icon={Crown}
+                    title="Sou dono"
+                    desc="Crio empresas, gerencio chaves de API e convido funcionários."
+                  />
+                  <TypeCard
+                    value="employee"
+                    icon={UserCheck}
+                    title="Sou funcionário"
+                    desc="Vou ser convidado por um dono para trabalhar na empresa dele."
+                  />
+                </div>
+                {accountType === "employee" && (
+                  <p className="text-xs text-muted-foreground">
+                    Após criar a conta, peça ao dono para te convidar usando o email cadastrado.
+                  </p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="name">Nome</Label>
                 <div className="relative">
