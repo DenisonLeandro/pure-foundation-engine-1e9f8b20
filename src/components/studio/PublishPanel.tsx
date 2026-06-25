@@ -8,7 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { usePfmAccounts, usePfmCreatePost } from "@/hooks/use-blotato";
+import { useCompanyPfmAccounts, usePfmCreatePost } from "@/hooks/use-blotato";
+import { useCompany } from "@/contexts/CompanyContext";
+
 import { pfmCreateUploadUrl, aiAssist } from "@/lib/api";
 import { PLATFORMS } from "@/lib/platforms";
 import type { Platform } from "@/types";
@@ -52,7 +54,9 @@ export function PublishPanel({
   /** Quando presente, marca esta creation como publicada em vez de criar nova linha na Galeria. */
   creationId?: string;
 }) {
-  const { data: accounts = [], isLoading, isError, error } = usePfmAccounts();
+  const { activeCompanyId } = useCompany();
+  const { data: accounts = [], isLoading, isError, error } = useCompanyPfmAccounts(activeCompanyId);
+
   const pfmAuthExpired = isError && isPfmAuthError(error);
   const createPost = usePfmCreatePost();
   const { articles } = useArticles();

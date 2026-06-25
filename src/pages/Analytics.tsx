@@ -36,7 +36,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useApp } from "@/contexts/use-app";
-import { usePfmAccounts } from "@/hooks/use-blotato";
+import { useCompanyPfmAccounts } from "@/hooks/use-blotato";
+import { useCompany } from "@/contexts/CompanyContext";
+
 import { supabase } from "@/integrations/supabase/client";
 import * as api from "@/lib/api";
 import type { ProfileAnalytics } from "@/lib/api";
@@ -321,7 +323,9 @@ export default function Analytics() {
   const { config } = useApp();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const pfmAccountsQuery = usePfmAccounts();
+  const { activeCompanyId } = useCompany();
+  const pfmAccountsQuery = useCompanyPfmAccounts(activeCompanyId);
+
 
   // Analytics data (persisted)
   const [analytics, setAnalyticsState] = useState<ProfileAnalytics[]>(() => {

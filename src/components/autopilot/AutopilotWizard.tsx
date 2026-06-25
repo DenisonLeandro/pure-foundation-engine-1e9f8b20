@@ -23,7 +23,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { PLATFORMS } from "@/lib/platforms";
 import { HF_VIDEO_MODELS } from "@/lib/higgsfield-models";
-import { usePfmAccounts } from "@/hooks/use-blotato";
+import { useCompanyPfmAccounts } from "@/hooks/use-blotato";
 import { useSaveAutopilotConfig } from "@/hooks/use-autopilot";
 import { useApp } from "@/contexts/use-app";
 import type { AutopilotConfig, AutopilotVisualFormat, AutopilotRecurrence, Platform } from "@/types";
@@ -94,7 +94,7 @@ export function AutopilotWizard({ existingConfig, onSaved, onCancel }: Props) {
   const { config: appConfig } = useApp();
   const [step, setStep] = useState(0);
   const saveConfig = useSaveAutopilotConfig();
-  const pfmAccounts = usePfmAccounts();
+  const pfmAccounts = useCompanyPfmAccounts(activeCompanyId);
 
   const hasFirecrawlKey = !!appConfig.integrations.firecrawl;
   const hasPfmKey = !!appConfig.integrations.postforme;
