@@ -151,7 +151,10 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
     stopPolling();
 
     pollIntervalRef.current = setInterval(async () => {
-      const accs = await loadAccounts();
+      const { accs } = await loadAccounts();
+      // Detecta qualquer conta PFM ainda não vinculada à empresa ativa.
+      // Funciona tanto para OAuth novo quanto para conta já existente no PFM
+      // que está sendo autorizada para uma empresa diferente.
       const newAcc = accs.find((a) => !knownIdsRef.current.has(a.id));
 
       if (newAcc) {
