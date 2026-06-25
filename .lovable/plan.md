@@ -1,33 +1,38 @@
-## Plano
+## Problema
 
-Corrigir o modal **Conectar Redes Sociais** para que ele mostre como conectadas apenas as contas vinculadas à empresa ativa.
+Na empresa **Teste**, ao clicar em **Conectar** no Instagram (ou outra rede), o popup do OAuth nem chega a ser realmente usado: o app vincula automaticamente a conta `@denisonleandro.adv` que já existia no Post for Me (vinda da empresa Denison). O usuário quer que o **popup de login do Instagram apareça normalmente** para autenticar uma conta **diferente**.
 
-### O que vou ajustar
+## Causa
 
-1. **Separar “contas existentes no Post for Me” de “contas vinculadas à empresa”**
-   - Hoje o modal chama a lista geral de contas e por isso a empresa Teste enxerga contas do Denison.
-   - Vou carregar também `company_social_accounts` da empresa ativa e usar isso para decidir o estado visual do botão.
+Em `src/components/ConnectAccountDialog.tsx`, dentro de `startPolling`, há um fallback que vincula qualquer conta PFM existente assim que o popup fecha:
 
-2. **Na empresa Teste, mostrar “Conectar” para redes ainda não vinculadas**
-   - Se uma conta existe no Post for Me, mas não está ligada à empresa Teste, ela não deve aparecer como conectada/reconectar.
-   - Ela só deve aparecer como conectada depois de ser vinculada à empresa Teste.
+```ts
+if (!target && popupRef.current && popupRef.current.closed && candidates.length > 0) {
+  target = candidates[0]; // ← link silencioso
+}
+```
 
-3. **Ao conectar/reconectar, vincular a conta detectada à empresa atual**
-   - Depois do OAuth, o sistema continuará detectando a nova conta.
-   - Se a conta já existir no Post for Me, mas ainda não estiver vinculada à empresa atual, ela será registrada em `company_social_accounts` para essa empresa.
+Como o PFM não cria registro novo numa reautorização, isso casa também o caso "popup fechou sem autorização" e link a conta antiga sem o usuário fazer login.
 
-4. **Não apagar nem migrar nada automaticamente**
-   - As contas já vinculadas ao Denison continuam lá.
-   - A empresa Teste fica limpa até você conectar contas nela.
-   - Nenhum post agendado/publicado será alterado.
+## Correção
 
-### Arquivos previstos
+### `src/components/ConnectAccountDialog.tsx`
 
-- `src/components/ConnectAccountDialog.tsx`
-- Possivelmente `src/lib/api/company-accounts.ts` para tornar o vínculo idempotente, evitando erro se tentar vincular a mesma conta duas vezes.
+1. **Remover o fallback automático** dentro de `startPolling`. O polling só vincula quando aparece um `pfm_account_id` **novo** (que não estava em `knownIdsRef` no momento do clique). Assim, o popup do Instagram abre normalmente, o usuário faz login com a conta que quiser, e só essa nova conta é vinculada à empresa Teste.
 
-### Resultado esperado
+2. **Quando timeout/cancel acontecer**, apenas limpar estado (`connecting`, `authUrl`) sem linkar nada. Mensagem de timeout permanece informativa.
 
-- Abrindo o modal na empresa **Denison**, aparecem as contas do Denison conectadas.
-- Abrindo na empresa **Teste**, essas contas não aparecem como conectadas; os botões ficam em **Conectar**.
-- Ao conectar uma rede na empresa Teste, ela passa a pertencer somente à empresa Teste dentro do app.
+3. Para o caso legítimo "quero reaproveitar uma conta que já existe no PFM em outra empresa do mesmo dono", adicionar um botão explícito **"Vincular a esta empresa"** ao lado de cada `PfmAccount` listado que ainda não está em `linkedIds`. Esse botão chama `api.linkSocialAccountToCompany(...)` diretamente, sem OAuth, e invalida os caches `company/social-accounts`, `company/pfm-accounts`, `company/pfm-posts`. É o único caminho que reaproveita conta sem novo login — e é explícito.
+
+### O que NÃO muda
+
+- Popup OAuth, polling pelo novo `pfm_account_id`, e link automático quando a conta é realmente nova continuam iguais.
+- Bluesky (sem OAuth) segue igual.
+- "Desvincular" continua removendo só o vínculo com a empresa ativa (sem desconectar do PFM).
+- Nenhuma vinculação existente de outras empresas é tocada — Denison mantém tudo.
+
+## Resultado esperado
+
+- Empresa **Teste** → clicar em "Conectar" no Instagram → popup do Instagram abre e pede login. Após autorizar com outra conta, **essa nova conta** é vinculada à Teste.
+- Fechar o popup sem autorizar → **nada acontece**.
+- Para reaproveitar `@denisonleandro.adv` na Teste sem novo login, usar o botão explícito "Vincular a esta empresa" que aparece junto da conta listada.
