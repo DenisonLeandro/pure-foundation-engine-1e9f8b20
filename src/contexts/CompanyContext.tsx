@@ -94,20 +94,29 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const setActiveCompanyId = useCallback((id: string) => {
     setActiveCompanyIdState((prev) => {
       if (prev !== id) {
-        // Drop any cached query that was scoped to the previous company
         queryClient.invalidateQueries({
           predicate: (q) =>
             Array.isArray(q.queryKey) &&
             q.queryKey.some((part) => typeof part === "string" && part === prev),
         });
-        // Also drop everything that scopes by "company" namespace
-        queryClient.invalidateQueries({ queryKey: ["company"] });
-        queryClient.invalidateQueries({ queryKey: ["pfm"] });
+        // Namespaces escopados por empresa que precisam ser drenados
+        for (const ns of [
+          "company",
+          "pfm",
+          "saved_sources",
+          "autopilot",
+          "analytics_snapshots_latest",
+          "articles",
+          "brand_profiles",
+        ]) {
+          queryClient.invalidateQueries({ queryKey: [ns] });
+        }
       }
       return id;
     });
     userStorage.set(ACTIVE_KEY, id);
   }, [queryClient]);
+
 
 
   // Mantém o módulo Post for Me ciente da empresa ativa para enviar companyId no body.

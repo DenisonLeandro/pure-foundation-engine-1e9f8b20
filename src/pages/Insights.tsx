@@ -26,6 +26,8 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { useCompany } from "@/contexts/CompanyContext";
+
 import { PLATFORMS } from "@/lib/platforms";
 import type { Platform } from "@/types";
 import { marked } from "marked";
@@ -83,12 +85,15 @@ export default function Insights() {
   const [aiResponse, setAiResponse] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  const { activeCompanyId } = useCompany();
   const snapshotsQuery = useQuery({
-    queryKey: ["analytics_snapshots_latest"],
+    queryKey: ["analytics_snapshots_latest", activeCompanyId],
     queryFn: async () => {
+      if (!activeCompanyId) return [];
       const { data, error } = await supabase
         .from("analytics_snapshots")
         .select("*")
+        .eq("company_id", activeCompanyId)
         .order("fetched_at", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -100,8 +105,10 @@ export default function Insights() {
       }
       return unique;
     },
+    enabled: !!activeCompanyId,
     staleTime: 60_000,
   });
+
 
   const snapshots = snapshotsQuery.data || [];
   const hasData = snapshots.length > 0;

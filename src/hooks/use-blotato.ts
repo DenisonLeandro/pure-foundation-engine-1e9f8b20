@@ -198,6 +198,43 @@ export function usePfmPosts(opts?: { platform?: string; status?: string; limit?:
   });
 }
 
+/**
+ * Lista posts PFM intersectados com as contas vinculadas à empresa ativa.
+ * Versão por empresa do usePfmPosts.
+ */
+export function useCompanyPfmPosts(
+  companyId: string | null,
+  opts?: { platform?: string; status?: string; limit?: number },
+) {
+  const { isConfigured } = useApp();
+  return useQuery({
+    queryKey: ["company", "pfm-posts", companyId, opts],
+    queryFn: async () => {
+      if (!companyId) return [] as any[];
+      const [postsRes, links] = await Promise.all([
+        api.pfmListPosts(opts),
+        api.listCompanySocialAccounts(companyId, opts?.platform),
+      ]);
+      const linkedIds = new Set(links.map((l) => l.pfm_account_id));
+      const items: any[] = Array.isArray(postsRes)
+        ? postsRes
+        : (postsRes?.data ?? postsRes?.items ?? postsRes?.posts ?? []);
+      return items.filter((p: any) => {
+        const accId =
+          p?.social_account_id ||
+          p?.account_id ||
+          p?.account?.id ||
+          p?.target?.account_id ||
+          (Array.isArray(p?.social_account_ids) ? p.social_account_ids[0] : null);
+        return accId ? linkedIds.has(accId) : false;
+      });
+    },
+    enabled: isConfigured && !!companyId,
+    staleTime: 30_000,
+  });
+}
+
+
 export function usePfmPostResults(opts?: { social_account_id?: string; platform?: string; limit?: number }) {
   return useQuery({
     queryKey: ["pfm", "results", opts],

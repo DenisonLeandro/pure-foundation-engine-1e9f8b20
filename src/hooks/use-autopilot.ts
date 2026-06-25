@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import * as api from "@/lib/api";
 import type {
@@ -11,7 +12,7 @@ import type {
 // ─── Query Keys ─────────────────────────────────────────────────
 
 const keys = {
-  configs: ["autopilot", "configs"] as const,
+  configs: (companyId: string | null) => ["autopilot", "configs", companyId] as const,
   config: (id: string) => ["autopilot", "config", id] as const,
   calendars: (configId: string) => ["autopilot", "calendars", configId] as const,
   posts: (calendarId: string) => ["autopilot", "posts", calendarId] as const,
@@ -21,18 +22,19 @@ const keys = {
 
 export function useAutopilotConfigs() {
   const { user } = useAuth();
+  const { activeCompanyId } = useCompany();
   return useQuery({
-    queryKey: keys.configs,
+    queryKey: keys.configs(activeCompanyId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from("autopilot_configs")
         .select("*")
-        .eq("user_id", user!.id)
+        .eq("company_id", activeCompanyId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as AutopilotConfig[];
     },
-    enabled: !!user,
+    enabled: !!user && !!activeCompanyId,
   });
 }
 
@@ -55,10 +57,16 @@ export function useAutopilotConfig(id: string | null) {
 
 export function useSaveAutopilotConfig() {
   const { user } = useAuth();
+  const { activeCompanyId } = useCompany();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (config: Partial<AutopilotConfig> & { id?: string }) => {
-      const payload = { ...config, user_id: user!.id, updated_at: new Date().toISOString() };
+      const payload = {
+        ...config,
+        user_id: user!.id,
+        company_id: activeCompanyId,
+        updated_at: new Date().toISOString(),
+      };
 
       if (config.id) {
         const { data, error } = await supabase
@@ -80,7 +88,7 @@ export function useSaveAutopilotConfig() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.configs });
+      qc.invalidateQueries({ queryKey: ["autopilot"] });
     },
   });
 }
@@ -93,7 +101,6 @@ export function useToggleAutopilot() {
         is_active,
         updated_at: new Date().toISOString(),
       };
-      // If activating and no next_run, set it to now (trigger on next cron)
       if (is_active) {
         update.next_run_at = new Date().toISOString();
       }
@@ -104,7 +111,7 @@ export function useToggleAutopilot() {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.configs });
+      qc.invalidateQueries({ queryKey: ["autopilot"] });
     },
   });
 }
@@ -150,7 +157,6 @@ export function useApproveCalendar() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (calendarId: string) => {
-      // Approve all draft posts
       const { error: postErr } = await supabase
         .from("autopilot_posts")
         .update({ status: "approved", updated_at: new Date().toISOString() })
@@ -158,7 +164,6 @@ export function useApproveCalendar() {
         .eq("status", "draft");
       if (postErr) throw postErr;
 
-      // Update calendar status
       const { error: calErr } = await supabase
         .from("autopilot_calendars")
         .update({ status: "approved", updated_at: new Date().toISOString() })
