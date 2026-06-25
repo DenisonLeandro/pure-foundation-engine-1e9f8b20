@@ -73,10 +73,14 @@ export function CompanySwitcher() {
             {company.id === activeCompanyId && <Check className="h-4 w-4 text-primary" />}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate("/criar-empresa")} className="gap-2">
-          <Plus className="h-4 w-4" /> Criar nova empresa
-        </DropdownMenuItem>
+        {canCreateCompany && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate("/criar-empresa")} className="gap-2">
+              <Plus className="h-4 w-4" /> Criar nova empresa
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
