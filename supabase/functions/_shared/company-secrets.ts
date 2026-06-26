@@ -156,6 +156,44 @@ export async function getUserConfig(
 }
 
 /**
+ * Busca chaves do DONO da empresa ativa (não do usuário logado).
+ * Garante que funcionários/admins usem as chaves cadastradas pelo owner.
+ * Valida que o requester é membro ativo da empresa.
+ */
+export async function getCompanyOwnerConfig(
+  companyId: string | undefined | null,
+  requesterUserId: string,
+  corsHeaders: Record<string, string> = {},
+): Promise<Response | { config: CompanyConfigRow; ownerUserId: string }> {
+  const membership = await validateCompanyMembership(companyId, requesterUserId, corsHeaders);
+  if (membership instanceof Response) return membership;
+
+  const admin = adminClient();
+  if (admin instanceof Response) return admin;
+
+  const { data: ownerRow, error: ownerErr } = await admin
+    .from("company_members")
+    .select("user_id")
+    .eq("company_id", companyId as string)
+    .eq("role", "owner")
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (ownerErr) {
+    return jsonResponse({ error: "Falha ao localizar dono da empresa" }, 500, corsHeaders);
+  }
+  if (!ownerRow?.user_id) {
+    return jsonResponse({ error: "Empresa sem dono ativo" }, 400, corsHeaders);
+  }
+
+  const cfg = await getUserConfig(ownerRow.user_id as string, corsHeaders);
+  if (cfg instanceof Response) return cfg;
+  return { config: cfg.config, ownerUserId: ownerRow.user_id as string };
+}
+
+/**
  * Valida membership e retorna a linha de company_configs para uso INTERNO da edge.
  * NUNCA devolva este objeto (ou subcampos sensíveis) no body da resposta da função.
  *
