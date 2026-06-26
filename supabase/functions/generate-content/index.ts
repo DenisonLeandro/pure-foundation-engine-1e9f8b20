@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
  * AI Content Generation Edge Function
@@ -42,6 +43,7 @@ interface RequestBody {
     examplePosts?: string[];
     systemPrompt?: string;
   };
+  companyId?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -62,7 +64,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { prompt, platforms, tone, language, sourceContent, brandProfile } = body;
+    const { prompt, platforms, tone, language, sourceContent, brandProfile, companyId } = body;
 
     if (!prompt || !platforms?.length) {
       return new Response(
@@ -216,6 +218,17 @@ Responda com JSON puro.`;
     }
 
     console.log("[generate-content] Success!");
+
+    const totalTokens = data.usage?.total_tokens;
+    await logApiUsage({
+      companyId,
+      userId: auth.user.id,
+      service: "gemini",
+      operation: "default",
+      units: typeof totalTokens === "number" ? totalTokens / 1000 : 2,
+      unitType: "1k_tokens",
+      metadata: { model: "google/gemini-3-flash-preview", platforms, totalTokens },
+    });
 
     return new Response(JSON.stringify(parsed), {
       status: 200,
