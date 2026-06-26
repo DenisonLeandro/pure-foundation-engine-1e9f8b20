@@ -3,9 +3,9 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 /**
  * Painel oculto de custos — não exige login de usuário, exige apenas a
- * senha definida no secret COST_DASHBOARD_PASSWORD. Lê api_usage_logs
- * com SERVICE_ROLE (a tabela tem RLS sem policies, então só esta função
- * consegue ler os dados).
+ * senha guardada em public.app_secrets (key = 'cost_dashboard_password').
+ * Lê api_usage_logs e app_secrets com SERVICE_ROLE (ambas têm RLS sem
+ * policies, então só esta função consegue ler os dados).
  */
 
 const corsHeaders = {
@@ -33,12 +33,22 @@ Deno.serve(async (req: Request) => {
   try {
     const { password, days = 30 } = (await req.json()) as RequestBody;
 
-    const expected = Deno.env.get("COST_DASHBOARD_PASSWORD");
+    const url = Deno.env.get("SUPABASE_URL")!;
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin = createClient(url, key);
+
+    const { data: secretRow } = await admin
+      .from("app_secrets")
+      .select("value")
+      .eq("key", "cost_dashboard_password")
+      .maybeSingle();
+
+    const expected = secretRow?.value;
     if (!expected) {
-      return new Response(JSON.stringify({ error: "Painel não configurado (defina COST_DASHBOARD_PASSWORD)." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Painel não configurado. Defina a senha na tabela app_secrets." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
     if (!password || password !== expected) {
       // Resposta genérica — não diferenciar "senha errada" de "sem acesso".
@@ -47,10 +57,6 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const url = Deno.env.get("SUPABASE_URL")!;
-    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const admin = createClient(url, key);
 
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await admin
