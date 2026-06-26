@@ -5,33 +5,46 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
  * fluxo principal da função que chama: qualquer erro aqui é apenas logado
  * no console, nunca propagado.
  *
- * Preços abaixo são estimativas fixas (USD) — ajuste conforme tabela real
- * do provedor. Servem para visibilidade aproximada, não para faturamento.
+ * Preços abaixo são estimativas (USD) com base em pesquisa de tabelas
+ * públicas dos provedores (jun/2026). Ainda são aproximações — provedores
+ * mudam preço sem aviso e alguns cobram por assinatura/crédito, não por
+ * chamada. Servem para visibilidade de custo, não para faturamento exato.
  */
 export const PRICE_TABLE: Record<string, Record<string, number>> = {
   openai_image: {
-    // custo aproximado por imagem gerada (gpt-image, quality medium)
-    default: 0.04,
+    // gpt-image-1.5, 1024x1024, quality medium (a função rebaixa "high" p/
+    // "medium" no servidor por limite de tempo da edge function)
+    default: 0.034,
   },
   higgsfield: {
-    // custo aproximado por geração, varia por modelo/duração
-    "text-to-image": 0.02,
+    // Estimativas via preços públicos de revendedores (Segmind), variam
+    // bastante por modelo/duração — tratar como aproximação grosseira.
+    "text-to-image": 0.15,
     "image-to-video": 0.35,
-    "text-to-video": 0.5,
-    default: 0.2,
+    "text-to-video": 0.86, // ex: speech-to-video / modelos premium
+    default: 0.3,
   },
   firecrawl: {
-    default: 0.005, // por busca
+    // Search: 2 créditos por 10 resultados; plano Standard ~$0.00083/crédito
+    default: 0.002,
   },
   postforme: {
-    default: 0.02, // por post publicado
+    // Plano de entrada: $10/mês por 1.000 posts publicados com sucesso
+    default: 0.01,
   },
   blotato: {
-    default: 0.02, // por post publicado
+    // Sem cobrança por post na API (incluída na assinatura, a partir de
+    // $29/mês); valor abaixo é só uma fração estimada de uso típico.
+    default: 0.02,
   },
   gemini: {
-    // por 1k tokens (input+output combinados, aproximação)
-    default: 0.0005,
+    // Texto (generate-content), modelo gemini-3-flash-preview:
+    // $0.50/1M tokens de entrada, $3.00/1M de saída. Como só temos o total
+    // combinado, usamos uma média ponderada (~mais saída que entrada).
+    default: 0.0017,
+    // Imagem (fallback Lovable AI Gateway), gemini-2.5-flash-image
+    // ("nano banana"): ~$0.039 por imagem 1024x1024.
+    image: 0.039,
   },
 };
 
