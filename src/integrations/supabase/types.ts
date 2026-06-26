@@ -85,6 +85,71 @@ export type Database = {
           },
         ]
       }
+      api_usage_logs: {
+        Row: {
+          company_id: string | null
+          cost_usd: number
+          created_at: string
+          id: string
+          metadata: Json
+          operation: string
+          service: string
+          unit_type: string
+          units: number
+          user_id: string | null
+        }
+        Insert: {
+          company_id?: string | null
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          metadata?: Json
+          operation: string
+          service: string
+          unit_type?: string
+          units?: number
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string | null
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          metadata?: Json
+          operation?: string
+          service?: string
+          unit_type?: string
+          units?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_usage_logs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      app_secrets: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       articles: {
         Row: {
           category: string | null
