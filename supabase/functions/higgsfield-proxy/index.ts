@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
 import { getUserConfig } from "../_shared/company-secrets.ts";
+import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
  * Higgsfield AI Video Generation Proxy
@@ -222,6 +223,12 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      await logApiUsage({
+        companyId, userId: authResult.user.id, service: "higgsfield",
+        operation: "text-to-image", units: 1, unitType: "generation",
+        metadata: { model },
+      });
+
       return new Response(JSON.stringify(data), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -264,6 +271,12 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      await logApiUsage({
+        companyId, userId: authResult.user.id, service: "higgsfield",
+        operation: "text-to-video", units: Number(body.duration) || 1, unitType: "second",
+        metadata: { model },
+      });
+
       return new Response(JSON.stringify(data), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -297,6 +310,12 @@ Deno.serve(async (req: Request) => {
           status: res.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+
+      await logApiUsage({
+        companyId, userId: authResult.user.id, service: "higgsfield",
+        operation: "image-to-video", units: Number(body.duration) || 1, unitType: "second",
+        metadata: { model },
+      });
 
       return new Response(JSON.stringify(data), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -335,6 +354,12 @@ Deno.serve(async (req: Request) => {
           status: imgRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+
+      await logApiUsage({
+        companyId, userId: authResult.user.id, service: "higgsfield",
+        operation: "text-to-image", units: 1, unitType: "generation",
+        metadata: { model: imageModel, step: "text-to-video-step1" },
+      });
 
       // Return both step IDs — frontend polls image first, then creates video
       return new Response(JSON.stringify({

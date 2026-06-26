@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
 import { getUserConfig } from "../_shared/company-secrets.ts";
+import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
  * Firecrawl Search Proxy
@@ -134,6 +135,18 @@ Deno.serve(async (req: Request) => {
     }));
 
     console.log(`[firecrawl-search] Found ${results.length} results`);
+
+    if (!validateKey) {
+      await logApiUsage({
+        companyId,
+        userId: auth.user.id,
+        service: "firecrawl",
+        operation: "default",
+        units: 1,
+        unitType: "search",
+        metadata: { query, limit, resultCount: results.length },
+      });
+    }
 
     return new Response(JSON.stringify({ success: true, results }), {
       status: 200,

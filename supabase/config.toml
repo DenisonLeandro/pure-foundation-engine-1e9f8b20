@@ -1,1 +1,4 @@
 project_id = "pgimbjfdxwefahxmpdpc"
+
+[functions.cost-dashboard]
+verify_jwt = false

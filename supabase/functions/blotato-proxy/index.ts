@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
 import { getUserConfig } from "../_shared/company-secrets.ts";
+import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
  * Blotato REST API Proxy — modelo seguro por empresa.
@@ -316,6 +317,14 @@ Deno.serve(async (req: Request) => {
 
     // Unwrap nested response if configured (e.g. { item: { ... } } → { ... })
     const result = route.unwrap && data[route.unwrap] ? data[route.unwrap] : data;
+
+    if (tool === "blotato_create_post") {
+      await logApiUsage({
+        companyId, userId: auth.user.id, service: "blotato",
+        operation: "default", units: 1, unitType: "post",
+        metadata: { tool },
+      });
+    }
 
     return new Response(JSON.stringify(result), {
       status: 200,

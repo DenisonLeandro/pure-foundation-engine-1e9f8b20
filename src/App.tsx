@@ -40,6 +40,7 @@ const Team = lazy(() => import("./pages/Team"));
 const Articles = lazy(() => import("./pages/Articles"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Trust = lazy(() => import("./pages/Trust"));
+const CostDashboard = lazy(() => import("./pages/CostDashboard"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -193,6 +194,9 @@ const App = () => (
 
                       {/* Public trust page */}
                       <Route path="/trust" element={<RoutePage><Trust /></RoutePage>} />
+
+                      {/* Painel oculto de custos — sem link em nenhum menu, protegido por senha própria */}
+                      <Route path="/painel-custos-interno" element={<CostDashboard />} />
 
                       {/* Redirects */}
                       <Route path="/" element={<RootRedirect />} />

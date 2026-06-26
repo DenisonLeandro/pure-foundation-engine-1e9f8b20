@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
  * OpenAI Image Generation proxy.
@@ -45,6 +46,7 @@ interface RequestBody {
   model?: string;
   quality?: string;     // gpt-image: "low" | "medium" | "high" | "auto"
   background?: string;  // "transparent" | "opaque" | "auto"
+  companyId?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -64,7 +66,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { prompt, size = "1024x1024", n = 1, model, quality, background } = body;
+    const { prompt, size = "1024x1024", n = 1, model, quality, background, companyId } = body;
 
     if (!prompt?.trim()) {
       return new Response(JSON.stringify({ error: "Missing 'prompt'" }), {
@@ -120,6 +122,16 @@ Deno.serve(async (req: Request) => {
             d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url
           )
           .filter(Boolean);
+
+        await logApiUsage({
+          companyId,
+          userId: auth.user.id,
+          service: "gemini",
+          operation: "image",
+          units: images.length,
+          unitType: "image",
+          metadata: { model: "google/gemini-2.5-flash-image", fallback: true },
+        });
 
         return new Response(JSON.stringify({ images, model: "google/gemini-2.5-flash-image" }), {
           status: 200,
@@ -179,6 +191,16 @@ Deno.serve(async (req: Request) => {
         d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url
       )
       .filter(Boolean);
+
+    await logApiUsage({
+      companyId,
+      userId: auth.user.id,
+      service: "openai_image",
+      operation: "default",
+      units: images.length,
+      unitType: "image",
+      metadata: { model: payload.model, size, quality: safeQuality },
+    });
 
     return new Response(JSON.stringify({ images, model: payload.model }), {
       status: 200,

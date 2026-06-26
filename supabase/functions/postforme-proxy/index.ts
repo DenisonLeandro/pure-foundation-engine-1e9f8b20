@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
 import { getUserConfig } from "../_shared/company-secrets.ts";
+import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
  * Post for Me API Proxy
@@ -364,6 +365,14 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: message, details: data }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    if (tool === "pfm_create_post") {
+      await logApiUsage({
+        companyId, userId: auth.user.id, service: "postforme",
+        operation: "default", units: 1, unitType: "post",
+        metadata: { tool },
+      });
     }
 
     return new Response(JSON.stringify(data), {
