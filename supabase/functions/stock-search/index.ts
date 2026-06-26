@@ -63,6 +63,7 @@ Deno.serve(async (req: Request) => {
 
     const apiKey = cfgResult.config.pexels_api_key;
     if (!apiKey) {
+      console.warn("[stock-search] pexels_api_key ausente", { companyId, ownerUserId: cfgResult.ownerUserId, requesterUserId: auth.user.id });
       return new Response(
         JSON.stringify({ error: "Pexels não configurado para esta empresa." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
