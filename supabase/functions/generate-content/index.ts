@@ -104,6 +104,9 @@ Deno.serve(async (req: Request) => {
 
     const systemPrompt = `Você é uma agência de marketing digital completa. Crie uma campanha de conteúdo em ${lang}.${brandContext}
 
+REGRA MÁXIMA (prioridade sobre todas as outras abaixo):
+- Se a mensagem do usuário contiver uma linha "TÍTULO EXATO (...)" com um texto entre aspas, esse texto é uma ORDEM LITERAL: use-o exatamente como está escrito — sem corrigir, sem reescrever, sem parafrasear, sem trocar uma palavra — como título do carrossel ("carousel.title") e/ou heading do primeiro slide. NUNCA troque o título exigido por uma versão "mais criativa" sua.
+
 REGRAS IMPORTANTES:
 - OBRIGATÓRIO: Todo o conteúdo DEVE ser em português brasileiro (pt-BR). Nunca gere textos em inglês ou outro idioma.
 - Tom: ${toneGuide}
@@ -127,6 +130,14 @@ REGRAS DE LEGENDA (CRÍTICAS — evite o "tom genérico de IA"):
 DIRETRIZES POR PLATAFORMA:
 ${platformInstructions}
 
+ESTILO VISUAL ("moodSuggestion") — escolha 1 com base no TOM do tema, não use sempre o mesmo:
+- "institutional": temas jurídicos, sérios, corporativos, formais → tipografia sóbria, sem brilho.
+- "editorial": temas de marca/lifestyle/autoridade, tom elegante e confiante.
+- "energetic": temas leves, divertidos, esportivos, datas comemorativas, entretenimento → tipografia bold em caixa alta, tom vibrante.
+- "modern": temas de tecnologia, inovação, negócios modernos.
+- "minimal": temas calmos, bem-estar, reflexivos, com pouco texto.
+Escolha o que realmente combina com o TEMA recebido — dois temas diferentes (ex.: um post jurídico e um post sobre um evento esportivo) NUNCA devem receber o mesmo moodSuggestion.
+
 FORMATO DE RESPOSTA (JSON puro):
 {
   "posts": {
@@ -140,6 +151,7 @@ FORMATO DE RESPOSTA (JSON puro):
   },
   "imageKeywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
   "visualSuggestion": "<tipo: tutorial-carousel | quote-card | infographic | slideshow>",
+  "moodSuggestion": "<institutional | editorial | energetic | modern | minimal>",
   "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"]
 }`;
 
@@ -213,6 +225,7 @@ Responda com JSON puro.`;
         carousel: { title: prompt, slides: [{ heading: prompt, body: textContent.slice(0, 100) }] },
         imageKeywords: prompt.split(" ").slice(0, 5),
         visualSuggestion: "tutorial-carousel",
+        moodSuggestion: "editorial",
         hashtags: [],
       };
     }

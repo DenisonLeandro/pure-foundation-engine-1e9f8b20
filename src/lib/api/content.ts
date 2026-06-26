@@ -44,6 +44,7 @@ export interface GenerateContentResult {
   };
   imageKeywords?: string[];
   visualSuggestion?: string;
+  moodSuggestion?: string;
   hashtags?: string[];
 }
 

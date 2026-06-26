@@ -209,6 +209,7 @@ export async function renderDocOffscreen(doc: StudioDoc, brand: RenderBrand | nu
     zIndex: "-1",
   });
   document.body.appendChild(container);
+  if (document.fonts?.ready) await document.fonts.ready.catch(() => {});
 
   const urls: string[] = [];
   try {
