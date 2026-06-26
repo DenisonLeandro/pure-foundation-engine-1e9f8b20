@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
-import { getUserConfig } from "../_shared/company-secrets.ts";
+import { getCompanyOwnerConfig } from "../_shared/company-secrets.ts";
 import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const cfg = await getUserConfig(auth.user.id, corsHeaders);
+      const cfg = await getCompanyOwnerConfig(companyId, auth.user.id, corsHeaders);
       if (cfg instanceof Response) return cfg;
       apiKey = cfg.config.firecrawl_api_key;
       if (!apiKey) {

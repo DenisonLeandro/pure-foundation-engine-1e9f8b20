@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
-import { getUserConfig } from "../_shared/company-secrets.ts";
+import { getCompanyOwnerConfig } from "../_shared/company-secrets.ts";
 import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
@@ -306,7 +306,7 @@ Deno.serve(async (req: Request) => {
       }
       apiKey = headerKey;
     } else {
-      const cfgResult = await getUserConfig(auth.user.id, corsHeaders);
+      const cfgResult = await getCompanyOwnerConfig(companyId, auth.user.id, corsHeaders);
       if (cfgResult instanceof Response) return cfgResult;
       apiKey = cfgResult.config.postforme_api_key;
       if (!apiKey) {
