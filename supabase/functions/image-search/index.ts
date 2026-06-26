@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
-import { getUserConfig } from "../_shared/company-secrets.ts";
+import { getCompanyOwnerConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Image Search Edge Function
@@ -163,7 +163,7 @@ Deno.serve(async (req: Request) => {
     let hfApiSecret: string | null = null;
 
     if (companyId) {
-      const cfg = await getUserConfig(authResult.user.id, corsHeaders);
+      const cfg = await getCompanyOwnerConfig(companyId, authResult.user.id, corsHeaders);
       if (cfg instanceof Response) return cfg; // 403 se não for membro
       hfApiId = cfg.config.higgsfield_api_id;
       hfApiSecret = cfg.config.higgsfield_api_secret;

@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
-import { getUserConfig } from "../_shared/company-secrets.ts";
+import { getCompanyOwnerConfig } from "../_shared/company-secrets.ts";
 
 /**
  * Stock Image Search — banco de imagens REAL (Pexels).
@@ -58,11 +58,12 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const cfgResult = await getUserConfig(auth.user.id, corsHeaders);
+    const cfgResult = await getCompanyOwnerConfig(companyId, auth.user.id, corsHeaders);
     if (cfgResult instanceof Response) return cfgResult; // 400/403/500
 
     const apiKey = cfgResult.config.pexels_api_key;
     if (!apiKey) {
+      console.warn("[stock-search] pexels_api_key ausente", { companyId, ownerUserId: cfgResult.ownerUserId, requesterUserId: auth.user.id });
       return new Response(
         JSON.stringify({ error: "Pexels não configurado para esta empresa." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
