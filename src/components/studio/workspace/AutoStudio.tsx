@@ -67,6 +67,14 @@ interface Brief {
   topic: string;
   objective: string;
   platforms: string[];
+  /** Título/frase EXATA que o usuário exigiu (entre aspas, "título: X" etc.) — se houver, deve ser respeitada literalmente, não reescrita pela IA. */
+  literalTitle: string | null;
+}
+
+/** Dicas criativas vindas do generate-content (Gemini) — antes calculadas mas nunca usadas no prompt de imagem. */
+interface CreativeHints {
+  imageKeywords?: string[];
+  visualSuggestion?: string;
 }
 
 interface AutoStudioProps {
@@ -185,7 +193,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const parseBrief = async (text: string): Promise<Brief> => {
     try {
       const { json } = await aiAssist({
-        system: `Extraia da solicitação um JSON com: format ("post"|"carousel"|"image"|"card"|"video"), count (nº de slides; carrossel use o número pedido ou 5, senão 1), topic (tema curto), objective (objetivo/foco; ex: engajamento, vendas), platforms (array; default ["instagram"]). Responda APENAS o JSON.`,
+        system: `Extraia da solicitação um JSON com: format ("post"|"carousel"|"image"|"card"|"video"), count (nº de slides; carrossel use o número pedido ou 5, senão 1), topic (tema curto), objective (objetivo/foco; ex: engajamento, vendas), platforms (array; default ["instagram"]), literalTitle (string ou null — SOMENTE se o usuário especificou um título/frase EXATA que deve aparecer literalmente, ex: entre aspas, ou após "título:", "com o título", "chamando", "intitulado". Copie a frase EXATAMENTE como o usuário escreveu, sem corrigir nem reescrever. Se não houver título exato pedido, use null). Responda APENAS o JSON.`,
         prompt: text, expectJson: true, temperature: 0.2,
       });
       const j = (json || {}) as Partial<Brief>;
@@ -196,19 +204,26 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         topic: j.topic || text,
         objective: j.objective || "engajamento",
         platforms: Array.isArray(j.platforms) && j.platforms.length ? j.platforms : ["instagram"],
+        literalTitle: typeof j.literalTitle === "string" && j.literalTitle.trim() ? j.literalTitle.trim() : null,
       };
     } catch {
-      return { format: "post", count: 1, topic: text, objective: "engajamento", platforms: ["instagram"] };
+      return { format: "post", count: 1, topic: text, objective: "engajamento", platforms: ["instagram"], literalTitle: null };
     }
   };
 
   /** Gera N scene briefs únicos para um carrossel — garante variação visual entre slides. */
-  const generateSceneBriefs = async (topic: string, objective: string, headings: string[], styleHint: string): Promise<string[]> => {
+  const generateSceneBriefs = async (
+    topic: string, objective: string, headings: string[], styleHint: string, hints?: CreativeHints,
+  ): Promise<string[]> => {
     try {
+      const hintsCtx = [
+        hints?.visualSuggestion ? `Sugestão de direção visual da curadoria de conteúdo: ${hints.visualSuggestion}.` : "",
+        hints?.imageKeywords?.length ? `Palavras-chave visuais sugeridas: ${hints.imageKeywords.join(", ")}.` : "",
+      ].filter(Boolean).join(" ");
       const { json } = await aiAssist({
-        system: `Você é diretor de arte. Crie um JSON {"scenes":[...]} com EXATAMENTE ${headings.length} cenas visuais distintas para um carrossel coeso de redes sociais. Cada cena = uma string curta (1-2 frases) descrevendo: sujeito/cenário CONCRETO, ângulo da câmera, atmosfera/luz. Mantenha a mesma paleta e o mesmo estilo, mas varie radicalmente o sujeito/ângulo entre slides — NUNCA repita o mesmo cenário. Sem texto, sem palavras, sem logos. Responda APENAS o JSON.`,
-        prompt: `Tema: ${topic}\nObjetivo: ${objective}\nEstilo geral: ${styleHint || "livre, alinhado à marca"}\n\nTítulos dos slides (para guiar o sujeito de cada cena):\n${headings.map((h, i) => `${i + 1}. ${h}`).join("\n")}`,
-        expectJson: true, temperature: 0.9,
+        system: `Você é diretor de arte sênior de uma agência premium. Crie um JSON {"scenes":[...]} com EXATAMENTE ${headings.length} cenas visuais distintas e ESPECÍFICAS para um carrossel coeso de redes sociais — nada de cena genérica de banco de imagem. Cada cena = uma string curta (1-2 frases) descrevendo: sujeito/cenário CONCRETO e original, ângulo de câmera específico (ex: macro, contra-plongée, plano detalhe), atmosfera/luz (ex: golden hour, luz de janela, neon noturno). Mantenha a mesma paleta e o mesmo estilo entre os slides, mas varie radicalmente o sujeito/ângulo/enquadramento — NUNCA repita o mesmo cenário nem composições "centro da imagem, pessoa sorrindo, fundo desfocado" (clichê de IA). Sem texto, sem palavras, sem logos. Responda APENAS o JSON.`,
+        prompt: `Tema: ${topic}\nObjetivo: ${objective}\nEstilo geral: ${styleHint || "livre, alinhado à marca"}\n${hintsCtx}\n\nTítulos dos slides (para guiar o sujeito de cada cena):\n${headings.map((h, i) => `${i + 1}. ${h}`).join("\n")}`,
+        expectJson: true, temperature: 0.95,
       });
       const arr = (json as { scenes?: string[] })?.scenes;
       if (Array.isArray(arr) && arr.length) return headings.map((_, i) => arr[i] || arr[arr.length - 1]);
@@ -219,7 +234,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const slideArt = async (
     topic: string, objective: string, heading: string, body: string,
     idx: number, total: number, sceneBrief: string, styleHint: string, direction: string,
-    template: SlideTemplate,
+    template: SlideTemplate, hints?: CreativeHints,
   ): Promise<{ cleanBg?: string; composed?: string }> => {
     // Pedimos APENAS o cenário visual — NUNCA texto/letras/logos. Os modelos de
     // imagem erram a grafia em pt-BR ("trabaio" no lugar de "trabalho"), então
@@ -236,9 +251,12 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       brandImageDirective(brand),
       styleHint ? `Estilo visual GLOBAL deste post: ${styleHint}.` : "",
       direction ? `Direção de arte adicional: ${direction}.` : "",
+      hints?.visualSuggestion ? `Direção criativa sugerida pela curadoria de conteúdo: ${hints.visualSuggestion}.` : "",
+      hints?.imageKeywords?.length ? `Palavras-chave visuais a considerar (não usar como texto na imagem): ${hints.imageKeywords.join(", ")}.` : "",
       `Arte vertical (1024x1536) de fundo para post sobre "${topic}" (objetivo: ${objective}).`,
       `CENA ESPECÍFICA deste slide (${idx + 1}/${total}) — siga à risca, não invente outra: ${sceneBrief}`,
-      `Composição editorial profissional, profundidade e atmosfera. Deixe ${cleanAreaPt[cleanArea]} (será sobreposto por texto editável).`,
+      `Composição editorial profissional, padrão de produção alto (estilo campanha de marca premium 2026), profundidade de campo real, luz motivada e atmosfera coerente com a cena. Evite o "look genérico de IA": nada de simetria perfeita de rosto, nada de pele plástica/excessivamente lisa, nada de mãos/dedos malformados, nada de composição "pessoa sorrindo de frente, fundo borrado" repetida em todo slide.`,
+      `Deixe ${cleanAreaPt[cleanArea]} (será sobreposto por texto editável).`,
       `IMPORTANTE: NÃO pinte nenhum gradiente, degradê, vinheta ou transição de cor artificial na imagem — isso fica feio e datado. O contraste para o texto vem só de uma sombra de texto aplicada depois, então a foto deve permanecer uma foto real e limpa, sem nenhum efeito de gradiente, faixa, tarja, retângulo sólido ou caixa escura.`,
       `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras, números ou logotipos renderizados na imagem.`,
     ].filter(Boolean).join("\n\n");
@@ -282,7 +300,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const slideStockPhoto = async (
     topic: string, objective: string, heading: string, body: string,
     idx: number, total: number, sceneBrief: string, _styleHint: string, _direction: string,
-    template: SlideTemplate,
+    template: SlideTemplate, _hints?: CreativeHints,
   ): Promise<{ cleanBg?: string; composed?: string }> => {
     let bg: string | undefined;
     try {
@@ -354,8 +372,11 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
 
       // texto (legenda + hashtags + slides se carrossel)
       setProgress("Escrevendo o conteúdo…");
+      const literalTitleDirective = brief.literalTitle
+        ? `\n\nTÍTULO EXATO (obrigatório, use literalmente, palavra por palavra, sem reescrever nem parafrasear): "${brief.literalTitle}"`
+        : "";
       const res = await generateContent({
-        prompt: `${brief.topic}. Objetivo: ${brief.objective}.${brief.format === "carousel" ? ` Gere um carrossel de ${brief.count} slides.` : ""}${sourcesCtx}`,
+        prompt: `${brief.topic}. Objetivo: ${brief.objective}.${brief.format === "carousel" ? ` Gere um carrossel de ${brief.count} slides.` : ""}${literalTitleDirective}${sourcesCtx}`,
         platforms: brief.platforms,
         tone: brand?.tone,
         language: "português brasileiro",
@@ -380,17 +401,19 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
 
       let slides: Slide[];
       const composedUrls: string[] = [];
+      const creativeHints: CreativeHints = { imageKeywords: res.imageKeywords, visualSuggestion: res.visualSuggestion };
+
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
         if (!specs.length) throw new Error("A IA não retornou slides.");
         setProgress("Definindo a direção visual…");
-        const scenes = await generateSceneBriefs(brief.topic, brief.objective, specs.map((s) => s.heading), styleHint);
+        const scenes = await generateSceneBriefs(brief.topic, brief.objective, specs.map((s) => s.heading), styleHint, creativeHints);
         slides = [];
         for (let i = 0; i < specs.length; i++) {
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
           const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
           const tpl = pickTemplate(i);
-          const { cleanBg, composed } = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, tpl);
+          const { cleanBg, composed } = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, tpl, creativeHints);
           // Persiste o fundo limpo (sobe data: URLs pro storage) pra ele sobreviver no design_doc.
           const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
           slides.push({
@@ -416,12 +439,12 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
           prompt: `${brief.topic} (${brief.objective})${sourcesCtx}`, temperature: 0.8,
         });
         const head = (headline || brief.topic).trim();
-        const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint);
+        const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint, creativeHints);
         const soloTemplate: SlideTemplate = layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)
           ? (layoutMode as SlideTemplate)
           : "bottom";
         const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
-        const { cleanBg, composed } = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate);
+        const { cleanBg, composed } = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate, creativeHints);
         const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
         slides = [{
           bg: grad,
