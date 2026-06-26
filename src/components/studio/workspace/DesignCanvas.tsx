@@ -79,6 +79,7 @@ export function DesignCanvas() {
     if (isVideo) return doc.videoUrl ? [doc.videoUrl] : [];
     const { default: html2canvas } = await import("html2canvas"); // carregado sob demanda
     setExporting(true);
+    if (document.fonts?.ready) await document.fonts.ready.catch(() => {});
     await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 80)));
     const urls: string[] = [];
     try {

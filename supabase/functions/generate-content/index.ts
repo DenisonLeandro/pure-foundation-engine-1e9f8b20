@@ -130,6 +130,14 @@ REGRAS DE LEGENDA (CRÍTICAS — evite o "tom genérico de IA"):
 DIRETRIZES POR PLATAFORMA:
 ${platformInstructions}
 
+ESTILO VISUAL ("moodSuggestion") — escolha 1 com base no TOM do tema, não use sempre o mesmo:
+- "institutional": temas jurídicos, sérios, corporativos, formais → tipografia sóbria, sem brilho.
+- "editorial": temas de marca/lifestyle/autoridade, tom elegante e confiante.
+- "energetic": temas leves, divertidos, esportivos, datas comemorativas, entretenimento → tipografia bold em caixa alta, tom vibrante.
+- "modern": temas de tecnologia, inovação, negócios modernos.
+- "minimal": temas calmos, bem-estar, reflexivos, com pouco texto.
+Escolha o que realmente combina com o TEMA recebido — dois temas diferentes (ex.: um post jurídico e um post sobre um evento esportivo) NUNCA devem receber o mesmo moodSuggestion.
+
 FORMATO DE RESPOSTA (JSON puro):
 {
   "posts": {
@@ -143,6 +151,7 @@ FORMATO DE RESPOSTA (JSON puro):
   },
   "imageKeywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
   "visualSuggestion": "<tipo: tutorial-carousel | quote-card | infographic | slideshow>",
+  "moodSuggestion": "<institutional | editorial | energetic | modern | minimal>",
   "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"]
 }`;
 
@@ -216,6 +225,7 @@ Responda com JSON puro.`;
         carousel: { title: prompt, slides: [{ heading: prompt, body: textContent.slice(0, 100) }] },
         imageKeywords: prompt.split(" ").slice(0, 5),
         visualSuggestion: "tutorial-carousel",
+        moodSuggestion: "editorial",
         hashtags: [],
       };
     }

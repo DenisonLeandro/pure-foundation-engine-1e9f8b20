@@ -31,18 +31,49 @@ export type StylePreset =
   | "modern"
   | "translucent"
   | "sidebar"
-  | "fullscreen";
+  | "fullscreen"
+  | "energetic";
 
 export const STYLE_PRESETS: { value: StylePreset; label: string; hint: string }[] = [
-  { value: "auto", label: "Automático", hint: "A IA escolhe a melhor composição" },
-  { value: "editorial", label: "Editorial Premium", hint: "Gradiente sutil + faixa de acento" },
+  { value: "auto", label: "Automático", hint: "A IA escolhe o estilo pelo tom do conteúdo" },
+  { value: "editorial", label: "Editorial Premium", hint: "Serifada elegante + faixa de acento" },
   { value: "minimal", label: "Minimalista Elegante", hint: "Overlay leve, muito respiro" },
-  { value: "institutional", label: "Jurídico Institucional", hint: "Barra lateral + tipografia sóbria" },
+  { value: "institutional", label: "Institucional/Jurídico", hint: "Barra lateral + tipografia sóbria" },
   { value: "modern", label: "Moderno com Gradiente", hint: "Gradiente nas cores da marca" },
+  { value: "energetic", label: "Animado/Esportivo", hint: "Tipografia bold em caixa alta, tom vibrante" },
   { value: "translucent", label: "Card Translúcido", hint: "Card com bordas arredondadas e blur sutil" },
   { value: "sidebar", label: "Faixa lateral", hint: "Faixa colorida fina à esquerda" },
   { value: "fullscreen", label: "Imagem fullscreen + overlay suave", hint: "Mínima intervenção sobre a foto" },
 ];
+
+/**
+ * Tipografia por preset — cada "mood" usa fonte/peso/tracking diferentes pra
+ * não cair sempre na mesma fonte padrão (o que fazia tudo parecer igual,
+ * independente do tema ser sério ou leve). Fontes carregadas em index.html.
+ */
+export interface PresetTypography {
+  fontFamily: string;
+  weight: number;
+  letterSpacing: number;
+  uppercase?: boolean;
+  kickerFontFamily?: string;
+}
+
+export const PRESET_TYPOGRAPHY: Record<StylePreset, PresetTypography> = {
+  auto: { fontFamily: "'Poppins', sans-serif", weight: 800, letterSpacing: -0.3 },
+  editorial: { fontFamily: "'Playfair Display', serif", weight: 800, letterSpacing: -0.2 },
+  minimal: { fontFamily: "'Poppins', sans-serif", weight: 600, letterSpacing: -0.1 },
+  institutional: { fontFamily: "'Source Serif 4', serif", weight: 700, letterSpacing: 0 },
+  modern: { fontFamily: "'Space Grotesk', sans-serif", weight: 700, letterSpacing: -0.4 },
+  energetic: { fontFamily: "'Bebas Neue', sans-serif", weight: 400, letterSpacing: 0.5, uppercase: true, kickerFontFamily: "'Space Grotesk', sans-serif" },
+  translucent: { fontFamily: "'Poppins', sans-serif", weight: 700, letterSpacing: -0.2 },
+  sidebar: { fontFamily: "'Space Grotesk', sans-serif", weight: 700, letterSpacing: -0.2 },
+  fullscreen: { fontFamily: "'Poppins', sans-serif", weight: 800, letterSpacing: -0.3 },
+};
+
+export function getPresetTypography(preset: StylePreset): PresetTypography {
+  return PRESET_TYPOGRAPHY[preset] || PRESET_TYPOGRAPHY.editorial;
+}
 
 interface BrandPalette { colors?: string[] }
 
@@ -190,6 +221,7 @@ function buildAccents(slide: Slide, preset: StylePreset, accent: string): El[] {
     case "auto":
       return [accentBar({ x: 24, y, w: 28, h: barH, color: accent })];
     case "modern":
+    case "energetic":
       return [accentBar({ x: 24, y, w: 44, h: barH, color: accent })];
     default:
       return [];

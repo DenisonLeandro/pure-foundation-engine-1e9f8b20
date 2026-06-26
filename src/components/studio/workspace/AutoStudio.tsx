@@ -402,6 +402,13 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       let slides: Slide[];
       const composedUrls: string[] = [];
       const creativeHints: CreativeHints = { imageKeywords: res.imageKeywords, visualSuggestion: res.visualSuggestion };
+      // Quando o usuário deixa em "Automático", a própria IA escolhe o mood
+      // tipográfico/visual pelo tom do tema (sério p/ jurídico, animado p/
+      // esporte etc.) em vez de cair sempre no mesmo estilo padrão.
+      const aiMood = res.moodSuggestion as StylePreset | undefined;
+      const effectivePreset: StylePreset = stylePreset !== "auto"
+        ? stylePreset
+        : (aiMood && STYLE_PRESETS.some((p) => p.value === aiMood) ? aiMood : "editorial");
 
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
@@ -427,6 +434,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
               index: i,
               total: specs.length,
               template: tpl,
+              mood: effectivePreset,
             }),
           });
           if (composed) composedUrls.push(composed);
@@ -456,6 +464,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
             index: 0,
             total: 1,
             template: soloTemplate,
+            mood: effectivePreset,
           }),
         }];
         if (composed) composedUrls.push(composed);
@@ -473,7 +482,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       // Garante contraste/legibilidade respeitando paleta da marca
       const readableDoc = ensureReadableTextLayers(rawDoc, { colors: brand?.colors });
       // Refina estética: arredonda overlays, troca blocos duros por gradientes/acentos
-      const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, stylePreset);
+      const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, effectivePreset);
       setDoc(finalDoc);
       toast.success("Criação pronta!");
       autoSave(finalDoc).then((urls) => { if (urls.length) setRenderedUrls(urls); });

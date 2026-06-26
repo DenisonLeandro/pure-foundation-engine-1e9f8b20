@@ -10,6 +10,7 @@
 import type { El } from "./types";
 import { uid } from "./types";
 import type { SlideTemplate } from "@/lib/slide-compose";
+import { getPresetTypography, type StylePreset } from "./designAesthetics";
 
 export interface BuildElsOpts {
   heading: string;
@@ -19,6 +20,42 @@ export interface BuildElsOpts {
   index?: number;
   total?: number;
   template: SlideTemplate;
+  /** Estilo/"mood" tipográfico (mesmo preset usado em refineDesignAesthetics) — varia fonte/peso/tracking pra não ficar sempre igual independente do tom do conteúdo. */
+  mood?: StylePreset;
+}
+
+/**
+ * Estima quantas linhas um texto vai ocupar numa caixa de largura `boxW`
+ * com um dado `fontSize`, e reduz o fontSize até caber em `maxLines` —
+ * evita títulos longos vazando da caixa e colidindo com o texto de apoio.
+ */
+function estimateLines(text: string, fontSize: number, boxW: number): number {
+  const avgCharW = fontSize * 0.56;
+  const charsPerLine = Math.max(6, Math.floor(boxW / avgCharW));
+  const words = text.split(/\s+/).filter(Boolean);
+  if (!words.length) return 1;
+  let lines = 1;
+  let lineLen = 0;
+  for (const w of words) {
+    const wl = w.length + 1;
+    if (lineLen + wl > charsPerLine && lineLen > 0) {
+      lines++;
+      lineLen = wl;
+    } else {
+      lineLen += wl;
+    }
+  }
+  return lines;
+}
+
+function fitHeading(text: string, boxW: number, baseFontSize: number, maxLines: number, minFontSize = 18): { fontSize: number; lines: number } {
+  let fontSize = baseFontSize;
+  while (fontSize > minFontSize) {
+    const lines = estimateLines(text, fontSize, boxW);
+    if (lines <= maxLines) return { fontSize, lines };
+    fontSize -= 2;
+  }
+  return { fontSize, lines: Math.min(maxLines, estimateLines(text, fontSize, boxW)) };
 }
 
 const W = 360;
@@ -89,24 +126,33 @@ function handleEl(brandHandle: string | undefined, position: "bottom-left" | "to
 }
 
 export function buildEditableEls(opts: BuildElsOpts): El[] {
-  const { heading, body, brandHandle, index, total, template } = opts;
+  const { heading, body, brandHandle, index, total, template, mood } = opts;
   const els: El[] = [];
-  const head = (heading || "").trim();
+  const typo = getPresetTypography(mood || "auto");
+  const headLineHeight = 1.06;
+  const boxW = W - MARGIN * 2;
+  let head = (heading || "").trim();
   const bodyText = (body || "").trim();
+  if (typo.uppercase) head = head.toLocaleUpperCase("pt-BR");
 
   switch (template) {
     case "top": {
+      const { fontSize, lines } = fitHeading(head, boxW, 32, 3);
+      const headH = Math.round(lines * fontSize * headLineHeight + fontSize * 0.3);
+      const headY = 56;
+      els.push(titleHalo(MARGIN, headY, boxW, headH));
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 56, w: W - MARGIN * 2, h: 130,
+        x: MARGIN, y: headY, w: boxW, h: headH,
         text: head,
-        fontSize: 32, weight: 800, align: "left", color: "#ffffff",
-        lineHeight: 1.04, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
+        fontSize, weight: typo.weight, align: "left", color: "#ffffff",
+        fontFamily: typo.fontFamily,
+        lineHeight: headLineHeight, letterSpacing: typo.letterSpacing, shadow: SHADOW_STRONG, zIndex: 3,
       });
       if (bodyText) {
         els.push({
           id: uid(), type: "text",
-          x: MARGIN, y: 200, w: W - MARGIN * 2, h: 72,
+          x: MARGIN, y: headY + headH + 14, w: boxW, h: 72,
           text: bodyText,
           fontSize: 12, weight: 400, align: "left",
           color: "rgba(255,255,255,0.94)",
@@ -119,18 +165,22 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
     }
 
     case "center-card": {
-      els.push(titleHalo(MARGIN, 146, W - MARGIN * 2, 140));
+      const { fontSize, lines } = fitHeading(head, boxW, 28, 4);
+      const headH = Math.round(lines * fontSize * 1.1 + fontSize * 0.3);
+      const headY = 146;
+      els.push(titleHalo(MARGIN, headY, boxW, headH));
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 146, w: W - MARGIN * 2, h: 140,
+        x: MARGIN, y: headY, w: boxW, h: headH,
         text: head,
-        fontSize: 28, weight: 800, align: "center", color: "#ffffff",
-        lineHeight: 1.08, letterSpacing: -0.3, shadow: SHADOW_STRONG, zIndex: 3,
+        fontSize, weight: typo.weight, align: "center", color: "#ffffff",
+        fontFamily: typo.fontFamily,
+        lineHeight: 1.1, letterSpacing: typo.letterSpacing, shadow: SHADOW_STRONG, zIndex: 3,
       });
       if (bodyText) {
         els.push({
           id: uid(), type: "text",
-          x: MARGIN, y: 296, w: W - MARGIN * 2, h: 80,
+          x: MARGIN, y: headY + headH + 14, w: boxW, h: 80,
           text: bodyText,
           fontSize: 12, weight: 400, align: "center",
           color: "rgba(255,255,255,0.94)",
@@ -146,26 +196,32 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
       const kickerText = typeof index === "number" && typeof total === "number" && total > 1
         ? `PARTE ${String(index + 1).padStart(2, "0")}`
         : "DESTAQUE";
+      const kickerY = 208;
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 208, w: W - MARGIN * 2, h: 14,
+        x: MARGIN, y: kickerY, w: boxW, h: 14,
         text: kickerText,
         fontSize: 9, weight: 700, align: "left",
         color: "rgba(255,255,255,0.88)",
+        fontFamily: typo.kickerFontFamily,
         letterSpacing: 1.6, shadow: SHADOW, zIndex: 3,
       });
-      els.push(titleHalo(MARGIN, 228, W - MARGIN * 2, 130));
+      const { fontSize, lines } = fitHeading(head, boxW, 28, 3);
+      const headH = Math.round(lines * fontSize * headLineHeight + fontSize * 0.3);
+      const headY = kickerY + 20;
+      els.push(titleHalo(MARGIN, headY, boxW, headH));
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 228, w: W - MARGIN * 2, h: 130,
+        x: MARGIN, y: headY, w: boxW, h: headH,
         text: head,
-        fontSize: 28, weight: 800, align: "left", color: "#ffffff",
-        lineHeight: 1.05, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
+        fontSize, weight: typo.weight, align: "left", color: "#ffffff",
+        fontFamily: typo.fontFamily,
+        lineHeight: headLineHeight, letterSpacing: typo.letterSpacing, shadow: SHADOW_STRONG, zIndex: 3,
       });
       if (bodyText) {
         els.push({
           id: uid(), type: "text",
-          x: MARGIN, y: 366, w: W - MARGIN * 2, h: 50,
+          x: MARGIN, y: headY + headH + 12, w: boxW, h: 50,
           text: bodyText,
           fontSize: 11, weight: 400, align: "left",
           color: "rgba(255,255,255,0.9)",
@@ -179,18 +235,23 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
 
     case "bottom":
     default: {
-      els.push(titleHalo(MARGIN, 232, W - MARGIN * 2, 125));
+      const { fontSize, lines } = fitHeading(head, boxW, 34, 3);
+      const headH = Math.round(lines * fontSize * 1.04 + fontSize * 0.3);
+      // ancora pelo rodapé: quanto mais linhas, mais o bloco sobe (nunca desce do canvas).
+      const headY = Math.max(140, H - 50 - headH - (bodyText ? 62 : 0));
+      els.push(titleHalo(MARGIN, headY, boxW, headH));
       els.push({
         id: uid(), type: "text",
-        x: MARGIN, y: 232, w: W - MARGIN * 2, h: 125,
+        x: MARGIN, y: headY, w: boxW, h: headH,
         text: head,
-        fontSize: 34, weight: 800, align: "left", color: "#ffffff",
-        lineHeight: 1.02, letterSpacing: -0.4, shadow: SHADOW_STRONG, zIndex: 3,
+        fontSize, weight: typo.weight, align: "left", color: "#ffffff",
+        fontFamily: typo.fontFamily,
+        lineHeight: 1.04, letterSpacing: typo.letterSpacing, shadow: SHADOW_STRONG, zIndex: 3,
       });
       if (bodyText) {
         els.push({
           id: uid(), type: "text",
-          x: MARGIN, y: 362, w: W - MARGIN * 2, h: 50,
+          x: MARGIN, y: headY + headH + 12, w: boxW, h: 50,
           text: bodyText,
           fontSize: 12, weight: 400, align: "left",
           color: "rgba(255,255,255,0.92)",
