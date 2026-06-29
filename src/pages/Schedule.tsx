@@ -114,6 +114,10 @@ export default function Schedule() {
     navigate("/studio", { state: { sourceContent: post.caption, sourceTitle: "Post duplicado" } });
   };
 
+  const handleOpenPost = (post: PfmPost) => {
+    navigate("/studio", { state: { sourceContent: post.caption, sourceTitle: "Editar Post Agendado", mediaUrls: post.media?.map(m => m.url) } });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -178,7 +182,7 @@ export default function Schedule() {
                         </span>
                         <div className="mt-0.5 space-y-0.5">
                           {dayPosts.slice(0, 2).map((p) => (
-                            <div key={p.id} className="rounded bg-violet-500/10 px-1 py-0.5 text-[9px] text-violet-600 truncate">
+                            <div key={p.id} onClick={() => handleOpenPost(p)} className="rounded bg-violet-500/10 px-1 py-0.5 text-[9px] text-violet-600 truncate cursor-pointer hover:bg-violet-500/20 transition-colors">
                               {new Date(p.scheduled_at!).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                               {" "}{p.caption?.slice(0, 15)}
                             </div>
@@ -229,7 +233,7 @@ export default function Schedule() {
             ) : (
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {posts.map((post) => (
-                  <div key={post.id} className="rounded-lg border p-3 space-y-2">
+                  <div key={post.id} onClick={() => handleOpenPost(post)} className="rounded-lg border p-3 space-y-2 cursor-pointer hover:border-violet-500/50 hover:bg-violet-500/5 transition-colors">
                     <div className="flex items-center justify-between">
                       <Badge variant="secondary" className="text-[10px]">
                         Agendado
