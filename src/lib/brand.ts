@@ -30,6 +30,12 @@ export interface BrandProfile {
   website?: string;
   social_links?: Record<string, string>;
   values?: string;
+  art_style?: string;
+  layout_presets?: string[];
+  font_title?: string;
+  font_body?: string;
+  color_roles?: Record<string, string>;
+  reference_image_url?: string;
 }
 
 /** Normaliza uma linha crua de brand_profiles para o tipo BrandProfile. */
@@ -55,6 +61,12 @@ export function normalizeBrand(row: Record<string, unknown>): BrandProfile {
     website: (row.website as string) ?? "",
     social_links: (row.social_links as Record<string, string>) ?? {},
     values: (row.values as string) ?? "",
+    art_style: (row.art_style as string) ?? "",
+    layout_presets: (row.layout_presets as string[]) ?? [],
+    font_title: (row.font_title as string) ?? "",
+    font_body: (row.font_body as string) ?? "",
+    color_roles: (row.color_roles as Record<string, string>) ?? {},
+    reference_image_url: (row.reference_image_url as string) ?? "",
   };
 }
 
