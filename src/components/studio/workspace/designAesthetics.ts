@@ -244,6 +244,34 @@ function withAlpha(hex: string, a: number): string {
   return `rgba(${c.r},${c.g},${c.b},${a})`;
 }
 
+/** Retorna lista de presets "seguros" para rotação automática (exclui "auto"). */
+export function getCompatiblePresets(): StylePreset[] {
+  return [
+    "editorial",
+    "minimal",
+    "modern",
+    "translucent",
+    "sidebar",
+    "institutional",
+    "fullscreen",
+    "energetic",
+  ];
+}
+
+/** Escolhe um preset aleatório diferente do último usado, respeitando preferência da marca. */
+export function pickNextPreset(brandArtStyle: string | undefined, lastUsed?: StylePreset): StylePreset {
+  // Se a marca tem um art_style preferido, sempre usa esse
+  const compatible = getCompatiblePresets();
+  if (brandArtStyle && compatible.includes(brandArtStyle as StylePreset)) {
+    return brandArtStyle as StylePreset;
+  }
+
+  // Senão, escolhe aleatório entre compatíveis, evitando repetir o último
+  const candidates = lastUsed ? compatible.filter((p) => p !== lastUsed) : compatible;
+  const picked = candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : "editorial";
+  return picked as StylePreset;
+}
+
 /**
  * API pública. Aplique sempre DEPOIS de `ensureReadableTextLayers`.
  */

@@ -20,6 +20,7 @@ import { composeSlideWithText, SLIDE_TEMPLATES, preferredCleanArea, type SlideTe
 import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
+import { pickNextPreset } from "./designAesthetics";
 import { buildEditableEls } from "./editableEls";
 import { renderDocOffscreen } from "./renderDocOffscreen";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
@@ -376,16 +377,13 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const styleHint = "";
       const direction = "";
 
-      // Rotação editorial entre templates seguros (título embaixo/em cima/kicker
-      // lateral); capa sempre "bottom". Evita templates mais arriscados (center-card,
-      // side-bar, quote) na rotação automática pra manter o carrossel coeso.
-      const rotation: SlideTemplate[] = ["top", "kicker", "bottom"];
+      // Rotação expandida de templates para variedade visual (respeitando brand layout_presets)
+      const rotation: SlideTemplate[] = ["top", "kicker", "bottom", "side-bar", "center-card", "quote"];
       const offset = Math.floor(Math.random() * rotation.length);
       const brandDefaultLayout = brand?.layout_presets?.[0];
       const pickTemplate = (i: number): SlideTemplate => {
         if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
         if (brandDefaultLayout && (SLIDE_TEMPLATES as string[]).includes(brandDefaultLayout)) {
-          if (i === 0) return brandDefaultLayout as SlideTemplate;
           return brandDefaultLayout as SlideTemplate;
         }
         if (i === 0) return "bottom";
@@ -396,9 +394,11 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const composedUrls: string[] = [];
       const creativeHints: CreativeHints = { imageKeywords: res.imageKeywords, visualSuggestion: res.visualSuggestion };
       const validPresets = (STYLE_PRESETS.map((p) => p.value) as string[]);
-      const effectivePreset: StylePreset = brand?.art_style && validPresets.includes(brand.art_style)
+      // Fallback: se a marca não tem art_style, começa com editorial mas varia entre slides
+      const basePreset: StylePreset = brand?.art_style && validPresets.includes(brand.art_style)
         ? (brand.art_style as StylePreset)
         : "editorial";
+      let lastPreset: StylePreset | undefined = basePreset;
 
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
@@ -410,6 +410,9 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
           const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
           const tpl = pickTemplate(i);
+          // Varia o preset entre slides se a marca não forçou um art_style específico
+          const slidePreset = !brand?.art_style ? pickNextPreset(undefined, lastPreset) : basePreset;
+          lastPreset = slidePreset;
           const { cleanBg, composed } = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, tpl, creativeHints);
           // Persiste o fundo limpo (sobe data: URLs pro storage) pra ele sobreviver no design_doc.
           const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
@@ -424,7 +427,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
               index: i,
               total: specs.length,
               template: tpl,
-              mood: effectivePreset,
+              mood: slidePreset,
             }),
           });
           if (composed) composedUrls.push(composed);
@@ -454,7 +457,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
             index: 0,
             total: 1,
             template: soloTemplate,
-            mood: effectivePreset,
+            mood: basePreset,
           }),
         }];
         if (composed) composedUrls.push(composed);
