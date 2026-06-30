@@ -381,8 +381,13 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       // side-bar, quote) na rotação automática pra manter o carrossel coeso.
       const rotation: SlideTemplate[] = ["top", "kicker", "bottom"];
       const offset = Math.floor(Math.random() * rotation.length);
+      const brandDefaultLayout = brand?.layout_presets?.[0];
       const pickTemplate = (i: number): SlideTemplate => {
         if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
+        if (brandDefaultLayout && (SLIDE_TEMPLATES as string[]).includes(brandDefaultLayout)) {
+          if (i === 0) return brandDefaultLayout as SlideTemplate;
+          return brandDefaultLayout as SlideTemplate;
+        }
         if (i === 0) return "bottom";
         return rotation[(i + offset) % rotation.length];
       };
@@ -390,7 +395,10 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       let slides: Slide[];
       const composedUrls: string[] = [];
       const creativeHints: CreativeHints = { imageKeywords: res.imageKeywords, visualSuggestion: res.visualSuggestion };
-      const effectivePreset: StylePreset = "editorial";
+      const validPresets = (STYLE_PRESETS.map((p) => p.value) as string[]);
+      const effectivePreset: StylePreset = brand?.art_style && validPresets.includes(brand.art_style)
+        ? (brand.art_style as StylePreset)
+        : "editorial";
 
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
