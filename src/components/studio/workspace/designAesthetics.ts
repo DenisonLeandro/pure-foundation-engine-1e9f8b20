@@ -18,6 +18,7 @@
 import type { El, Slide, StudioDoc } from "./types";
 import { uid, CANVAS_W, CANVAS_H } from "./types";
 import { parseHex, getRelativeLuminance } from "./designReadability";
+import type { BrandProfile } from "@/lib/brand";
 
 const READABILITY_PREFIX = "rb-bg-";
 const AESTHETIC_PREFIX = "rb-aes-";
@@ -73,6 +74,15 @@ export const PRESET_TYPOGRAPHY: Record<StylePreset, PresetTypography> = {
 
 export function getPresetTypography(preset: StylePreset): PresetTypography {
   return PRESET_TYPOGRAPHY[preset] || PRESET_TYPOGRAPHY.editorial;
+}
+
+export function getBrandTypography(brand: BrandProfile | null | undefined, preset: StylePreset): PresetTypography {
+  const base = getPresetTypography(preset);
+  if (!brand) return base;
+  const override: PresetTypography = { ...base };
+  if (brand.font_title) override.fontFamily = brand.font_title;
+  if (brand.font_body) override.fontFamily = brand.font_body;
+  return override;
 }
 
 interface BrandPalette { colors?: string[] }

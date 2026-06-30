@@ -102,9 +102,11 @@ export function brandImageDirective(b?: BrandProfile | null): string {
   if (b.tone) parts.push(`estética alinhada ao tom "${b.tone}"`);
   if (b.industry) parts.push(`contexto do setor de ${b.industry}`);
   if (b.values) parts.push(`refletindo os valores: ${b.values}`);
+  if (b.art_style) parts.push(`estilo visual padrão: ${b.art_style}`);
   const style = parts.length ? `Identidade visual OBRIGATÓRIA da marca ${b.name}: ${parts.join("; ")}.` : "";
   const antipattern = `Evite estética genérica de IA: nada de gradientes roxo→rosa padrão, nada de fundos de stock photo banais, nada de bokeh aleatório sem propósito.`;
-  return `${style} ${antipattern} Não renderize texto, palavras nem logotipos na imagem, a menos que explicitamente pedido.`.trim();
+  const referenceHint = b.reference_image_url ? `\n\nImagem de referência de estilo: ${b.reference_image_url}` : "";
+  return `${style} ${antipattern} Não renderize texto, palavras nem logotipos na imagem, a menos que explicitamente pedido.${referenceHint}`.trim();
 }
 
 /** Converte hex em um nome de cor aproximado em pt-BR para ajudar o modelo a entender a paleta. */
