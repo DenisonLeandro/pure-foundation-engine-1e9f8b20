@@ -446,20 +446,26 @@ export type Database = {
       }
       brand_profiles: {
         Row: {
+          art_style: string | null
           avoid_words: string[] | null
+          color_roles: Json | null
           colors: string[] | null
           company_id: string
           created_at: string
           description: string | null
           example_posts: string[] | null
+          font_body: string | null
+          font_title: string | null
           handle: string | null
           id: string
           industry: string | null
           is_default: boolean
           keywords: string[] | null
+          layout_presets: string[] | null
           logo_url: string | null
           name: string
           profile_photo_url: string | null
+          reference_image_url: string | null
           social_links: Json | null
           system_prompt: string | null
           target_audience: string | null
@@ -470,20 +476,26 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          art_style?: string | null
           avoid_words?: string[] | null
+          color_roles?: Json | null
           colors?: string[] | null
           company_id: string
           created_at?: string
           description?: string | null
           example_posts?: string[] | null
+          font_body?: string | null
+          font_title?: string | null
           handle?: string | null
           id?: string
           industry?: string | null
           is_default?: boolean
           keywords?: string[] | null
+          layout_presets?: string[] | null
           logo_url?: string | null
           name: string
           profile_photo_url?: string | null
+          reference_image_url?: string | null
           social_links?: Json | null
           system_prompt?: string | null
           target_audience?: string | null
@@ -494,20 +506,26 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          art_style?: string | null
           avoid_words?: string[] | null
+          color_roles?: Json | null
           colors?: string[] | null
           company_id?: string
           created_at?: string
           description?: string | null
           example_posts?: string[] | null
+          font_body?: string | null
+          font_title?: string | null
           handle?: string | null
           id?: string
           industry?: string | null
           is_default?: boolean
           keywords?: string[] | null
+          layout_presets?: string[] | null
           logo_url?: string | null
           name?: string
           profile_photo_url?: string | null
+          reference_image_url?: string | null
           social_links?: Json | null
           system_prompt?: string | null
           target_audience?: string | null
