@@ -475,7 +475,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       // Garante contraste/legibilidade respeitando paleta da marca
       const readableDoc = ensureReadableTextLayers(rawDoc, { colors: brand?.colors });
       // Refina estética: arredonda overlays, troca blocos duros por gradientes/acentos
-      const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, effectivePreset);
+      const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, basePreset);
       setDoc(finalDoc);
       toast.success("Criação pronta!");
       autoSave(finalDoc).then((urls) => { if (urls.length) setRenderedUrls(urls); });
