@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Wand2, Loader2, ArrowLeft, Sparkles, BookOpen, X, Check, Palette } from "lucide-react";
+import { Wand2, Loader2, ArrowLeft, Sparkles, BookOpen, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -20,23 +20,13 @@ import { composeSlideWithText, SLIDE_TEMPLATES, preferredCleanArea, type SlideTe
 import { supabase } from "@/integrations/supabase/client";
 import { OutputScreen } from "./OutputScreen";
 import { emptyDoc } from "./StudioProvider";
+import { pickNextPreset } from "./designAesthetics";
 import { buildEditableEls } from "./editableEls";
 import { renderDocOffscreen } from "./renderDocOffscreen";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
 import { saveStudioFlowDraft, clearStudioFlowDraft, type AutoFormDraft } from "./studioDraft";
-
-const ART_STYLES: { value: string; label: string; hint: string }[] = [
-  { value: "auto", label: "Auto (IA escolhe)", hint: "" },
-  { value: "editorial", label: "Editorial fotográfico", hint: "fotografia editorial premium, luz natural, profundidade de campo, sensação de revista" },
-  { value: "cinematic", label: "Cinematográfico", hint: "iluminação cinematográfica dramática, grão sutil, paleta coesa, sensação de still de filme" },
-  { value: "3d", label: "3D render", hint: "render 3D moderno, materiais suaves (clay/glass), iluminação volumétrica, sombras macias" },
-  { value: "minimal", label: "Minimalista", hint: "design minimalista, muito espaço negativo, formas geométricas simples, elegante" },
-  { value: "poster", label: "Pôster tipográfico", hint: "estética de pôster impresso, composição ousada, alto contraste, texturas de papel" },
-  { value: "flat", label: "Flat ilustrado", hint: "ilustração flat vetorial, formas chapadas, contornos limpos, sem gradientes pesados" },
-  { value: "watercolor", label: "Aquarela", hint: "ilustração em aquarela, traços orgânicos, papel texturizado, manchas suaves" },
-];
 
 type SourceRow = { id: string; title: string | null; source_type: string; content: string | null };
 
@@ -94,11 +84,9 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const brand = (brands.find((b) => b.id === brandId) || defaultBrand || null) as BrandProfile | null;
 
   const [prompt, setPrompt] = useState(initialForm?.prompt ?? "");
-  const [artStyle, setArtStyle] = useState<string>(initialForm?.artStyle ?? "auto");
-  const [artDirection, setArtDirection] = useState(initialForm?.artDirection ?? "");
   const [imageSource, setImageSource] = useState<"pexels" | "ai">(initialForm?.imageSource ?? "pexels");
   const [layoutMode, setLayoutMode] = useState<string>(initialForm?.layoutMode ?? "auto");
-  const [stylePreset, setStylePreset] = useState<StylePreset>(initialForm?.stylePreset ?? "auto");
+  const [textFidelity, setTextFidelity] = useState<"improve" | "literal">(initialForm?.textFidelity ?? "improve");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(initialDoc ?? null);
@@ -118,12 +106,12 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
     const t = setTimeout(() => {
       saveStudioFlowDraft(userId, {
         mode: "auto",
-        autoForm: { prompt, artStyle, artDirection, imageSource, layoutMode, stylePreset, selectedSourceIds, brandId },
+        autoForm: { prompt, imageSource, layoutMode, textFidelity, selectedSourceIds, brandId },
         autoDoc: doc ?? undefined,
       });
     }, 600);
     return () => clearTimeout(t);
-  }, [userId, prompt, artStyle, artDirection, imageSource, layoutMode, stylePreset, selectedSourceIds, brandId, doc]);
+  }, [userId, prompt, imageSource, layoutMode, textFidelity, selectedSourceIds, brandId, doc]);
 
   const handleBack = () => {
     if (userId) clearStudioFlowDraft(userId);
@@ -381,20 +369,23 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         tone: brand?.tone,
         language: "português brasileiro",
         brandProfile: brandTextProfile(brand),
+        fidelity: textFidelity,
       });
       const plat = brief.platforms[0];
-      const caption = res.posts?.[plat] || Object.values(res.posts || {})[0] || brief.topic;
+      const caption = textFidelity === "literal" ? prompt.trim() : (res.posts?.[plat] || Object.values(res.posts || {})[0] || brief.topic);
 
-      const styleHint = ART_STYLES.find((s) => s.value === artStyle)?.hint || "";
-      const direction = artDirection.trim();
+      const styleHint = "";
+      const direction = "";
 
-      // Rotação editorial entre templates seguros (título embaixo/em cima/kicker
-      // lateral); capa sempre "bottom". Evita templates mais arriscados (center-card,
-      // side-bar, quote) na rotação automática pra manter o carrossel coeso.
-      const rotation: SlideTemplate[] = ["top", "kicker", "bottom"];
+      // Rotação expandida de templates para variedade visual (respeitando brand layout_presets)
+      const rotation: SlideTemplate[] = ["top", "kicker", "bottom", "side-bar", "center-card", "quote"];
       const offset = Math.floor(Math.random() * rotation.length);
+      const brandDefaultLayout = brand?.layout_presets?.[0];
       const pickTemplate = (i: number): SlideTemplate => {
         if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
+        if (brandDefaultLayout && (SLIDE_TEMPLATES as string[]).includes(brandDefaultLayout)) {
+          return brandDefaultLayout as SlideTemplate;
+        }
         if (i === 0) return "bottom";
         return rotation[(i + offset) % rotation.length];
       };
@@ -402,13 +393,12 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       let slides: Slide[];
       const composedUrls: string[] = [];
       const creativeHints: CreativeHints = { imageKeywords: res.imageKeywords, visualSuggestion: res.visualSuggestion };
-      // Quando o usuário deixa em "Automático", a própria IA escolhe o mood
-      // tipográfico/visual pelo tom do tema (sério p/ jurídico, animado p/
-      // esporte etc.) em vez de cair sempre no mesmo estilo padrão.
-      const aiMood = res.moodSuggestion as StylePreset | undefined;
-      const effectivePreset: StylePreset = stylePreset !== "auto"
-        ? stylePreset
-        : (aiMood && STYLE_PRESETS.some((p) => p.value === aiMood) ? aiMood : "editorial");
+      const validPresets = (STYLE_PRESETS.map((p) => p.value) as string[]);
+      // Fallback: se a marca não tem art_style, começa com editorial mas varia entre slides
+      const basePreset: StylePreset = brand?.art_style && validPresets.includes(brand.art_style)
+        ? (brand.art_style as StylePreset)
+        : "editorial";
+      let lastPreset: StylePreset | undefined = basePreset;
 
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
@@ -420,6 +410,9 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
           const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
           const tpl = pickTemplate(i);
+          // Varia o preset entre slides se a marca não forçou um art_style específico
+          const slidePreset = !brand?.art_style ? pickNextPreset(undefined, lastPreset) : basePreset;
+          lastPreset = slidePreset;
           const { cleanBg, composed } = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, tpl, creativeHints);
           // Persiste o fundo limpo (sobe data: URLs pro storage) pra ele sobreviver no design_doc.
           const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
@@ -434,7 +427,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
               index: i,
               total: specs.length,
               template: tpl,
-              mood: effectivePreset,
+              mood: slidePreset,
             }),
           });
           if (composed) composedUrls.push(composed);
@@ -464,7 +457,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
             index: 0,
             total: 1,
             template: soloTemplate,
-            mood: effectivePreset,
+            mood: basePreset,
           }),
         }];
         if (composed) composedUrls.push(composed);
@@ -520,8 +513,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
             disabled={generating}
             onClick={() => {
               clearStudioFlowDraft(userId);
-              setPrompt(""); setArtStyle("auto"); setArtDirection(""); setImageSource("pexels");
-              setLayoutMode("auto"); setStylePreset("auto"); setSelectedSourceIds([]); setDoc(null);
+              setPrompt(""); setImageSource("pexels");
+              setLayoutMode("auto"); setTextFidelity("improve"); setSelectedSourceIds([]); setDoc(null);
               toast.message("Rascunho descartado.");
             }}
           >
@@ -548,32 +541,6 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         </div>
 
         <div className="rounded-lg border border-border bg-card/40 p-3 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Palette className="h-4 w-4 text-violet-500" />
-            Direção visual
-            <span className="text-xs font-normal text-muted-foreground">(opcional)</span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Estilo</label>
-              <Select value={artStyle} onValueChange={setArtStyle} disabled={generating}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ART_STYLES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Direção livre</label>
-              <Input
-                value={artDirection}
-                onChange={(e) => setArtDirection(e.target.value)}
-                placeholder="Ex: tons terrosos, luz de janela, grão"
-                className="h-9 text-sm"
-                disabled={generating}
-              />
-            </div>
-          </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Origem da imagem</label>
             <Select value={imageSource} onValueChange={(v) => setImageSource(v as "pexels" | "ai")} disabled={generating}>
@@ -600,16 +567,14 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
             </Select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Estilo visual</label>
-            <Select value={stylePreset} onValueChange={(v) => setStylePreset(v as StylePreset)} disabled={generating}>
+            <label className="text-xs text-muted-foreground">O que fazer com meu texto</label>
+            <Select value={textFidelity} onValueChange={(v) => setTextFidelity(v as "improve" | "literal")} disabled={generating}>
               <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {STYLE_PRESETS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                <SelectItem value="improve">Melhorar mantendo a intenção</SelectItem>
+                <SelectItem value="literal">Usar meu texto literal (não reescrever)</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">
-              {STYLE_PRESETS.find((s) => s.value === stylePreset)?.hint}
-            </p>
           </div>
           <p className="text-[11px] text-muted-foreground">Em "Variado", cada slide do carrossel ganha uma composição diferente — não saem todos iguais.</p>
         </div>

@@ -18,6 +18,7 @@
 import type { El, Slide, StudioDoc } from "./types";
 import { uid, CANVAS_W, CANVAS_H } from "./types";
 import { parseHex, getRelativeLuminance } from "./designReadability";
+import type { BrandProfile } from "@/lib/brand";
 
 const READABILITY_PREFIX = "rb-bg-";
 const AESTHETIC_PREFIX = "rb-aes-";
@@ -73,6 +74,15 @@ export const PRESET_TYPOGRAPHY: Record<StylePreset, PresetTypography> = {
 
 export function getPresetTypography(preset: StylePreset): PresetTypography {
   return PRESET_TYPOGRAPHY[preset] || PRESET_TYPOGRAPHY.editorial;
+}
+
+export function getBrandTypography(brand: BrandProfile | null | undefined, preset: StylePreset): PresetTypography {
+  const base = getPresetTypography(preset);
+  if (!brand) return base;
+  const override: PresetTypography = { ...base };
+  if (brand.font_title) override.fontFamily = brand.font_title;
+  if (brand.font_body) override.fontFamily = brand.font_body;
+  return override;
 }
 
 interface BrandPalette { colors?: string[] }
@@ -232,6 +242,34 @@ function withAlpha(hex: string, a: number): string {
   const c = parseHex(hex);
   if (!c) return `rgba(245,158,11,${a})`;
   return `rgba(${c.r},${c.g},${c.b},${a})`;
+}
+
+/** Retorna lista de presets "seguros" para rotação automática (exclui "auto"). */
+export function getCompatiblePresets(): StylePreset[] {
+  return [
+    "editorial",
+    "minimal",
+    "modern",
+    "translucent",
+    "sidebar",
+    "institutional",
+    "fullscreen",
+    "energetic",
+  ];
+}
+
+/** Escolhe um preset aleatório diferente do último usado, respeitando preferência da marca. */
+export function pickNextPreset(brandArtStyle: string | undefined, lastUsed?: StylePreset): StylePreset {
+  // Se a marca tem um art_style preferido, sempre usa esse
+  const compatible = getCompatiblePresets();
+  if (brandArtStyle && compatible.includes(brandArtStyle as StylePreset)) {
+    return brandArtStyle as StylePreset;
+  }
+
+  // Senão, escolhe aleatório entre compatíveis, evitando repetir o último
+  const candidates = lastUsed ? compatible.filter((p) => p !== lastUsed) : compatible;
+  const picked = candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : "editorial";
+  return picked as StylePreset;
 }
 
 /**
