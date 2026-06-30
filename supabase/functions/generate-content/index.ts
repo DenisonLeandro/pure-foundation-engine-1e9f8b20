@@ -44,6 +44,7 @@ interface RequestBody {
     systemPrompt?: string;
   };
   companyId?: string;
+  fidelity?: "improve" | "literal";
 }
 
 Deno.serve(async (req: Request) => {
@@ -64,7 +65,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { prompt, platforms, tone, language, sourceContent, brandProfile, companyId } = body;
+    const { prompt, platforms, tone, language, sourceContent, brandProfile, companyId, fidelity } = body;
 
     if (!prompt || !platforms?.length) {
       return new Response(
@@ -102,10 +103,38 @@ Deno.serve(async (req: Request) => {
       ? `\n\nCONTEÚDO DE REFERÊNCIA:\n---\n${sourceContent.slice(0, 3000)}\n---`
       : "";
 
-    const systemPrompt = `Você é uma agência de marketing digital completa. Crie uma campanha de conteúdo em ${lang}.${brandContext}
+    let systemPrompt: string;
+    if (fidelity === "literal") {
+      systemPrompt = `Você é uma agência de marketing digital. Seu trabalho é usar o texto do usuário EXATAMENTE COMO ESTÁ ESCRITO para os posts, sem reescrever, sem parafrasear, sem melhorar. Você pode gerar hashtags, headings de slides para imagem, e metadados visuais, mas a legenda principal (posts) deve ser IDÊNTICA ao texto do usuário.${brandContext}
+
+MODO LITERAL — CRÍTICO:
+- A mensagem do usuário É A LEGENDA FINAL. Use-a palavra por palavra, sem mudanças.
+- Os posts (para cada plataforma) devem ser IDÊNTICOS ao texto do usuário.
+- APENAS gere: headings para slides (se carrossel), hashtags, keywords de imagem, mood visual.
+- Linguagem: ${lang}
+
+FORMATO DE RESPOSTA (JSON puro):
+{
+  "posts": {
+    "<platform>": "${prompt}"
+  },
+  "carousel": {
+    "title": "${prompt.slice(0, 50)}",
+    "slides": [
+      { "heading": "<frase para slide 1>", "body": "<apoio 1-2 linhas>" }
+    ]
+  },
+  "imageKeywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
+  "visualSuggestion": "slideshow",
+  "moodSuggestion": "editorial",
+  "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"]
+}`;
+    } else {
+      systemPrompt = `Você é uma agência de marketing digital completa. Crie uma campanha de conteúdo em ${lang}.${brandContext}
 
 REGRA MÁXIMA (prioridade sobre todas as outras abaixo):
 - Se a mensagem do usuário contiver uma linha "TÍTULO EXATO (...)" com um texto entre aspas, esse texto é uma ORDEM LITERAL: use-o exatamente como está escrito — sem corrigir, sem reescrever, sem parafrasear, sem trocar uma palavra — como título do carrossel ("carousel.title") e/ou heading do primeiro slide. NUNCA troque o título exigido por uma versão "mais criativa" sua.
+- PRESERVE a mensagem, os fatos, números, ofertas e dados EXATAMENTE como o usuário escreveu. Você pode apenas melhorar clareza, ritmo, formatação e estrutura. NUNCA invente dados, preços, promessas ou afirmações que não estejam no texto original.
 
 REGRAS IMPORTANTES:
 - OBRIGATÓRIO: Todo o conteúdo DEVE ser em português brasileiro (pt-BR). Nunca gere textos em inglês ou outro idioma.
@@ -154,6 +183,7 @@ FORMATO DE RESPOSTA (JSON puro):
   "moodSuggestion": "<institutional | editorial | energetic | modern | minimal>",
   "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"]
 }`;
+    }
 
     const userMessage = `Crie uma campanha completa para: ${platforms.join(", ")}
 

@@ -24,13 +24,11 @@ export type StudioDraftInput = Omit<StudioDraft, "updatedAt">;
 
 export interface AutoFormDraft {
   prompt: string;
-  artStyle: string;
-  artDirection: string;
   imageSource: "pexels" | "ai";
   layoutMode: string;
-  stylePreset: StylePreset;
   selectedSourceIds: string[];
   brandId: string | null;
+  textFidelity: "improve" | "literal";
 }
 
 export interface StudioFlowDraft {
