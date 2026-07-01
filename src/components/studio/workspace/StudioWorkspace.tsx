@@ -178,21 +178,6 @@ function WorkspaceInner({
     replaceDoc(applyBrandLogo(doc, logo));
   }, [currentBrand?.logo_url, doc, editingCreationId, replaceDoc]);
 
-  const logoVisible = docHasBrandLogo(doc);
-  const toggleBrandLogo = () => {
-    if (logoVisible) {
-      replaceDoc(removeBrandLogo(doc));
-      toast.success("Logo ocultada");
-      return;
-    }
-    const logo = currentBrand?.logo_url || "";
-    if (!logo) {
-      toast.message("Cadastre uma logo no perfil da marca para aplicá-la aos posts.");
-      return;
-    }
-    replaceDoc(applyBrandLogo(doc, logo));
-    toast.success("Logo aplicada em todos os slides");
-  };
 
   // Autosave com debounce (700ms) sempre que doc/slide/estilo mudarem.
   useEffect(() => {
