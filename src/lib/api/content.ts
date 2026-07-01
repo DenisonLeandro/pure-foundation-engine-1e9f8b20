@@ -29,7 +29,6 @@ export interface GenerateContentParams {
   language?: string;
   sourceContent?: string;
   brandProfile?: BrandProfileForAI;
-  fidelity?: "improve" | "literal";
 }
 
 export interface CarouselSlide {
