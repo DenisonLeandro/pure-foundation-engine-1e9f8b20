@@ -4,35 +4,67 @@
  * Antes, quando a marca tinha `art_style`/`layout_presets` configurado, o
  * template e o preset visual ficavam travados no mesmo valor para sempre —
  * o oposto do esperado (quanto mais a marca configura identidade, mais
- * robótico o resultado ficava). Este módulo centraliza o sorteio ponderado
- * (marca como preferência, nunca como trava total) e a persistência da
- * última escolha por marca, para não repetir a mesma opção entre gerações
- * consecutivas.
+ * robótico o resultado ficava). Uma primeira correção trocou isso por um
+ * sorteio ponderado (marca com mais chance, nunca trava total), mas em
+ * poucas tentativas reais o "favorito" ainda aparecia com frequência alta
+ * o bastante pra parecer "sempre igual".
+ *
+ * Este módulo usa um baralho sem repetição (shuffle bag): todas as opções
+ * entram embaralhadas num baralho, e cada geração tira uma sem devolver —
+ * só reembaralha quando o baralho esvazia. Isso garante que TODAS as opções
+ * aparecem antes de qualquer repetição, com frequência de longo prazo
+ * uniforme entre elas. A preferência da marca só influencia a ORDEM (tem
+ * mais chance de vir primeiro em cada ciclo novo), nunca a frequência.
  */
 
 import { companyStorage } from "@/lib/companyStorage";
 
-/** Sorteia um item do pool dando mais chance ao `preferred`, sem nunca travar nele, e evita repetir `avoid`. */
-export function pickWeighted<T>(
-  pool: T[],
-  opts: { preferred?: T; avoid?: T; preferredWeight?: number } = {},
-): T {
-  const { preferred, avoid, preferredWeight = 0.45 } = opts;
-  const withoutAvoid = avoid !== undefined ? pool.filter((x) => x !== avoid) : pool;
-  const candidates = withoutAvoid.length ? withoutAvoid : pool;
-
-  if (preferred !== undefined && candidates.includes(preferred) && Math.random() < preferredWeight) {
-    return preferred;
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
+  return a;
+}
 
-  const rest = candidates.filter((x) => x !== preferred);
-  const finalPool = rest.length ? rest : candidates;
-  return finalPool[Math.floor(Math.random() * finalPool.length)];
+function buildBag<T>(pool: T[], preferred?: T, avoidFirst?: T): T[] {
+  const shuffled = shuffle(pool);
+  const useFavorite = preferred !== undefined && pool.includes(preferred) && Math.random() < 0.7;
+  if (useFavorite && preferred !== avoidFirst) {
+    const idx = shuffled.indexOf(preferred as T);
+    shuffled.splice(idx, 1);
+    shuffled.unshift(preferred as T);
+  } else if (avoidFirst !== undefined && shuffled[0] === avoidFirst && shuffled.length > 1) {
+    // Evita que o item que acabou de sair no ciclo anterior vire o primeiro do ciclo novo.
+    [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
+  }
+  return shuffled;
+}
+
+/**
+ * Tira um item do baralho persistido (`bag`); reembaralha automaticamente
+ * quando esvazia. `preferred` (ex.: art_style/layout_presets da marca) só
+ * influencia a ordem de um baralho novo, nunca a frequência de longo prazo.
+ */
+export function drawFromBag<T>(
+  pool: T[],
+  bag: T[] | undefined,
+  lastPicked: T | undefined,
+  preferred?: T,
+): { picked: T; bag: T[] } {
+  const currentBag = bag && bag.length ? bag : buildBag(pool, preferred, lastPicked);
+  const [picked, ...rest] = currentBag;
+  return { picked, bag: rest };
 }
 
 interface LastChoices {
   template?: string;
+  templateBag?: string[];
   preset?: string;
+  presetBag?: string[];
+  accent?: string;
+  accentBag?: string[];
   angle?: string;
   updatedAt: number;
 }

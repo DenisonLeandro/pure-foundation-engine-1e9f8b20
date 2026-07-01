@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  pickWeighted,
+  drawFromBag,
   pickCreativeAngle,
   loadLastChoices,
   saveLastChoices,
@@ -8,36 +8,66 @@ import {
 } from "@/components/studio/workspace/creativeRotation";
 import { pickNextPreset, type StylePreset } from "@/components/studio/workspace/designAesthetics";
 
-describe("pickWeighted", () => {
-  it("nunca repete `avoid` mesmo com preferredWeight alto", () => {
-    const pool = ["a", "b", "c"];
-    for (let i = 0; i < 200; i++) {
-      const picked = pickWeighted(pool, { preferred: "a", avoid: "a", preferredWeight: 0.9 });
-      expect(picked).not.toBe("a");
+describe("drawFromBag (baralho sem repetição)", () => {
+  it("nunca repete um item antes de esgotar todo o pool", () => {
+    const pool = ["a", "b", "c", "d"];
+    let bag: string[] | undefined;
+    let last: string | undefined;
+    const seenSinceReshuffle = new Set<string>();
+    for (let i = 0; i < 400; i++) {
+      const { picked, bag: nextBag } = drawFromBag(pool, bag, last);
+      // Nunca repete o item imediatamente anterior.
+      expect(picked).not.toBe(last);
+      seenSinceReshuffle.add(picked);
+      last = picked;
+      bag = nextBag;
+      if (bag.length === 0) {
+        // Baralho esgotou: nesse ponto todo o pool já apareceu uma vez desde o último reshuffle.
+        expect(seenSinceReshuffle.size).toBe(pool.length);
+        seenSinceReshuffle.clear();
+      }
     }
   });
 
-  it("com preferredWeight alto, escolhe o preferido na maioria das vezes (mas não sempre)", () => {
+  it("depois de N sorteios (N = tamanho do pool), todas as opções apareceram exatamente uma vez", () => {
     const pool = ["top", "kicker", "bottom", "side-bar", "center-card", "quote"];
-    let preferredCount = 0;
-    const N = 500;
-    for (let i = 0; i < N; i++) {
-      const picked = pickWeighted(pool, { preferred: "kicker", preferredWeight: 0.6 });
-      if (picked === "kicker") preferredCount++;
+    let bag: string[] | undefined;
+    const picks: string[] = [];
+    for (let i = 0; i < pool.length; i++) {
+      const { picked, bag: nextBag } = drawFromBag(pool, bag, undefined);
+      picks.push(picked);
+      bag = nextBag;
     }
-    const ratio = preferredCount / N;
-    // deve estar perto de 0.6, com folga estatística
-    expect(ratio).toBeGreaterThan(0.45);
-    expect(ratio).toBeLessThan(0.75);
-    // e nunca 100% travado
-    expect(preferredCount).toBeLessThan(N);
+    expect(new Set(picks).size).toBe(pool.length);
+    expect([...picks].sort()).toEqual([...pool].sort());
   });
 
-  it("sem preferred, distribui entre todo o pool (não trava num único valor)", () => {
-    const pool = ["editorial", "minimal", "modern", "energetic"];
+  it("com `preferred`, tem mais chance de vir primeiro no ciclo — mas não em todo ciclo, e nunca muda a cobertura total", () => {
+    const pool = ["a", "b", "c", "d", "e"];
+    let firstIsPreferredCount = 0;
+    const CYCLES = 300;
+    for (let i = 0; i < CYCLES; i++) {
+      const { picked } = drawFromBag(pool, undefined, undefined, "a");
+      if (picked === "a") firstIsPreferredCount++;
+    }
+    const ratio = firstIsPreferredCount / CYCLES;
+    // ~70% de chance de vir primeiro em cada ciclo novo, nunca 100%.
+    expect(ratio).toBeGreaterThan(0.55);
+    expect(ratio).toBeLessThan(0.85);
+  });
+
+  it("sem `preferred`, todo item tem chance de aparecer (distribuição não travada)", () => {
+    const pool = ["a", "b", "c", "d"];
+    let bag: string[] | undefined;
+    let last: string | undefined;
     const seen = new Set<string>();
-    for (let i = 0; i < 200; i++) seen.add(pickWeighted(pool));
-    expect(seen.size).toBeGreaterThan(1);
+    for (let i = 0; i < 200; i++) {
+      const { picked, bag: nextBag } = drawFromBag(pool, bag, last);
+      seen.add(picked);
+      last = picked;
+      bag = nextBag;
+    }
+    expect(seen.size).toBe(pool.length);
   });
 });
 
@@ -45,21 +75,25 @@ describe("pickNextPreset (bug original: art_style travava 100%)", () => {
   it("quando a marca tem art_style definido, NÃO retorna sempre o mesmo preset", () => {
     const results = new Set<StylePreset>();
     let lastUsed: StylePreset | undefined;
-    for (let i = 0; i < 100; i++) {
-      const picked = pickNextPreset("editorial", lastUsed);
+    let bag: StylePreset[] | undefined;
+    for (let i = 0; i < 50; i++) {
+      const { picked, bag: nextBag } = pickNextPreset("editorial", lastUsed, bag);
       results.add(picked);
       lastUsed = picked;
+      bag = nextBag;
     }
-    // Antes da correção, isso seria sempre { "editorial" } (tamanho 1).
+    // Antes da correção original, isso seria sempre { "editorial" } (tamanho 1).
     expect(results.size).toBeGreaterThan(1);
   });
 
   it("nunca repete o preset anterior (anti-repetição consecutiva)", () => {
     let lastUsed: StylePreset | undefined = "editorial";
-    for (let i = 0; i < 100; i++) {
-      const picked = pickNextPreset("editorial", lastUsed);
+    let bag: StylePreset[] | undefined;
+    for (let i = 0; i < 50; i++) {
+      const { picked, bag: nextBag } = pickNextPreset("editorial", lastUsed, bag);
       expect(picked).not.toBe(lastUsed);
       lastUsed = picked;
+      bag = nextBag;
     }
   });
 });
