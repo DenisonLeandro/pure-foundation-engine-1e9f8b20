@@ -89,7 +89,7 @@ export default function Gallery() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
 
-  const { activeCompanyId } = useCompany();
+  const { activeCompanyId, activeCompany } = useCompany();
 
   useEffect(() => {
     let cancelled = false;
@@ -103,10 +103,23 @@ export default function Gallery() {
       if (!cancelled) {
         setCreations(data);
         setLoading(false);
+        // Regenera miniaturas antigas em background (logo/layout desatualizado).
+        if (activeCompany?.logo_url) {
+          scheduleThumbnailRefresh(data, {
+            brand: {
+              logo_url: activeCompany.logo_url,
+              name: activeCompany.name ?? null,
+            },
+            onUpdated: (id, updated) => {
+              if (cancelled) return;
+              setCreations((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
+            },
+          });
+        }
       }
     });
     return () => { cancelled = true; };
-  }, [activeCompanyId]);
+  }, [activeCompanyId, activeCompany?.logo_url, activeCompany?.name]);
 
   const loadCreations = useCallback(async () => {
     if (!activeCompanyId) { setCreations([]); return; }
