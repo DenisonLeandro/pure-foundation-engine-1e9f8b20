@@ -86,7 +86,6 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const [prompt, setPrompt] = useState(initialForm?.prompt ?? "");
   const [imageSource, setImageSource] = useState<"pexels" | "ai">(initialForm?.imageSource ?? "pexels");
   const [layoutMode, setLayoutMode] = useState<string>(initialForm?.layoutMode ?? "auto");
-  const [textFidelity, setTextFidelity] = useState<"improve" | "literal">(initialForm?.textFidelity ?? "improve");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [doc, setDoc] = useState<StudioDoc | null>(initialDoc ?? null);
@@ -106,12 +105,12 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
     const t = setTimeout(() => {
       saveStudioFlowDraft(userId, {
         mode: "auto",
-        autoForm: { prompt, imageSource, layoutMode, textFidelity, selectedSourceIds, brandId },
+        autoForm: { prompt, imageSource, layoutMode, selectedSourceIds, brandId },
         autoDoc: doc ?? undefined,
       });
     }, 600);
     return () => clearTimeout(t);
-  }, [userId, prompt, imageSource, layoutMode, textFidelity, selectedSourceIds, brandId, doc]);
+  }, [userId, prompt, imageSource, layoutMode, selectedSourceIds, brandId, doc]);
 
   const handleBack = () => {
     if (userId) clearStudioFlowDraft(userId);
@@ -369,14 +368,11 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         tone: brand?.tone,
         language: "português brasileiro",
         brandProfile: brandTextProfile(brand),
-        fidelity: textFidelity,
       });
       const plat = brief.platforms[0];
       // Se a IA extraiu o tema do post, sempre usar a legenda gerada (nunca prompt literal)
       // Isso garante que legenda seja sobre o POST EM SI, não sobre a descrição técnica de imagem
-      const caption = res.extractedTheme
-        ? (res.posts?.[plat] || Object.values(res.posts || {})[0] || res.extractedTheme)
-        : (textFidelity === "literal" ? prompt.trim() : (res.posts?.[plat] || Object.values(res.posts || {})[0] || brief.topic));
+      const caption = res.posts?.[plat] || Object.values(res.posts || {})[0] || res.extractedTheme || brief.topic;
 
       const styleHint = "";
       const direction = "";
@@ -518,7 +514,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
             onClick={() => {
               clearStudioFlowDraft(userId);
               setPrompt(""); setImageSource("pexels");
-              setLayoutMode("auto"); setTextFidelity("improve"); setSelectedSourceIds([]); setDoc(null);
+              setLayoutMode("auto"); setSelectedSourceIds([]); setDoc(null);
               toast.message("Rascunho descartado.");
             }}
           >
@@ -567,16 +563,6 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
                 <SelectItem value="side-bar">Sempre barra lateral</SelectItem>
                 <SelectItem value="kicker">Sempre com etiqueta</SelectItem>
                 <SelectItem value="quote">Sempre citação</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">O que fazer com meu texto</label>
-            <Select value={textFidelity} onValueChange={(v) => setTextFidelity(v as "improve" | "literal")} disabled={generating}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="improve">Melhorar mantendo a intenção</SelectItem>
-                <SelectItem value="literal">Usar meu texto literal (não reescrever)</SelectItem>
               </SelectContent>
             </Select>
           </div>

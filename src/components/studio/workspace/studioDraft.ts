@@ -28,7 +28,6 @@ export interface AutoFormDraft {
   layoutMode: string;
   selectedSourceIds: string[];
   brandId: string | null;
-  textFidelity: "improve" | "literal";
 }
 
 export interface StudioFlowDraft {
