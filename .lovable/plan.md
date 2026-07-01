@@ -1,26 +1,36 @@
-Plano para corrigir a logo definitivamente:
+## Como funciona hoje (sem mudar)
+- A empresa envia a logo em **Marcas** → o arquivo vai pro storage do app e a URL fica em `brand_profiles.logo_url`.
+- O Studio lê `currentBrand.logo_url` e aplica no post via `applyPreparedBrandLogo` (`brandLogo.ts`).
+- **Nada muda nesse fluxo.** Nenhum upload novo, nenhuma dependência externa.
 
-1. Trocar o padrão da camada de logo
-- A logo continuará sempre no canto superior esquerdo.
-- O tamanho será baseado no exemplo enviado: pequena, discreta e com margem segura.
-- Vou limitar o tamanho máximo para ela não voltar a aparecer gigante em canvases maiores.
+## Por que a qualidade está ruim
+Dois pontos em `src/components/studio/workspace/brandLogo.ts` degradam a logo original mesmo quando ela já é um PNG transparente e nítido:
 
-2. Remover o “fundo preto” artificial
-- A camada `brand_logo` não terá pill, caixa, sombra escura, fundo preenchido ou moldura adicionada pelo app.
-- Ela será renderizada apenas como imagem transparente/contida.
-- Se o preto vier do próprio arquivo cadastrado como logo, o app não vai adicionar mais nada por cima; nesse caso a solução correta será usar a versão transparente do arquivo da marca.
+1. **`stripDarkLogoBackground`** reamostra o PNG para no máximo 1024 px, redesenha em canvas 2D e re-encoda com `toDataURL("image/png")`. Isso perde nitidez e ainda pode marcar pixels laranja-escuros do "D" como "fundo" e apagá-los.
+2. **`logoLayout`** limita o tamanho a **48 px** de largura. Como o canvas do post é ~1080 px, o export precisa fazer upscale desse selo de 48 px → aspecto pixelado.
 
-3. Normalizar logos antigas no documento
-- Ao aplicar a logo, remover qualquer camada antiga `brand_logo` antes de inserir a nova.
-- Ao abrir/refinar um post que já tem logo, recalcular posição e tamanho para o padrão novo.
-- Isso evita a versão grande, duplicada ou deslocada continuar vindo de rascunhos/design_docs antigos.
+## Correção (apenas visual, dentro do app)
 
-4. Aplicar nos dois fluxos
-- Corrigir o fluxo “Criar com IA”, onde a logo entra automaticamente nos posts novos.
-- Corrigir o Studio/canvas, para quando o usuário abrir ou refinar o post a logo continuar igual ao padrão.
+1. **Não reprocessar a logo.**
+   - Em `brandLogo.ts`: simplificar `applyPreparedBrandLogo` para apenas chamar `applyBrandLogo(doc, logoUrl)` usando a URL original do storage. Sem canvas, sem `toDataURL`, sem cache.
+   - Deletar `stripDarkLogoBackground` e `prepareBrandLogoUrl` (ou deixar como no-op) para não voltarem a ser chamadas.
 
-5. Resultado esperado
-- Logo pequena no topo esquerdo, como no exemplo.
-- Sem fundo preto criado pelo app.
-- Sem duplicar logo.
-- Sem alterar texto, layout, imagem de fundo, salvamento, edição por camadas ou funcionamento atual do editor.
+2. **Tirar o teto de tamanho.**
+   - Em `logoLayout`: manter proporção ~11 % da largura do canvas (aparência aprovada) sem o `clamp(..., 36, 48)`. Manter só um piso mínimo (~48 px) e nenhum teto. Assim a logo é desenhada em resolução nativa e o export não faz upscale.
+
+3. **Recalibrar posts já abertos.**
+   - `docHasCurrentBrandLogo` já detecta layout antigo como desatualizado → ao reabrir/refinar um post, `applyBrandLogo` reaplica com o novo tamanho e com a URL original limpa (substituindo o data URL degradado que ficou salvo).
+
+4. **Confirmar qualidade no draw.**
+   - Em `DesignCanvas.tsx` e `renderDocOffscreen.ts`, garantir `imageSmoothingEnabled = true` e `imageSmoothingQuality = "high"` no `drawImage` da logo. Se já estiver, nada muda.
+
+## Fora de escopo
+- Não muda posição (segue topo-esquerda).
+- Não muda o upload em Marcas nem o campo `brand_profiles.logo_url`.
+- Não altera posts antigos que não forem reabertos.
+- Não envia nada pra fora do app.
+
+## Arquivos a alterar
+- `src/components/studio/workspace/brandLogo.ts`
+- `src/components/studio/workspace/DesignCanvas.tsx` (só confirmar smoothing)
+- `src/components/studio/workspace/renderDocOffscreen.ts` (só confirmar smoothing)
