@@ -94,23 +94,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const setActiveCompanyId = useCallback((id: string) => {
     setActiveCompanyIdState((prev) => {
       if (prev !== id) {
-        queryClient.invalidateQueries({
-          predicate: (q) =>
-            Array.isArray(q.queryKey) &&
-            q.queryKey.some((part) => typeof part === "string" && part === prev),
-        });
-        // Namespaces escopados por empresa que precisam ser drenados
-        for (const ns of [
-          "company",
-          "pfm",
-          "saved_sources",
-          "autopilot",
-          "analytics_snapshots_latest",
-          "articles",
-          "brand_profiles",
-        ]) {
-          queryClient.invalidateQueries({ queryKey: [ns] });
-        }
+        // Invalida TODO o cache do React Query ao trocar de empresa. Uma lista
+        // fixa de namespaces por-empresa vaza dados da empresa anterior sempre
+        // que uma feature nova esquece de se registrar nela; invalidar tudo
+        // elimina essa classe de bug ao custo de refetches extras (baratos
+        // frente ao risco de mostrar dado da empresa errada).
+        queryClient.invalidateQueries();
       }
       return id;
     });

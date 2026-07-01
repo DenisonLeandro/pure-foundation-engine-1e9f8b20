@@ -10,6 +10,7 @@ import {
   publishArticle as publishArticleApi,
   deleteArticle as deleteArticleApi,
 } from "@/lib/api/articles";
+import { getErrorMessage } from "@/lib/errors";
 
 export function useArticles() {
   const { activeCompanyId } = useCompany();
@@ -29,8 +30,7 @@ export function useArticles() {
       const data = await getArticles(activeCompanyId);
       setArticles(data);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao carregar artigos";
-      setError(message);
+      setError(getErrorMessage(err, "Erro ao carregar artigos"));
     } finally {
       setLoading(false);
     }
@@ -48,8 +48,7 @@ export function useArticles() {
         setArticles((prev) => [article, ...prev]);
         return article;
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Erro ao criar artigo";
-        setError(message);
+        setError(getErrorMessage(err, "Erro ao criar artigo"));
         throw err;
       }
     },
@@ -65,8 +64,7 @@ export function useArticles() {
       );
       return article;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao atualizar artigo";
-      setError(message);
+      setError(getErrorMessage(err, "Erro ao atualizar artigo"));
       throw err;
     }
   }, []);
@@ -80,8 +78,7 @@ export function useArticles() {
       );
       return article;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao publicar artigo";
-      setError(message);
+      setError(getErrorMessage(err, "Erro ao publicar artigo"));
       throw err;
     }
   }, []);
@@ -92,8 +89,7 @@ export function useArticles() {
       await deleteArticleApi(articleId);
       setArticles((prev) => prev.filter((a) => a.id !== articleId));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao deletar artigo";
-      setError(message);
+      setError(getErrorMessage(err, "Erro ao deletar artigo"));
       throw err;
     }
   }, []);

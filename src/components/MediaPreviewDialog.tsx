@@ -83,7 +83,7 @@ export function MediaPreviewDialog({
   };
 
   const handleDownloadAll = async () => {
-    const safeName = (title || "carrossel").replace(/[^\w\-]+/g, "_");
+    const safeName = (title || "carrossel").replace(/[^\w-]+/g, "_");
     try {
       const { default: JSZip } = await import("jszip");
       const zip = new JSZip();

@@ -7,6 +7,7 @@ import {
   Copy, Eye, Search
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { generateSlug, generateArticleFromCreation, type CreateArticleParams, type UpdateArticleParams } from "@/lib/api/articles";
 import { getCreationLabel } from "@/lib/gallery";
+import { getErrorMessage } from "@/lib/errors";
 
 const STATUS_COLORS = {
   draft: "bg-gray-100 text-gray-800",
@@ -152,7 +154,7 @@ export default function Articles() {
       }
       setDialogOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao salvar");
+      toast.error(getErrorMessage(err, "Erro ao salvar"));
     } finally {
       setSaving(false);
     }
@@ -163,7 +165,7 @@ export default function Articles() {
       await publishArticle(articleId);
       toast.success("Artigo publicado");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao publicar");
+      toast.error(getErrorMessage(err, "Erro ao publicar"));
     }
   };
 
@@ -173,7 +175,7 @@ export default function Articles() {
       await deleteArticle(articleId);
       toast.success("Artigo deletado");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao deletar");
+      toast.error(getErrorMessage(err, "Erro ao deletar"));
     }
   };
 
@@ -223,8 +225,19 @@ export default function Articles() {
       </Card>
 
       {loading ? (
-        <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Carregando artigos…
+        <div className="grid gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="overflow-hidden">
+              <CardContent className="flex items-start gap-4 p-4">
+                <Skeleton className="h-24 w-24 shrink-0 rounded-lg" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-1/3" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : filteredArticles.length === 0 ? (
         <Card>
@@ -441,7 +454,7 @@ export default function Articles() {
                         }));
                         toast.success("Conteúdo gerado com sucesso!");
                       } catch (err) {
-                        toast.error(err instanceof Error ? err.message : "Erro ao gerar conteúdo");
+                        toast.error(getErrorMessage(err, "Erro ao gerar conteúdo"));
                         setForm((prev) => ({
                           ...prev,
                           content: fallbackContent,

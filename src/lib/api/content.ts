@@ -46,6 +46,7 @@ export interface GenerateContentResult {
   visualSuggestion?: string;
   moodSuggestion?: string;
   hashtags?: string[];
+  extractedTheme?: string;
 }
 
 // ─── Image Search ───────────────────────────────────────────────

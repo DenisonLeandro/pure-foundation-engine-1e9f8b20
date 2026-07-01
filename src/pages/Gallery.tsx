@@ -20,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -236,7 +237,7 @@ export default function Gallery() {
     const urls = creation.urls?.length ? creation.urls : (creation.thumbnailUrl ? [creation.thumbnailUrl] : []);
     if (!urls.length) { toast({ title: "Nada para baixar" }); return; }
 
-    const safeName = (creation.templateName || "criacao").replace(/[^\w\-]+/g, "_");
+    const safeName = (creation.templateName || "criacao").replace(/[^\w-]+/g, "_");
 
     // 1 arquivo só → download direto
     if (urls.length === 1) {
@@ -440,8 +441,16 @@ export default function Gallery() {
 
       {/* Grid or empty state */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Card key={i} className="overflow-hidden border-violet-200/40 dark:border-violet-800/30">
+              <Skeleton className="aspect-square w-full rounded-none" />
+              <CardContent className="space-y-2 p-3">
+                <Skeleton className="h-3 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-violet-300/40 bg-violet-50/30 py-20 text-center dark:bg-violet-950/10">
