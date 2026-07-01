@@ -28,7 +28,7 @@ import type { StudioDoc, StudioFormat } from "./types";
 import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
-import { applyBrandLogo, removeBrandLogo, docHasBrandLogo } from "./brandLogo";
+import { applyBrandLogo, docHasBrandLogo } from "./brandLogo";
 import { saveStudioDraft, clearStudioDrafts, type StudioDraftInput } from "./studioDraft";
 import { applyAutoShadowsToDoc } from "./textShadowEngine";
 
