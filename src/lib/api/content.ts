@@ -20,6 +20,7 @@ export interface BrandProfileForAI {
   avoidWords?: string[];
   examplePosts?: string[];
   systemPrompt?: string;
+  values?: string;
 }
 
 export interface GenerateContentParams {
@@ -29,6 +30,8 @@ export interface GenerateContentParams {
   language?: string;
   sourceContent?: string;
   brandProfile?: BrandProfileForAI;
+  /** Instrução de abordagem narrativa (abertura da legenda) para variar entre gerações. */
+  creativeAngle?: string;
 }
 
 export interface CarouselSlide {

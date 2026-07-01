@@ -18,6 +18,7 @@
 import type { El, Slide, StudioDoc } from "./types";
 import { uid, CANVAS_W, CANVAS_H } from "./types";
 import { parseHex, getRelativeLuminance } from "./designReadability";
+import { pickWeighted } from "./creativeRotation";
 import type { BrandProfile } from "@/lib/brand";
 
 const READABILITY_PREFIX = "rb-bg-";
@@ -258,18 +259,26 @@ export function getCompatiblePresets(): StylePreset[] {
   ];
 }
 
-/** Escolhe um preset aleatório diferente do último usado, respeitando preferência da marca. */
-export function pickNextPreset(brandArtStyle: string | undefined, lastUsed?: StylePreset): StylePreset {
-  // Se a marca tem um art_style preferido, sempre usa esse
+/**
+ * Escolhe o próximo preset visual. `brandArtStyle` é tratado como PREFERÊNCIA
+ * (assinatura da marca), não como trava — sempre participa do sorteio contra
+ * os demais presets compatíveis, nunca é retornado incondicionalmente, e a
+ * escolha nunca repete `lastUsed`.
+ */
+export function pickNextPreset(
+  brandArtStyle: string | undefined,
+  lastUsed?: StylePreset,
+  opts?: { preferredWeight?: number },
+): StylePreset {
   const compatible = getCompatiblePresets();
-  if (brandArtStyle && compatible.includes(brandArtStyle as StylePreset)) {
-    return brandArtStyle as StylePreset;
-  }
-
-  // Senão, escolhe aleatório entre compatíveis, evitando repetir o último
-  const candidates = lastUsed ? compatible.filter((p) => p !== lastUsed) : compatible;
-  const picked = candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : "editorial";
-  return picked as StylePreset;
+  const preferred = brandArtStyle && compatible.includes(brandArtStyle as StylePreset)
+    ? (brandArtStyle as StylePreset)
+    : undefined;
+  return pickWeighted(compatible, {
+    preferred,
+    avoid: lastUsed,
+    preferredWeight: opts?.preferredWeight ?? 0.45,
+  });
 }
 
 /**
