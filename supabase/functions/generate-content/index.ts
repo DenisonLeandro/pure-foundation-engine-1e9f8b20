@@ -42,7 +42,10 @@ interface RequestBody {
     avoidWords?: string[];
     examplePosts?: string[];
     systemPrompt?: string;
+    values?: string;
   };
+  /** Instrução de abordagem narrativa (abertura da legenda) para variar entre gerações. */
+  creativeAngle?: string;
   companyId?: string;
 }
 
@@ -64,7 +67,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { prompt, platforms, tone, language, sourceContent, brandProfile, companyId } = body;
+    const { prompt, platforms, tone, language, sourceContent, brandProfile, creativeAngle, companyId } = body;
 
     if (!prompt || !platforms?.length) {
       return new Response(
@@ -84,6 +87,7 @@ Deno.serve(async (req: Request) => {
       parts.push(`Tom de voz: ${brandProfile.tone}`);
       if (brandProfile.targetAudience) parts.push(`Público-alvo: ${brandProfile.targetAudience}`);
       if (brandProfile.industry) parts.push(`Setor: ${brandProfile.industry}`);
+      if (brandProfile.values) parts.push(`Valores da marca (devem transparecer na FORMA de escrever, não só no conteúdo): ${brandProfile.values}`);
       if (brandProfile.keywords?.length) parts.push(`Palavras-chave: ${brandProfile.keywords.join(", ")}`);
       if (brandProfile.avoidWords?.length) parts.push(`NUNCA use: ${brandProfile.avoidWords.join(", ")}`);
       if (brandProfile.examplePosts?.length) {
@@ -100,6 +104,10 @@ Deno.serve(async (req: Request) => {
 
     const sourceContext = sourceContent
       ? `\n\nCONTEÚDO DE REFERÊNCIA:\n---\n${sourceContent.slice(0, 3000)}\n---`
+      : "";
+
+    const angleDirective = creativeAngle
+      ? `\n\nÂNGULO CRIATIVO DESTA GERAÇÃO (aplique à abertura da legenda principal, sem forçar se soar artificial): ${creativeAngle}`
       : "";
 
     const systemPrompt = `Você é uma agência de marketing digital completa. Crie uma campanha de conteúdo em ${lang}.${brandContext}
@@ -128,6 +136,15 @@ REGRAS DE LEGENDA (CRÍTICAS — evite o "tom genérico de IA"):
 - Estrutura recomendada: abertura contextual → explicação curta → ponto prático → chamada leve para refletir/salvar/compartilhar (opcional).
 - Para tema JURÍDICO: caráter exclusivamente educativo. NÃO prometa direito ou ganho, NÃO diga "você tem direito" sem ressalva, NÃO induza contratação, NÃO faça captação. Mantenha tom informativo e responsável.
 - Cada legenda deve soar diferente das outras — evite frases-clichê repetidas entre posts.
+
+ADAPTAÇÃO DE VOZ (a marca não é só um dado, é uma lente — releia antes de escrever):
+- O "Tom de voz" e os "Valores da marca" acima devem mudar a ESTRUTURA e o VOCABULÁRIO da legenda, não só o assunto.
+- Tom irreverente/descontraído: frases mais curtas, humor leve permitido, pode quebrar expectativa na abertura, menos formalidade.
+- Tom premium/sofisticado: vocabulário mais elaborado (sem ser rebuscado), frases com mais construção, sem gírias, sem excesso de exclamação.
+- Tom sério/institucional/jurídico: frases diretas, sem humor, sem hipérbole, precisão terminológica.
+- Tom acolhedor/humano: 2ª pessoa, empatia explícita, linguagem simples.
+- Os valores da marca (ex.: transparência, inovação, tradição, simplicidade) devem se refletir em COMO o texto é construído — ex.: uma marca que valoriza transparência tende a citar dados/fontes; uma que valoriza simplicidade evita jargão técnico.
+- Duas marcas com tons diferentes escrevendo sobre o MESMO tema devem produzir textos claramente distintos em ritmo e vocabulário — nunca aplique o mesmo padrão de frase pra todas.${angleDirective}
 
 DIRETRIZES POR PLATAFORMA:
 ${platformInstructions}

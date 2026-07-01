@@ -27,6 +27,7 @@ import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
 import { saveStudioFlowDraft, clearStudioFlowDraft, type AutoFormDraft } from "./studioDraft";
+import { pickWeighted, pickCreativeAngle, loadLastChoices, saveLastChoices } from "./creativeRotation";
 
 type SourceRow = { id: string; title: string | null; source_type: string; content: string | null };
 
@@ -362,12 +363,15 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const literalTitleDirective = brief.literalTitle
         ? `\n\nTÍTULO EXATO (obrigatório, use literalmente, palavra por palavra, sem reescrever nem parafrasear): "${brief.literalTitle}"`
         : "";
+      // Ângulo criativo (abertura da legenda) roda entre gerações — sem repetir o último usado por esta marca.
+      const creativeAngle = pickCreativeAngle(activeCompanyId, brandId);
       const res = await generateContent({
         prompt: `${brief.topic}. Objetivo: ${brief.objective}.${brief.format === "carousel" ? ` Gere um carrossel de ${brief.count} slides.` : ""}${literalTitleDirective}${sourcesCtx}`,
         platforms: brief.platforms,
         tone: brand?.tone,
         language: "português brasileiro",
         brandProfile: brandTextProfile(brand),
+        creativeAngle: creativeAngle.instruction,
       });
       const plat = brief.platforms[0];
       // Se a IA extraiu o tema do post, sempre usar a legenda gerada (nunca prompt literal)
@@ -377,27 +381,40 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const styleHint = "";
       const direction = "";
 
-      // Rotação expandida de templates para variedade visual (respeitando brand layout_presets)
+      // Template e preset visual: a marca (layout_presets/art_style) e o mood sugerido pela IA
+      // (por tema) entram como PREFERÊNCIA, nunca como trava — sempre participam do sorteio
+      // contra os demais, e nunca repetem a última escolha real desta marca (localStorage).
       const rotation: SlideTemplate[] = ["top", "kicker", "bottom", "side-bar", "center-card", "quote"];
-      const offset = Math.floor(Math.random() * rotation.length);
       const brandDefaultLayout = brand?.layout_presets?.[0];
+      const preferredTemplate: SlideTemplate | undefined = brandDefaultLayout && (SLIDE_TEMPLATES as string[]).includes(brandDefaultLayout)
+        ? (brandDefaultLayout as SlideTemplate)
+        : undefined;
+
+      const lastChoices = loadLastChoices(activeCompanyId, brandId);
+      let lastTemplate: SlideTemplate | undefined = lastChoices?.template as SlideTemplate | undefined;
       const pickTemplate = (i: number): SlideTemplate => {
         if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
-        if (brandDefaultLayout && (SLIDE_TEMPLATES as string[]).includes(brandDefaultLayout)) {
-          return brandDefaultLayout as SlideTemplate;
-        }
-        if (i === 0) return "bottom";
-        return rotation[(i + offset) % rotation.length];
+        const picked = pickWeighted(rotation, {
+          preferred: preferredTemplate,
+          avoid: lastTemplate,
+          preferredWeight: i === 0 ? 0.6 : 0.3,
+        });
+        lastTemplate = picked;
+        return picked;
       };
 
       let slides: Slide[];
       const composedUrls: string[] = [];
       const creativeHints: CreativeHints = { imageKeywords: res.imageKeywords, visualSuggestion: res.visualSuggestion };
       const validPresets = (STYLE_PRESETS.map((p) => p.value) as string[]);
-      // Fallback: se a marca não tem art_style, começa com editorial mas varia entre slides
-      const basePreset: StylePreset = brand?.art_style && validPresets.includes(brand.art_style)
-        ? (brand.art_style as StylePreset)
-        : "editorial";
+      const brandPreset = brand?.art_style && validPresets.includes(brand.art_style) ? (brand.art_style as StylePreset) : undefined;
+      const moodPreset = res.moodSuggestion && validPresets.includes(res.moodSuggestion) ? (res.moodSuggestion as StylePreset) : undefined;
+      // Marca dá a assinatura visual; o mood da IA (escolhido pelo TEMA do post) entra como
+      // segunda influência — sorteia entre os dois quando ambos existem, em vez de a marca travar sozinha.
+      const preferredPreset: StylePreset | undefined = brandPreset && moodPreset
+        ? (Math.random() < 0.5 ? brandPreset : moodPreset)
+        : (brandPreset || moodPreset);
+      const basePreset = pickNextPreset(preferredPreset, lastChoices?.preset as StylePreset | undefined, { preferredWeight: 0.6 });
       let lastPreset: StylePreset | undefined = basePreset;
 
       if (brief.format === "carousel") {
@@ -410,8 +427,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
           const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
           const tpl = pickTemplate(i);
-          // Varia o preset entre slides se a marca não forçou um art_style específico
-          const slidePreset = !brand?.art_style ? pickNextPreset(undefined, lastPreset) : basePreset;
+          // Slide 0 usa o basePreset já sorteado; os demais variam a partir dele, sempre evitando repetir o anterior.
+          const slidePreset = i === 0 ? basePreset : pickNextPreset(preferredPreset, lastPreset, { preferredWeight: 0.3 });
           lastPreset = slidePreset;
           const { cleanBg, composed } = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, tpl, creativeHints);
           // Persiste o fundo limpo (sobe data: URLs pro storage) pra ele sobreviver no design_doc.
@@ -441,9 +458,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         });
         const head = (headline || brief.topic).trim();
         const [scene] = await generateSceneBriefs(brief.topic, brief.objective, [head], styleHint, creativeHints);
-        const soloTemplate: SlideTemplate = layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)
-          ? (layoutMode as SlideTemplate)
-          : "bottom";
+        const soloTemplate: SlideTemplate = pickTemplate(0);
         const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
         const { cleanBg, composed } = await fn(brief.topic, brief.objective, head, "", 0, 1, scene, styleHint, direction, soloTemplate, creativeHints);
         const [persistedClean] = cleanBg ? await persistUrls([cleanBg]) : [];
@@ -463,6 +478,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         if (composed) composedUrls.push(composed);
       }
 
+      // Lembra a última escolha real desta marca, pra não repetir template/preset na próxima geração.
+      saveLastChoices(activeCompanyId, brandId, { template: lastTemplate, preset: lastPreset });
 
       const rawDoc: StudioDoc = {
         ...base,
