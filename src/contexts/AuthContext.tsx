@@ -9,6 +9,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  bootTimedOut: boolean;
   isAuthEnabled: boolean;
   accountType: AccountType | null;
   accountTypeLoading: boolean;
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [accountTypeLoading, setAccountTypeLoading] = useState(false);
+  const [bootTimedOut, setBootTimedOut] = useState(false);
 
   const fetchAccountType = useCallback(async (uid: string | null) => {
     if (!uid || !supabaseConfigured) {
@@ -81,7 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const finish = () => { if (!done) { done = true; setLoading(false); } };
 
     const safety = window.setTimeout(() => {
-      if (!done) console.warn("[AuthContext] getSession timeout — liberando UI");
+      if (!done) {
+        console.warn("[AuthContext] getSession timeout — liberando UI");
+        setBootTimedOut(true);
+      }
       finish();
     }, 8000);
 
@@ -176,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       session,
       loading,
+      bootTimedOut,
       isAuthEnabled: supabaseConfigured,
       accountType,
       accountTypeLoading,

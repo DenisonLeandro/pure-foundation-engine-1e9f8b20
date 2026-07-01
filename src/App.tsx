@@ -49,6 +49,9 @@ const queryClient = new QueryClient({
 });
 
 function PageLoader() {
+  // PageLoader só é renderizado dentro da árvore do AuthProvider (ver App abaixo).
+  const { bootTimedOut } = useAuth();
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4 bg-background text-foreground">
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -56,13 +59,27 @@ function PageLoader() {
         <p className="text-sm font-medium">Carregando...</p>
         <p className="text-xs text-muted-foreground">Preparando sua área de trabalho.</p>
       </div>
-      <button
-        onClick={() => window.location.reload()}
-        className="text-xs text-muted-foreground hover:text-foreground underline opacity-0 animate-[fadeIn_1s_ease-in_6s_forwards]"
-        style={{ animation: "fadeIn 1s ease-in 6s forwards" }}
-      >
-        Demorando demais? Clique para recarregar
-      </button>
+      {bootTimedOut ? (
+        <div className="max-w-xs text-center">
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Isso está demorando mais que o normal. Pode ser uma instabilidade de conexão.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-1 text-xs text-muted-foreground underline hover:text-foreground"
+          >
+            Clique para recarregar
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => window.location.reload()}
+          className="text-xs text-muted-foreground hover:text-foreground underline opacity-0 animate-[fadeIn_1s_ease-in_6s_forwards]"
+          style={{ animation: "fadeIn 1s ease-in 6s forwards" }}
+        >
+          Demorando demais? Clique para recarregar
+        </button>
+      )}
       <style>{`@keyframes fadeIn { to { opacity: 1; } }`}</style>
     </div>
   );

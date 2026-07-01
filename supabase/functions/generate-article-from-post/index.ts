@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { requireUser } from "../_shared/auth.ts";
+import { validateCompanyMembership } from "../_shared/company-secrets.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -67,6 +69,9 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const auth = await requireUser(req, corsHeaders);
+    if (auth instanceof Response) return auth;
+
     const { creation_id, title } = await req.json();
 
     if (!creation_id) {
@@ -85,6 +90,9 @@ Deno.serve(async (req: Request) => {
     if (fetchError || !creation) {
       return errorResponse("Creation not found", 404);
     }
+
+    const membership = await validateCompanyMembership(creation.company_id, auth.user.id, corsHeaders);
+    if (membership instanceof Response) return membership;
 
     // Extract content from creation
     const postContent = creation.prompt || creation.caption || "";

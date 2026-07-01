@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { requireUser } from "../_shared/auth.ts";
+import { validateCompanyMembership } from "../_shared/company-secrets.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -31,6 +33,9 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const auth = await requireUser(req, corsHeaders);
+    if (auth instanceof Response) return auth;
+
     const { article_id } = await req.json();
 
     if (!article_id) {
@@ -38,6 +43,21 @@ Deno.serve(async (req: Request) => {
     }
 
     const sb = supabaseAdmin();
+
+    // Confirma a que empresa o artigo pertence antes de checar membership —
+    // nunca confiar em um company_id vindo do client para essa validação.
+    const { data: existing, error: fetchErr } = await sb
+      .from("articles")
+      .select("company_id")
+      .eq("id", article_id)
+      .maybeSingle();
+
+    if (fetchErr) return errorResponse(`Failed to load article: ${fetchErr.message}`, 400);
+    if (!existing) return errorResponse("Article not found", 404);
+
+    const membership = await validateCompanyMembership(existing.company_id, auth.user.id, corsHeaders);
+    if (membership instanceof Response) return membership;
+
     const now = new Date().toISOString();
 
     const { data, error } = await sb

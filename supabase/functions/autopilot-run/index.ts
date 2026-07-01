@@ -41,15 +41,43 @@ function jsonResponse(data: unknown, status = 200) {
 }
 
 /**
- * Resolve API keys for a user from the company they belong to.
- * Keys are stored exclusively in public.company_configs (deny-all to clients);
- * the legacy per-user fallback was removed because user_configs no longer holds keys.
+ * Resolve API keys for the DONO (owner) da empresa, não do usuário que criou/possui
+ * a config/post do autopilot. Isso espelha `getCompanyOwnerConfig` de
+ * `_shared/company-secrets.ts`: chaves ficam em `user_configs` do owner, e um
+ * admin/editor que crie uma automação não tem (nem deveria precisar ter) suas
+ * próprias chaves cadastradas.
+ *
+ * Se `companyId` não estiver disponível (registros legados sem company_id) ou
+ * não houver owner ativo, cai no fallback antigo (chaves do próprio `fallbackUserId`
+ * via RPC `get_company_keys_for_user`) para não quebrar automações pré-existentes.
  */
 async function loadKeysForUser(
   sb: ReturnType<typeof createClient>,
-  userId: string,
+  fallbackUserId: string,
+  companyId?: string | null,
 ): Promise<Record<string, string | null>> {
-  const { data: companyKeys } = await sb.rpc("get_company_keys_for_user", { _user_id: userId });
+  if (companyId) {
+    const { data: ownerRow } = await sb
+      .from("company_members")
+      .select("user_id")
+      .eq("company_id", companyId)
+      .eq("role", "owner")
+      .eq("status", "active")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (ownerRow?.user_id) {
+      const { data: ownerKeys } = await sb
+        .from("user_configs")
+        .select("*")
+        .eq("user_id", ownerRow.user_id)
+        .maybeSingle();
+      if (ownerKeys) return ownerKeys as Record<string, string | null>;
+    }
+  }
+
+  const { data: companyKeys } = await sb.rpc("get_company_keys_for_user", { _user_id: fallbackUserId });
   if (companyKeys && (companyKeys as any).id) return companyKeys as Record<string, string | null>;
   return {};
 }
@@ -279,8 +307,8 @@ async function handleGenerate(configId: string, userId?: string) {
     brand = data;
   }
 
-  // Load firecrawl API key from company config (shared) with fallback to user.
-  const keys = await loadKeysForUser(sb, effectiveUserId);
+  // Load firecrawl API key do dono da empresa (fallback: chaves do próprio usuário).
+  const keys = await loadKeysForUser(sb, effectiveUserId, config.company_id);
   const firecrawlKey = keys?.firecrawl_api_key;
 
 
@@ -426,9 +454,9 @@ async function handleSchedule(calendarId: string) {
     return { scheduled: 0, message: "Nenhum post para agendar" };
   }
 
-  // Load shared keys (company-scoped, falls back to user)
+  // Load shared keys do dono da empresa (fallback: chaves do usuário do post)
   const userId = posts[0].user_id;
-  const keys = await loadKeysForUser(sb, userId);
+  const keys = await loadKeysForUser(sb, userId, posts[0].company_id);
   const pfmKey = keys?.postforme_api_key;
   if (!pfmKey) throw new Error("PostForMe API key não configurada");
 
@@ -605,7 +633,7 @@ async function handleCheckVisuals(calendarId: string) {
   if (!posts?.length) return { checked: 0 };
 
   const userId = posts[0].user_id;
-  const keys = await loadKeysForUser(sb, userId);
+  const keys = await loadKeysForUser(sb, userId, posts[0].company_id);
   const blotatoKey = keys?.blotato_api_key;
   const hfId = keys?.higgsfield_api_id;
   const hfSecret = keys?.higgsfield_api_secret;
@@ -687,14 +715,14 @@ async function handleConfirm(calendarId: string) {
   const sb = supabaseAdmin();
   const { data: posts } = await sb
     .from("autopilot_posts")
-    .select("id, pfm_post_id, user_id, platform")
+    .select("id, pfm_post_id, user_id, platform, company_id")
     .eq("calendar_id", calendarId)
     .eq("status", "scheduled");
 
   if (!posts?.length) return { confirmed: 0 };
 
   const userId = posts[0].user_id;
-  const keys = await loadKeysForUser(sb, userId);
+  const keys = await loadKeysForUser(sb, userId, posts[0].company_id);
   const pfmKey = keys?.postforme_api_key;
   if (!pfmKey) return { confirmed: 0, error: "PFM key not found" };
 
