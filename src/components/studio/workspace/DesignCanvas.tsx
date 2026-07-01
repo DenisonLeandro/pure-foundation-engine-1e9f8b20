@@ -237,16 +237,8 @@ export function DesignCanvas() {
           {e.type === "shape" && <div style={{ width: "100%", height: "100%", background: e.bg, borderRadius: e.radius, opacity: e.opacity }} />}
         </div>
       ))}
-      {/* logo da marca: selo discreto no canto superior esquerdo, em todos os slides.
-          Não duplica se já existir uma camada brand_logo editável no slide. */}
-      {brand?.logo_url && !s.els.some((e) => e.role === "brand_logo") && (
-        <div
-          className="absolute left-[12px] top-[12px] flex h-[42px] w-[42px] items-center justify-center rounded-[12px] border"
-          style={{ background: "rgba(10,12,20,0.45)", borderColor: "rgba(255,255,255,0.4)", boxShadow: "0 2px 10px rgba(0,0,0,0.3)", backdropFilter: "blur(2px)" }}
-        >
-          <img src={brand.logo_url} crossOrigin="anonymous" alt="" className="h-[32px] w-[32px] rounded-[8px] object-contain" />
-        </div>
-      )}
+      {/* logo da marca: renderizada exclusivamente via camada editável brand_logo
+          (aplicada por applyBrandLogo). Sem selo/pill decorativo. */}
       {/* handle/nome da marca — só em slides "chapados" (sem arte de fundo), pra não
           duplicar a marca em imagens já desenhadas (arte/auto/gpt-image-2). */}
       {!s.bgImage && doc.format !== "card" && (brand?.handle || brand?.name) && (
