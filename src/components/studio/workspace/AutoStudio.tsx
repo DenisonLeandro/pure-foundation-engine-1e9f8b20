@@ -23,7 +23,7 @@ import { emptyDoc } from "./StudioProvider";
 import { pickNextPreset } from "./designAesthetics";
 import { buildEditableEls } from "./editableEls";
 import { renderDocOffscreen } from "./renderDocOffscreen";
-import { applyBrandLogo } from "./brandLogo";
+import { applyPreparedBrandLogo } from "./brandLogo";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, getUsableBrandColors, type StylePreset } from "./designAesthetics";
@@ -513,7 +513,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const readableDoc = ensureReadableTextLayers(rawDoc, { colors: brand?.colors });
       // Refina estética: arredonda overlays, troca blocos duros por gradientes/acentos
       const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, basePreset, chosenAccent);
-      const withLogo = brand?.logo_url ? applyBrandLogo(finalDoc, brand.logo_url) : finalDoc;
+      const withLogo = brand?.logo_url ? await applyPreparedBrandLogo(finalDoc, brand.logo_url) : finalDoc;
       setDoc(withLogo);
       toast.success("Criação pronta!");
       autoSave(withLogo).then((urls) => { if (urls.length) setRenderedUrls(urls); });

@@ -28,7 +28,7 @@ import type { StudioDoc, StudioFormat } from "./types";
 import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
-import { applyBrandLogo, docHasBrandLogo } from "./brandLogo";
+import { applyPreparedBrandLogo, docHasBrandLogo, docHasCurrentBrandLogo } from "./brandLogo";
 import { saveStudioDraft, clearStudioDrafts, type StudioDraftInput } from "./studioDraft";
 import { applyAutoShadowsToDoc } from "./textShadowEngine";
 
@@ -164,18 +164,23 @@ function WorkspaceInner({
   }, []);
 
   // ── Logo da marca como camada do design ───────────────────────
-  // Em criações NOVAS, aplica automaticamente quando a marca tem logo.
-  // Em edições (creationId presente), só aplica via toggle (não toca em posts antigos).
+  // Em criações novas, aplica automaticamente quando a marca tem logo.
+  // Em edições, normaliza somente se o post já possuía brand_logo salva.
   const logoAutoAppliedRef = useRef<string | null>(null);
   useEffect(() => {
     const logo = currentBrand?.logo_url || "";
-    if (editingCreationId) return;
     if (!logo) return;
-    if (docHasBrandLogo(doc)) return;
+    const hasLogo = docHasBrandLogo(doc);
+    if (editingCreationId && !hasLogo) return;
+    if (docHasCurrentBrandLogo(doc, logo)) return;
     const key = `${doc.brandId ?? "none"}|${logo}|${doc.slides.length}`;
     if (logoAutoAppliedRef.current === key) return;
     logoAutoAppliedRef.current = key;
-    replaceDoc(applyBrandLogo(doc, logo));
+    let cancelled = false;
+    applyPreparedBrandLogo(doc, logo).then((next) => {
+      if (!cancelled) replaceDoc(next);
+    });
+    return () => { cancelled = true; };
   }, [currentBrand?.logo_url, doc, editingCreationId, replaceDoc]);
 
 
