@@ -1,19 +1,26 @@
-## Objetivo
-Voltar a logo dos posts para o padrão da referência enviada: selo pequeno “DL” no canto superior esquerdo, sem distorção e sem aumentar a marca.
+Plano para corrigir a logo definitivamente:
 
-## Correção proposta
-1. Reverter o ajuste que deixou a logo pequena demais/errada em `src/components/studio/workspace/brandLogo.ts`.
-2. Definir a camada de logo com tamanho mais próximo da referência:
-   - largura/altura proporcional ao canvas, em torno de `14%` a `16%` da largura;
-   - margem superior/esquerda discreta, em torno de `4%` a `5%` da largura;
-   - `objectFit: "contain"` para não cortar nem distorcer.
-3. Manter a logo sempre no topo esquerdo e travada (`locked=true`).
-4. Não recriar selo, fundo, borda, pill ou qualquer “D” artificial no código — o app deve renderizar somente o arquivo de logo cadastrado.
+1. Trocar o padrão da camada de logo
+- A logo continuará sempre no canto superior esquerdo.
+- O tamanho será baseado no exemplo enviado: pequena, discreta e com margem segura.
+- Vou limitar o tamanho máximo para ela não voltar a aparecer gigante em canvases maiores.
 
-## Importante
-Se o arquivo cadastrado atualmente for o “D” grande sem fundo, o código não consegue transformar ele automaticamente no selo “DL” antigo. Nesse caso, depois dessa correção de tamanho/posição, será necessário cadastrar novamente a logo correta na tela de marca. A correção garante que, quando a logo correta estiver cadastrada, ela apareça no padrão da referência.
+2. Remover o “fundo preto” artificial
+- A camada `brand_logo` não terá pill, caixa, sombra escura, fundo preenchido ou moldura adicionada pelo app.
+- Ela será renderizada apenas como imagem transparente/contida.
+- Se o preto vier do próprio arquivo cadastrado como logo, o app não vai adicionar mais nada por cima; nesse caso a solução correta será usar a versão transparente do arquivo da marca.
 
-## Escopo
-- Afeta apenas novos posts e posts que reaplicarem a logo.
-- Não altera posts antigos automaticamente.
-- Não muda layout, geração, texto, edição, galeria ou publicação.
+3. Normalizar logos antigas no documento
+- Ao aplicar a logo, remover qualquer camada antiga `brand_logo` antes de inserir a nova.
+- Ao abrir/refinar um post que já tem logo, recalcular posição e tamanho para o padrão novo.
+- Isso evita a versão grande, duplicada ou deslocada continuar vindo de rascunhos/design_docs antigos.
+
+4. Aplicar nos dois fluxos
+- Corrigir o fluxo “Criar com IA”, onde a logo entra automaticamente nos posts novos.
+- Corrigir o Studio/canvas, para quando o usuário abrir ou refinar o post a logo continuar igual ao padrão.
+
+5. Resultado esperado
+- Logo pequena no topo esquerdo, como no exemplo.
+- Sem fundo preto criado pelo app.
+- Sem duplicar logo.
+- Sem alterar texto, layout, imagem de fundo, salvamento, edição por camadas ou funcionamento atual do editor.
