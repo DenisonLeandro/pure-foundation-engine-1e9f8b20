@@ -166,16 +166,12 @@ function WorkspaceInner({
   // ── Logo da marca como camada do design ───────────────────────
   // Em criações novas, aplica automaticamente quando a marca tem logo.
   // Em edições, normaliza somente se o post já possuía brand_logo salva.
-  const logoAutoAppliedRef = useRef<string | null>(null);
   useEffect(() => {
     const logo = currentBrand?.logo_url || "";
     if (!logo) return;
     const hasLogo = docHasBrandLogo(doc);
     if (editingCreationId && !hasLogo) return;
     if (docHasCurrentBrandLogo(doc, logo)) return;
-    const key = `${doc.brandId ?? "none"}|${logo}|${doc.slides.length}`;
-    if (logoAutoAppliedRef.current === key) return;
-    logoAutoAppliedRef.current = key;
     let cancelled = false;
     applyPreparedBrandLogo(doc, logo).then((next) => {
       if (!cancelled) replaceDoc(next);
