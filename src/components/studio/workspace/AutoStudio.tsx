@@ -25,9 +25,9 @@ import { buildEditableEls } from "./editableEls";
 import { renderDocOffscreen } from "./renderDocOffscreen";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
-import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
+import { refineDesignAesthetics, STYLE_PRESETS, getUsableBrandColors, type StylePreset } from "./designAesthetics";
 import { saveStudioFlowDraft, clearStudioFlowDraft, type AutoFormDraft } from "./studioDraft";
-import { pickWeighted, pickCreativeAngle, loadLastChoices, saveLastChoices } from "./creativeRotation";
+import { drawFromBag, pickCreativeAngle, loadLastChoices, saveLastChoices } from "./creativeRotation";
 
 type SourceRow = { id: string; title: string | null; source_type: string; content: string | null };
 
@@ -381,9 +381,9 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const styleHint = "";
       const direction = "";
 
-      // Template e preset visual: a marca (layout_presets/art_style) e o mood sugerido pela IA
-      // (por tema) entram como PREFERÊNCIA, nunca como trava — sempre participam do sorteio
-      // contra os demais, e nunca repetem a última escolha real desta marca (localStorage).
+      // Template e preset visual: baralho sem repetição (todas as opções aparecem antes de
+      // qualquer repetição). A marca (layout_presets/art_style) e o mood sugerido pela IA (por
+      // tema) só influenciam a ORDEM de cada ciclo novo do baralho, nunca a frequência a longo prazo.
       const rotation: SlideTemplate[] = ["top", "kicker", "bottom", "side-bar", "center-card", "quote"];
       const brandDefaultLayout = brand?.layout_presets?.[0];
       const preferredTemplate: SlideTemplate | undefined = brandDefaultLayout && (SLIDE_TEMPLATES as string[]).includes(brandDefaultLayout)
@@ -392,14 +392,12 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
 
       const lastChoices = loadLastChoices(activeCompanyId, brandId);
       let lastTemplate: SlideTemplate | undefined = lastChoices?.template as SlideTemplate | undefined;
+      let templateBag: SlideTemplate[] = (lastChoices?.templateBag as SlideTemplate[] | undefined) || [];
       const pickTemplate = (i: number): SlideTemplate => {
         if (layoutMode !== "auto" && (SLIDE_TEMPLATES as string[]).includes(layoutMode)) return layoutMode as SlideTemplate;
-        const picked = pickWeighted(rotation, {
-          preferred: preferredTemplate,
-          avoid: lastTemplate,
-          preferredWeight: i === 0 ? 0.6 : 0.3,
-        });
+        const { picked, bag } = drawFromBag(rotation, templateBag, lastTemplate, preferredTemplate);
         lastTemplate = picked;
+        templateBag = bag;
         return picked;
       };
 
@@ -414,8 +412,24 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       const preferredPreset: StylePreset | undefined = brandPreset && moodPreset
         ? (Math.random() < 0.5 ? brandPreset : moodPreset)
         : (brandPreset || moodPreset);
-      const basePreset = pickNextPreset(preferredPreset, lastChoices?.preset as StylePreset | undefined, { preferredWeight: 0.6 });
+      let presetBag: StylePreset[] = (lastChoices?.presetBag as StylePreset[] | undefined) || [];
+      const drawPreset = (lastUsed: StylePreset | undefined): StylePreset => {
+        const { picked, bag } = pickNextPreset(preferredPreset, lastUsed, presetBag);
+        presetBag = bag;
+        return picked;
+      };
+      const basePreset = drawPreset(lastChoices?.preset as StylePreset | undefined);
       let lastPreset: StylePreset | undefined = basePreset;
+
+      // Cor de destaque: também roda por baralho entre as cores cadastradas da marca (nunca
+      // trava sempre na mesma, quando há mais de uma cor utilizável no Kit Visual).
+      const usableColors = getUsableBrandColors(brand?.colors);
+      const { picked: chosenAccent, bag: accentBag } = drawFromBag(
+        usableColors.length ? usableColors : ["#f59e0b"],
+        lastChoices?.accentBag,
+        lastChoices?.accent,
+        usableColors[0],
+      );
 
       if (brief.format === "carousel") {
         const specs = (res.carousel?.slides || []).slice(0, brief.count);
@@ -427,8 +441,8 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
           setProgress(`Gerando arte do slide ${i + 1}/${specs.length}…`);
           const fn = imageSource === "ai" ? slideArt : slideStockPhoto;
           const tpl = pickTemplate(i);
-          // Slide 0 usa o basePreset já sorteado; os demais variam a partir dele, sempre evitando repetir o anterior.
-          const slidePreset = i === 0 ? basePreset : pickNextPreset(preferredPreset, lastPreset, { preferredWeight: 0.3 });
+          // Slide 0 usa o basePreset já sorteado; os demais tiram do mesmo baralho.
+          const slidePreset = i === 0 ? basePreset : drawPreset(lastPreset);
           lastPreset = slidePreset;
           const { cleanBg, composed } = await fn(brief.topic, brief.objective, specs[i].heading, specs[i].body, i, specs.length, scenes[i], styleHint, direction, tpl, creativeHints);
           // Persiste o fundo limpo (sobe data: URLs pro storage) pra ele sobreviver no design_doc.
@@ -478,8 +492,13 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         if (composed) composedUrls.push(composed);
       }
 
-      // Lembra a última escolha real desta marca, pra não repetir template/preset na próxima geração.
-      saveLastChoices(activeCompanyId, brandId, { template: lastTemplate, preset: lastPreset });
+      // Lembra o baralho e a última escolha real desta marca, pra manter o ciclo sem repetição
+      // entre esta geração e a próxima (não só dentro deste carrossel).
+      saveLastChoices(activeCompanyId, brandId, {
+        template: lastTemplate, templateBag,
+        preset: lastPreset, presetBag,
+        accent: chosenAccent, accentBag,
+      });
 
       const rawDoc: StudioDoc = {
         ...base,
@@ -492,7 +511,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       // Garante contraste/legibilidade respeitando paleta da marca
       const readableDoc = ensureReadableTextLayers(rawDoc, { colors: brand?.colors });
       // Refina estética: arredonda overlays, troca blocos duros por gradientes/acentos
-      const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, basePreset);
+      const finalDoc = refineDesignAesthetics(readableDoc, { colors: brand?.colors }, basePreset, chosenAccent);
       setDoc(finalDoc);
       toast.success("Criação pronta!");
       autoSave(finalDoc).then((urls) => { if (urls.length) setRenderedUrls(urls); });
