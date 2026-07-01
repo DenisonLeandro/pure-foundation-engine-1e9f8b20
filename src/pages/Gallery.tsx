@@ -34,6 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
 import { getCreations, getCreation, deleteCreation, updateCreation, getCreationLabel, type Creation } from "@/lib/gallery";
+import { scheduleThumbnailRefresh } from "@/lib/gallery-refresh";
 import { aiAssist } from "@/lib/api/ai-assist";
 import { useCompany } from "@/contexts/CompanyContext";
 
