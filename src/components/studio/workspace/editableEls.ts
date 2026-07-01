@@ -74,9 +74,9 @@ const SHADOW_STRONG =
 // totalmente arredondada. Quase invisível sobre fotos médias/escuras, dá só
 // um respiro extra onde a foto é clara demais.
 const HALO_PREFIX = "rb-bg-halo-";
-// Contador ("3/7") e handle da marca são metadados decorativos, não fazem
-// parte do bloco de título — não devem influenciar onde os acentos são
-// ancorados (senão a barra de acento "sobe" pro topo e colide com a logo).
+// Handle da marca é metadado decorativo, não faz parte do bloco de título —
+// não deve influenciar onde os acentos são ancorados (senão a barra de
+// acento "sobe" pro topo e colide com a logo).
 const META_PREFIX = "rb-meta-";
 function titleHalo(x: number, y: number, w: number, h: number): El {
   const padX = 24, padY = 16;
@@ -95,21 +95,6 @@ function titleHalo(x: number, y: number, w: number, h: number): El {
 }
 
 
-function counterEl(index: number | undefined, total: number | undefined, position: "top-right" | "bottom-right"): El | null {
-  if (typeof index !== "number" || typeof total !== "number" || total <= 1) return null;
-  return {
-    id: META_PREFIX + uid(), type: "text",
-    x: W - MARGIN - 60,
-    y: position === "top-right" ? 18 : H - 18,
-    w: 60, h: 14,
-    text: `${index + 1} / ${total}`,
-    fontSize: 10, color: "rgba(255,255,255,0.9)",
-    weight: 600, align: "right",
-    shadow: SHADOW,
-    zIndex: 5,
-  };
-}
-
 function handleEl(brandHandle: string | undefined, position: "bottom-left" | "top-left"): El | null {
   if (!brandHandle) return null;
   return {
@@ -126,7 +111,7 @@ function handleEl(brandHandle: string | undefined, position: "bottom-left" | "to
 }
 
 export function buildEditableEls(opts: BuildElsOpts): El[] {
-  const { heading, body, brandHandle, index, total, template, mood } = opts;
+  const { heading, body, brandHandle, template, mood } = opts;
   const els: El[] = [];
   const typo = getPresetTypography(mood || "auto");
   const headLineHeight = 1.06;
@@ -159,7 +144,6 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
           lineHeight: 1.4, shadow: SHADOW, zIndex: 3,
         });
       }
-      const c = counterEl(index, total, "bottom-right"); if (c) els.push(c);
       const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
       break;
     }
@@ -187,15 +171,12 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
           lineHeight: 1.4, shadow: SHADOW, zIndex: 3,
         });
       }
-      const c = counterEl(index, total, "top-right"); if (c) els.push(c);
       const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
       break;
     }
 
     case "kicker": {
-      const kickerText = typeof index === "number" && typeof total === "number" && total > 1
-        ? `PARTE ${String(index + 1).padStart(2, "0")}`
-        : "DESTAQUE";
+      const kickerText = "DESTAQUE";
       const kickerY = 208;
       els.push({
         id: uid(), type: "text",
@@ -228,7 +209,6 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
           lineHeight: 1.35, shadow: SHADOW, zIndex: 3,
         });
       }
-      const c = counterEl(index, total, "top-right"); if (c) els.push(c);
       const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
       break;
     }
@@ -258,7 +238,6 @@ export function buildEditableEls(opts: BuildElsOpts): El[] {
           lineHeight: 1.35, shadow: SHADOW, zIndex: 3,
         });
       }
-      const c = counterEl(index, total, "top-right"); if (c) els.push(c);
       const h = handleEl(brandHandle, "bottom-left"); if (h) els.push(h);
       break;
     }
