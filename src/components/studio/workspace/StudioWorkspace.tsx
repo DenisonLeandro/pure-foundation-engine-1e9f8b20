@@ -392,18 +392,6 @@ function WorkspaceInner({
           </SelectContent>
         </Select>
 
-        {!staticFallback && (
-          <Button
-            variant={logoVisible ? "default" : "outline"}
-            size="sm"
-            className="ml-1 hidden h-9 gap-1.5 sm:inline-flex"
-            onClick={toggleBrandLogo}
-            title={logoVisible ? "Ocultar logo da marca" : "Aplicar logo da marca"}
-          >
-            {logoVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span className="hidden md:inline">{logoVisible ? "Ocultar logo" : "Mostrar logo"}</span>
-          </Button>
-        )}
 
         <div className="ml-auto flex items-center gap-1.5">
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={undo} disabled={!canUndo} title="Desfazer"><Undo2 className="h-4 w-4" /></Button>
