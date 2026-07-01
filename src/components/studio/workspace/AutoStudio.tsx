@@ -23,6 +23,7 @@ import { emptyDoc } from "./StudioProvider";
 import { pickNextPreset } from "./designAesthetics";
 import { buildEditableEls } from "./editableEls";
 import { renderDocOffscreen } from "./renderDocOffscreen";
+import { applyBrandLogo } from "./brandLogo";
 import type { StudioDoc, StudioFormat, Slide } from "./types";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, getUsableBrandColors, type StylePreset } from "./designAesthetics";
