@@ -662,17 +662,6 @@ function CreationCard({
           </div>
         )}
 
-        {thumb ? (
-          <img
-            src={thumb}
-            alt={creation.templateName ?? "Criação"}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <Image className="h-10 w-10 text-muted-foreground/40" />
-          </div>
-        )}
 
         {/* Type overlay icon */}
         {creation.type === "video" && (
