@@ -1,23 +1,17 @@
-## Problema
+## Objetivo
+Deixar a camada da logo do mesmo tamanho da referência menor (imagem 2), fixa no canto superior esquerdo, sem mexer no resto do app.
 
-Posts criados pelo fluxo **Criar com IA** (`AutoStudio`) estão vindo sem a logo da marca. Motivo: `applyBrandLogo` só é chamado dentro do `StudioWorkspace` (canvas manual). O `AutoStudio` monta o `StudioDoc` e chama `renderDocOffscreen` direto, sem inserir a camada `brand_logo`. Como a camada nunca é criada, nada é desenhado (o selo decorativo antigo já foi removido).
+## Mudança
+Arquivo único: `src/components/studio/workspace/brandLogo.ts` → `makeLogoEl`.
 
-## Correção
+- Tamanho: `~0.11 * canvasW` (mín. 40px). Bate com a proporção da imagem 2 (selo pequeno, discreto).
+- Margem: `~0.04 * canvasW` (mín. 14px), igual em `x` e `y` → sempre canto superior esquerdo.
+- Continua `locked=true`, `objectFit: "contain"`, `zIndex: 50`, aplicado a todos os slides via `applyBrandLogo`.
 
-Editar `src/components/studio/workspace/AutoStudio.tsx`:
-
-1. Importar `applyBrandLogo` de `./brandLogo`.
-2. Após montar `finalDoc` (linha 514), se `brand?.logo_url` existir, aplicar:
-   ```ts
-   const withLogo = brand?.logo_url ? applyBrandLogo(finalDoc, brand.logo_url) : finalDoc;
-   setDoc(withLogo);
-   autoSave(withLogo).then(...);
-   ```
-
-Assim a logo entra como camada editável (`role="brand_logo"`, `locked=true`) em todos os slides, é desenhada pelo `renderDocOffscreen` no export final e continua editável ao abrir na Galeria → Editar.
+## Escopo
+- Novos posts (fluxo "Criar com IA") e edições que reaplicarem a logo passam a usar o novo tamanho.
+- Posts antigos salvos continuam como estão — a camada só troca quando `applyBrandLogo` roda de novo.
+- Fundo escuro do arquivo permanece intacto (é parte do PNG enviado).
 
 ## Fora do escopo
-
-- Não mexer no `StudioWorkspace` (já aplica corretamente).
-- Não recriar o selo decorativo removido anteriormente.
-- Não alterar posts antigos: só afeta criações novas do AutoStudio.
+`AutoStudio`, `StudioWorkspace`, `DesignCanvas`, `renderDocOffscreen`, upload/gestão de logo — nada disso é tocado.
