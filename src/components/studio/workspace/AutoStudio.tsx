@@ -370,7 +370,9 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
         brandProfile: brandTextProfile(brand),
       });
       const plat = brief.platforms[0];
-      const caption = res.posts?.[plat] || Object.values(res.posts || {})[0] || brief.topic;
+      // Se a IA extraiu o tema do post, sempre usar a legenda gerada (nunca prompt literal)
+      // Isso garante que legenda seja sobre o POST EM SI, não sobre a descrição técnica de imagem
+      const caption = res.posts?.[plat] || Object.values(res.posts || {})[0] || res.extractedTheme || brief.topic;
 
       const styleHint = "";
       const direction = "";
