@@ -34,6 +34,7 @@ export interface El {
   // e para travar movimentação acidental.
   role?: string;
   locked?: boolean;
+  assetSourceUrl?: string;
 }
 
 export interface Slide {
