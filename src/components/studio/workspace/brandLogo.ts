@@ -20,9 +20,9 @@ export function docHasBrandLogo(doc: StudioDoc): boolean {
 }
 
 function makeLogoEl(logoUrl: string, canvasW: number): El {
-  // Selo pequeno e discreto no canto superior esquerdo (referência: imagem 2).
-  const margin = Math.max(14, Math.round(canvasW * 0.04)); // ~14 @360
-  const size = Math.max(40, Math.round(canvasW * 0.11));   // ~40 @360
+  // Selo proporcional no canto superior esquerdo, sem recriar/alterar a arte da logo.
+  const margin = Math.max(14, Math.round(canvasW * 0.045)); // ~16 @360
+  const size = Math.max(52, Math.round(canvasW * 0.15));    // ~54 @360
   return {
     id: uid(),
     type: "image",
