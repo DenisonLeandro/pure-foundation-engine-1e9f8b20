@@ -126,41 +126,10 @@ function buildSlideNode(
     node.appendChild(wrap);
   }
 
-  // logo da marca: selo discreto no canto superior esquerdo, em TODOS os slides
-  // (com ou sem foto de fundo) — fundo translúcido + borda sutil pra ficar
-  // legível mesmo sobre fotos claras ou escuras.
-  if (brand?.logo_url) {
-    imageUrls.push(brand.logo_url);
-    const badge = document.createElement("div");
-    applyStyle(badge, {
-      position: "absolute",
-      left: "12px",
-      top: "12px",
-      width: "42px",
-      height: "42px",
-      borderRadius: "12px",
-      background: "rgba(10,12,20,0.45)",
-      border: "1px solid rgba(255,255,255,0.4)",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      backdropFilter: "blur(2px)",
-    });
-    // background-image em vez de <img>+object-fit — mesmo motivo do fundo/imagens.
-    const logo = document.createElement("div");
-    applyStyle(logo, {
-      width: "32px",
-      height: "32px",
-      borderRadius: "8px",
-      backgroundImage: `url("${brand.logo_url}")`,
-      backgroundSize: "contain",
-      backgroundPosition: "center",
-      backgroundRepeat: "no-repeat",
-    });
-    badge.appendChild(logo);
-    node.appendChild(badge);
-  }
+  // logo da marca: renderizada exclusivamente pela camada editável brand_logo
+  // (aplicada por applyBrandLogo e desenhada no loop de elementos acima). Sem
+  // selo/pill decorativo aqui para não duplicar a logo no export final.
+
 
   // handle/nome da marca: mantém regra antiga (só em slides "chapados")
   if (!slide.bgImage && format !== "card") {
