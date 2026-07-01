@@ -243,14 +243,14 @@ export default function Schedule() {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                          onClick={() => handleDuplicate(post)}
+                          onClick={(e) => { e.stopPropagation(); handleDuplicate(post); }}
                           title="Duplicar"
                         >
                           <Copy className="h-3 w-3" />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive">
+                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </AlertDialogTrigger>

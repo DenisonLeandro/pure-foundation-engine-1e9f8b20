@@ -1,17 +1,11 @@
-## Remover o botão "Ocultar/Mostrar logo" do Studio
+## Corrigir botão de apagar agendamento na tela Agenda
 
-O botão do canto superior do Studio permite ocultar a logo manualmente, o que conflita com a regra de "sempre aplicar a logo da marca nos posts". Vou removê-lo mantendo a aplicação automática da logo intacta.
+### Diagnóstico
+Em `src/pages/Schedule.tsx` (linha 236), o card do post agendado tem um `onClick={() => handleOpenPost(post)}` no `<div>` externo, que navega para `/studio`. Quando o usuário clica no ícone da lixeira (linha 253), o clique abre o `AlertDialog` mas também sobe para o `div` pai, disparando a navegação — a página é desmontada antes do diálogo aparecer, ou o diálogo abre e some imediatamente. O mesmo problema afeta o botão "Duplicar".
 
-### Mudanças em `src/components/studio/workspace/StudioWorkspace.tsx`
-1. Remover o bloco JSX do botão (linhas 395–406) que renderiza "Ocultar logo / Mostrar logo".
-2. Remover o handler `toggleBrandLogo` e a variável `logoVisible` (linhas 181–195) — deixam de ser usados.
-3. Remover `removeBrandLogo` do import de `./brandLogo` (fica só `applyBrandLogo` e `docHasBrandLogo`, este último ainda é usado no auto-apply).
-4. Remover imports não usados após a limpeza (`Eye`, `EyeOff` do lucide-react, se não forem usados em outro lugar do arquivo).
+### Correção
+Em `src/pages/Schedule.tsx`:
+1. Adicionar `e.stopPropagation()` no `onClick` do botão "Duplicar" (linha 246).
+2. Adicionar `onClick={(e) => e.stopPropagation()}` no `AlertDialogTrigger` (envolvendo o botão da lixeira na linha 253) para impedir que o clique de abrir o diálogo suba até o div do card.
 
-### O que NÃO muda
-- `applyBrandLogo` continua rodando automaticamente em criações novas quando a marca tem `logo_url` (o `useEffect` das linhas 170–179 permanece).
-- Posts antigos (com `editingCreationId`) continuam sem ser tocados automaticamente — comportamento preservado.
-- `brandLogo.ts` fica intocado (a função `removeBrandLogo` continua exportada caso seja usada em outro lugar futuro; não vamos apagar).
-- Nenhuma mudança em edge functions, banco ou fluxo de salvamento.
-
-Resultado: a logo passa a vir sempre nos novos posts sem o botão manual que causava conflito.
+Não altera nenhum outro fluxo — apagar, listar, navegar ao clicar no corpo do card continuam funcionando como hoje.
