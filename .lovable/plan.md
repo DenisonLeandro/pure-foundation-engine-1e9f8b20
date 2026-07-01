@@ -1,36 +1,42 @@
-## Como funciona hoje (sem mudar)
-- A empresa envia a logo em **Marcas** → o arquivo vai pro storage do app e a URL fica em `brand_profiles.logo_url`.
-- O Studio lê `currentBrand.logo_url` e aplica no post via `applyPreparedBrandLogo` (`brandLogo.ts`).
-- **Nada muda nesse fluxo.** Nenhum upload novo, nenhuma dependência externa.
+## Por que a galeria fica "horrível" mas o editor está perfeito
 
-## Por que a qualidade está ruim
-Dois pontos em `src/components/studio/workspace/brandLogo.ts` degradam a logo original mesmo quando ela já é um PNG transparente e nítido:
+A galeria não renderiza o post — ela só exibe o **PNG que foi salvo no banco na hora em que o post foi criado** (`creations.urls[]` e `thumbnail_url`, gerados por `renderDocOffscreen` naquele momento).
 
-1. **`stripDarkLogoBackground`** reamostra o PNG para no máximo 1024 px, redesenha em canvas 2D e re-encoda com `toDataURL("image/png")`. Isso perde nitidez e ainda pode marcar pixels laranja-escuros do "D" como "fundo" e apagá-los.
-2. **`logoLayout`** limita o tamanho a **48 px** de largura. Como o canvas do post é ~1080 px, o export precisa fazer upscale desse selo de 48 px → aspecto pixelado.
+Ou seja:
+- **Editor:** renderiza ao vivo a partir do `design_doc` + logo atual do storage → sempre mostra o resultado com as regras mais novas (tamanho da logo, qualidade, etc.).
+- **Galeria:** mostra um PNG estático, congelado. Se o post foi criado ANTES da última correção da logo, ele carrega para sempre com a logo pequena/embaçada — mesmo que você reabra e edite, o thumbnail só troca se você **re-salvar** o post.
 
-## Correção (apenas visual, dentro do app)
+Isso explica exatamente o print: o mesmo post aparece com logo pequena na galeria (arquivo antigo) e com logo maior/nítida quando aberto (renderizado com as regras novas dentro do fluxo do editor/preview).
 
-1. **Não reprocessar a logo.**
-   - Em `brandLogo.ts`: simplificar `applyPreparedBrandLogo` para apenas chamar `applyBrandLogo(doc, logoUrl)` usando a URL original do storage. Sem canvas, sem `toDataURL`, sem cache.
-   - Deletar `stripDarkLogoBackground` e `prepareBrandLogoUrl` (ou deixar como no-op) para não voltarem a ser chamadas.
+Além disso, encontrei um bug menor em `src/pages/Gallery.tsx`: a tag `<img>` do thumbnail está **duplicada** (linhas 641–651 e 665–675). Não é a causa da baixa qualidade, mas está renderizando duas camadas sobrepostas no card.
 
-2. **Tirar o teto de tamanho.**
-   - Em `logoLayout`: manter proporção ~11 % da largura do canvas (aparência aprovada) sem o `clamp(..., 36, 48)`. Manter só um piso mínimo (~48 px) e nenhum teto. Assim a logo é desenhada em resolução nativa e o export não faz upscale.
+## Correção proposta (2 partes)
 
-3. **Recalibrar posts já abertos.**
-   - `docHasCurrentBrandLogo` já detecta layout antigo como desatualizado → ao reabrir/refinar um post, `applyBrandLogo` reaplica com o novo tamanho e com a URL original limpa (substituindo o data URL degradado que ficou salvo).
+### 1. Regenerar os thumbnails desatualizados (fix definitivo)
+Quando a galeria for aberta, para cada post que:
+- tenha `design_doc`, e
+- tenha layer `brand_logo` com layout antigo (`docHasCurrentBrandLogo(doc, currentBrandLogoUrl) === false`),
 
-4. **Confirmar qualidade no draw.**
-   - Em `DesignCanvas.tsx` e `renderDocOffscreen.ts`, garantir `imageSmoothingEnabled = true` e `imageSmoothingQuality = "high"` no `drawImage` da logo. Se já estiver, nada muda.
+executar em background:
+1. `applyBrandLogo(doc, currentLogoUrl)` para atualizar a logo.
+2. `renderDocOffscreen(doc, brand)` para gerar os PNGs novos.
+3. `updateCreation(id, { urls, thumbnailUrl, designDoc })` para persistir.
+
+Detalhes:
+- Fila serial (1 por vez) com limite de N regenerações por sessão para não travar a UI.
+- Sinalizador local (`Set<id>` em memória) para não reprocessar duas vezes na mesma sessão.
+- Não regenera posts sem `design_doc` (impossível — só existe a imagem final).
+- Não regenera posts publicados/agendados sem confirmação, para não alterar arte já divulgada.
+- Toast discreto ao terminar ("Miniaturas atualizadas: N").
+
+### 2. Corrigir o `<img>` duplicado no card
+Em `src/pages/Gallery.tsx`, remover o segundo bloco `<img>` (linhas 665–675) — sobra apenas o primeiro.
 
 ## Fora de escopo
-- Não muda posição (segue topo-esquerda).
-- Não muda o upload em Marcas nem o campo `brand_profiles.logo_url`.
-- Não altera posts antigos que não forem reabertos.
-- Não envia nada pra fora do app.
+- Não muda o pipeline de criação (`renderDocOffscreen`, tamanho da logo etc.), que já foi corrigido no turno anterior.
+- Não altera posts publicados/agendados.
+- Não muda o upload da logo em Marcas nem o `brand_profiles.logo_url`.
 
 ## Arquivos a alterar
-- `src/components/studio/workspace/brandLogo.ts`
-- `src/components/studio/workspace/DesignCanvas.tsx` (só confirmar smoothing)
-- `src/components/studio/workspace/renderDocOffscreen.ts` (só confirmar smoothing)
+- `src/pages/Gallery.tsx` — remover `<img>` duplicado + gatilho de regeneração em background.
+- Novo `src/lib/gallery-refresh.ts` (ou similar) — helper `refreshOutdatedThumbnails(creations, brand)` encapsulando fila/verificação/persistência.
