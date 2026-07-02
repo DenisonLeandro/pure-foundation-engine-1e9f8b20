@@ -46,8 +46,30 @@ interface RequestBody {
   };
   /** Instrução de abordagem narrativa (abertura da legenda) para variar entre gerações. */
   creativeAngle?: string;
+  /** Título literal exigido pelo usuário — passado como metadado, nunca embutido no prompt. */
+  literalTitle?: string;
   companyId?: string;
 }
+
+/**
+ * Remove qualquer vazamento da diretiva "TÍTULO EXATO (...)" que a IA porventura
+ * tenha copiado no output. Se vier com aspas, mantém só o conteúdo entre aspas;
+ * senão, remove só o prefixo da diretiva.
+ */
+function stripDirectiveLeak(text: unknown): string {
+  if (typeof text !== "string") return "";
+  let out = text;
+  // Padrão principal: TÍTULO EXATO (...): "frase"
+  const quoted = /T[ÍI]TULO\s+EXATO[^:]*:\s*["“”'‘’]([^"“”'‘’]+)["“”'‘’]/i;
+  const m = out.match(quoted);
+  if (m) return m[1].trim();
+  // Fallback: só remover o prefixo da diretiva
+  out = out.replace(/T[ÍI]TULO\s+EXATO\s*\([^)]*\)\s*:\s*/gi, "");
+  out = out.replace(/T[ÍI]TULO\s+EXATO\s*:\s*/gi, "");
+  out = out.replace(/\(obrigat[óo]rio[^)]*\)/gi, "");
+  return out.trim();
+}
+
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
