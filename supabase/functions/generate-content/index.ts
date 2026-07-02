@@ -278,6 +278,27 @@ Responda com JSON puro.`;
       };
     }
 
+    // Sanitiza qualquer vazamento da diretiva "TÍTULO EXATO" que a IA possa ter ecoado.
+    try {
+      const car = parsed.carousel as { title?: unknown; slides?: Array<{ heading?: unknown; body?: unknown }> } | undefined;
+      if (car) {
+        if (car.title) car.title = stripDirectiveLeak(car.title);
+        if (Array.isArray(car.slides)) {
+          car.slides = car.slides.map((s) => ({
+            ...s,
+            heading: stripDirectiveLeak(s.heading),
+            body: stripDirectiveLeak(s.body),
+          }));
+        }
+      }
+      const posts = parsed.posts as Record<string, unknown> | undefined;
+      if (posts && typeof posts === "object") {
+        for (const k of Object.keys(posts)) posts[k] = stripDirectiveLeak(posts[k]);
+      }
+    } catch (e) {
+      console.warn("[generate-content] sanitize skipped:", e);
+    }
+
     console.log("[generate-content] Success!");
 
     const totalTokens = data.usage?.total_tokens;
