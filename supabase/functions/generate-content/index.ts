@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { prompt, platforms, tone, language, sourceContent, brandProfile, creativeAngle, companyId } = body;
+    const { prompt, platforms, tone, language, sourceContent, brandProfile, creativeAngle, literalTitle, companyId } = body;
 
     if (!prompt || !platforms?.length) {
       return new Response(
