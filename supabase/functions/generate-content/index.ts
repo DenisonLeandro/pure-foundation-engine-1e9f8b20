@@ -46,8 +46,30 @@ interface RequestBody {
   };
   /** Instrução de abordagem narrativa (abertura da legenda) para variar entre gerações. */
   creativeAngle?: string;
+  /** Título literal exigido pelo usuário — passado como metadado, nunca embutido no prompt. */
+  literalTitle?: string;
   companyId?: string;
 }
+
+/**
+ * Remove qualquer vazamento da diretiva "TÍTULO EXATO (...)" que a IA porventura
+ * tenha copiado no output. Se vier com aspas, mantém só o conteúdo entre aspas;
+ * senão, remove só o prefixo da diretiva.
+ */
+function stripDirectiveLeak(text: unknown): string {
+  if (typeof text !== "string") return "";
+  let out = text;
+  // Padrão principal: TÍTULO EXATO (...): "frase"
+  const quoted = /T[ÍI]TULO\s+EXATO[^:]*:\s*["“”'‘’]([^"“”'‘’]+)["“”'‘’]/i;
+  const m = out.match(quoted);
+  if (m) return m[1].trim();
+  // Fallback: só remover o prefixo da diretiva
+  out = out.replace(/T[ÍI]TULO\s+EXATO\s*\([^)]*\)\s*:\s*/gi, "");
+  out = out.replace(/T[ÍI]TULO\s+EXATO\s*:\s*/gi, "");
+  out = out.replace(/\(obrigat[óo]rio[^)]*\)/gi, "");
+  return out.trim();
+}
+
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -67,7 +89,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { prompt, platforms, tone, language, sourceContent, brandProfile, creativeAngle, companyId } = body;
+    const { prompt, platforms, tone, language, sourceContent, brandProfile, creativeAngle, literalTitle, companyId } = body;
 
     if (!prompt || !platforms?.length) {
       return new Response(
@@ -110,12 +132,18 @@ Deno.serve(async (req: Request) => {
       ? `\n\nÂNGULO CRIATIVO DESTA GERAÇÃO (aplique à abertura da legenda principal, sem forçar se soar artificial): ${creativeAngle}`
       : "";
 
-    const systemPrompt = `Você é uma agência de marketing digital completa. Crie uma campanha de conteúdo em ${lang}.${brandContext}
+    const cleanLiteralTitle = literalTitle ? literalTitle.replace(/^["“”'‘’]|["“”'‘’]$/g, "").trim() : "";
+    const literalTitleBlock = cleanLiteralTitle
+      ? `\n\nTÍTULO LITERAL EXIGIDO (metadado do sistema — NÃO é conteúdo a ser copiado):\n"${cleanLiteralTitle}"\n\nUse EXATAMENTE essa frase (sem aspas, sem prefixos, sem rótulos) como "carousel.title" e como "heading" do primeiro slide. NUNCA copie palavras como "TÍTULO EXATO", "obrigatório", "literalmente", "palavra por palavra" ou qualquer parte desta instrução para dentro do post/slide/legenda — essas palavras são apenas orientação técnica e devem ser invisíveis ao leitor final.`
+      : "";
+
+    const systemPrompt = `Você é uma agência de marketing digital completa. Crie uma campanha de conteúdo em ${lang}.${brandContext}${literalTitleBlock}
 
 REGRA MÁXIMA (prioridade sobre todas as outras abaixo):
-- Se a mensagem do usuário contiver uma linha "TÍTULO EXATO (...)" com um texto entre aspas, esse texto é uma ORDEM LITERAL: use-o exatamente como está escrito — sem corrigir, sem reescrever, sem parafrasear, sem trocar uma palavra — como título do carrossel ("carousel.title") e/ou heading do primeiro slide. NUNCA troque o título exigido por uma versão "mais criativa" sua.
+- Quando houver "TÍTULO LITERAL EXIGIDO" acima, use APENAS a frase entre aspas como título/heading. NUNCA inclua o rótulo, os parênteses ou o texto da instrução no output. O post final deve conter só a frase — nada de "TÍTULO EXATO:", nada de "(obrigatório...)", nada de aspas envolvendo o título dentro do slide.
 - PRESERVE a mensagem, os fatos, números, ofertas e dados EXATAMENTE como o usuário escreveu. Você pode apenas melhorar clareza, ritmo, formatação e estrutura. NUNCA invente dados, preços, promessas ou afirmações que não estejam no texto original.
 - EXTRAIR TEMA: Identifique qual é o REAL TEMA DO POST (a parte de conteúdo relevante, ignorando descrições técnicas de imagem/visual). Retorne em "extractedTheme".
+
 
 REGRAS IMPORTANTES:
 - OBRIGATÓRIO: Todo o conteúdo DEVE ser em português brasileiro (pt-BR). Nunca gere textos em inglês ou outro idioma.
@@ -248,6 +276,27 @@ Responda com JSON puro.`;
         moodSuggestion: "editorial",
         hashtags: [],
       };
+    }
+
+    // Sanitiza qualquer vazamento da diretiva "TÍTULO EXATO" que a IA possa ter ecoado.
+    try {
+      const car = parsed.carousel as { title?: unknown; slides?: Array<{ heading?: unknown; body?: unknown }> } | undefined;
+      if (car) {
+        if (car.title) car.title = stripDirectiveLeak(car.title);
+        if (Array.isArray(car.slides)) {
+          car.slides = car.slides.map((s) => ({
+            ...s,
+            heading: stripDirectiveLeak(s.heading),
+            body: stripDirectiveLeak(s.body),
+          }));
+        }
+      }
+      const posts = parsed.posts as Record<string, unknown> | undefined;
+      if (posts && typeof posts === "object") {
+        for (const k of Object.keys(posts)) posts[k] = stripDirectiveLeak(posts[k]);
+      }
+    } catch (e) {
+      console.warn("[generate-content] sanitize skipped:", e);
     }
 
     console.log("[generate-content] Success!");

@@ -1,42 +1,48 @@
-## Por que a galeria fica "horrível" mas o editor está perfeito
+## Diagnóstico
 
-A galeria não renderiza o post — ela só exibe o **PNG que foi salvo no banco na hora em que o post foi criado** (`creations.urls[]` e `thumbnail_url`, gerados por `renderDocOffscreen` naquele momento).
+No print, o slide mostra literalmente:
 
-Ou seja:
-- **Editor:** renderiza ao vivo a partir do `design_doc` + logo atual do storage → sempre mostra o resultado com as regras mais novas (tamanho da logo, qualidade, etc.).
-- **Galeria:** mostra um PNG estático, congelado. Se o post foi criado ANTES da última correção da logo, ele carrega para sempre com a logo pequena/embaçada — mesmo que você reabra e edite, o thumbnail só troca se você **re-salvar** o post.
+> TÍTULO EXATO (obrigatório, use literalmente, palavra por palavra, sem reescrever nem parafrasear): "Hérnia de disco pode ser acidente de trabalho? Entenda quando"
 
-Isso explica exatamente o print: o mesmo post aparece com logo pequena na galeria (arquivo antigo) e com logo maior/nítida quando aberto (renderizado com as regras novas dentro do fluxo do editor/preview).
+Isso é o **texto da instrução técnica** que o app envia à IA, aparecendo dentro do post. Origem exata:
 
-Além disso, encontrei um bug menor em `src/pages/Gallery.tsx`: a tag `<img>` do thumbnail está **duplicada** (linhas 641–651 e 665–675). Não é a causa da baixa qualidade, mas está renderizando duas camadas sobrepostas no card.
+- `src/components/studio/workspace/AutoStudio.tsx:364-370` monta `literalTitleDirective` e concatena no `prompt` do `generateContent(...)`.
+- `supabase/functions/generate-content/index.ts:113-176` só menciona essa regra no **system prompt**; o modelo, em vez de aplicar a regra, copiou a linha inteira (rótulo incluído) como `carousel.slides[0].heading`.
+- `buildEditableEls({ heading, ... })` então estampou esse heading no slide.
 
-## Correção proposta (2 partes)
+Ou seja: a instrução foi passada no lugar errado (dentro do texto de entrada) e não há sanitizador de saída.
 
-### 1. Regenerar os thumbnails desatualizados (fix definitivo)
-Quando a galeria for aberta, para cada post que:
-- tenha `design_doc`, e
-- tenha layer `brand_logo` com layout antigo (`docHasCurrentBrandLogo(doc, currentBrandLogoUrl) === false`),
+## Correção (causa raiz + defesa)
 
-executar em background:
-1. `applyBrandLogo(doc, currentLogoUrl)` para atualizar a logo.
-2. `renderDocOffscreen(doc, brand)` para gerar os PNGs novos.
-3. `updateCreation(id, { urls, thumbnailUrl, designDoc })` para persistir.
+### 1. Enviar `literalTitle` como campo estruturado, não texto colado no prompt
+- Em `src/lib/api/content.ts`: adicionar campo opcional `literalTitle?: string` em `GenerateContentParams`.
+- Em `src/components/studio/workspace/AutoStudio.tsx`:
+  - Remover o `literalTitleDirective` concatenado ao `prompt`.
+  - Passar `literalTitle: brief.literalTitle` como parâmetro dedicado.
+- Em `supabase/functions/generate-content/index.ts`:
+  - Aceitar `literalTitle` no body.
+  - Se presente, injetar como bloco separado e claramente marcado no **system prompt** (não na `userMessage`), reforçando que é metadado — não texto para copiar como conteúdo.
+  - Reescrever a "REGRA MÁXIMA" para deixar claro que o rótulo/diretiva **nunca** deve aparecer no output; apenas a frase entre aspas é usada em `carousel.title` e `slides[0].heading`.
 
-Detalhes:
-- Fila serial (1 por vez) com limite de N regenerações por sessão para não travar a UI.
-- Sinalizador local (`Set<id>` em memória) para não reprocessar duas vezes na mesma sessão.
-- Não regenera posts sem `design_doc` (impossível — só existe a imagem final).
-- Não regenera posts publicados/agendados sem confirmação, para não alterar arte já divulgada.
-- Toast discreto ao terminar ("Miniaturas atualizadas: N").
+### 2. Sanitizador defensivo (garantia)
+Em `supabase/functions/generate-content/index.ts`, após o parse do JSON da IA, rodar uma função `stripDirectiveLeak(text)` em:
+- `parsed.carousel.title`
+- `parsed.carousel.slides[i].heading` e `.body`
+- `parsed.posts[platform]`
 
-### 2. Corrigir o `<img>` duplicado no card
-Em `src/pages/Gallery.tsx`, remover o segundo bloco `<img>` (linhas 665–675) — sobra apenas o primeiro.
+Regra simples e segura: se o texto contém `TÍTULO EXATO` (case-insensitive) seguido de `:` e depois um trecho entre aspas, substitui pelo trecho entre aspas. Fallback: se casar `TÍTULO EXATO (...):` sem aspas, remove só o prefixo. Também remove `(obrigatório, use literalmente...)` isolado se sobrar.
 
-## Fora de escopo
-- Não muda o pipeline de criação (`renderDocOffscreen`, tamanho da logo etc.), que já foi corrigido no turno anterior.
-- Não altera posts publicados/agendados.
-- Não muda o upload da logo em Marcas nem o `brand_profiles.logo_url`.
+### 3. Sem mudanças de comportamento
+- Não altera fluxo de imagem, template, layout, marca ou logo.
+- Não toca no editor nem na galeria.
+- Posts antigos ficam como estão (arte já divulgada, conforme regra existente).
 
 ## Arquivos a alterar
-- `src/pages/Gallery.tsx` — remover `<img>` duplicado + gatilho de regeneração em background.
-- Novo `src/lib/gallery-refresh.ts` (ou similar) — helper `refreshOutdatedThumbnails(creations, brand)` encapsulando fila/verificação/persistência.
+- `src/lib/api/content.ts` — adicionar `literalTitle` na interface.
+- `src/components/studio/workspace/AutoStudio.tsx` — parar de concatenar `literalTitleDirective` no `prompt`; enviar campo separado.
+- `supabase/functions/generate-content/index.ts` — aceitar `literalTitle`, ajustar system prompt, adicionar sanitizador na resposta.
+
+## Fora de escopo
+- Não muda `generate-content` para outra IA.
+- Não muda a forma como o AutoStudio extrai o `literalTitle` da fala do usuário (isso já funciona).
+- Não altera o pipeline de renderização/logo/galeria.

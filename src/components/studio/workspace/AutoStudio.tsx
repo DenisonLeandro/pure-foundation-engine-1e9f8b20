@@ -361,18 +361,16 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
 
       // texto (legenda + hashtags + slides se carrossel)
       setProgress("Escrevendo o conteúdo…");
-      const literalTitleDirective = brief.literalTitle
-        ? `\n\nTÍTULO EXATO (obrigatório, use literalmente, palavra por palavra, sem reescrever nem parafrasear): "${brief.literalTitle}"`
-        : "";
       // Ângulo criativo (abertura da legenda) roda entre gerações — sem repetir o último usado por esta marca.
       const creativeAngle = pickCreativeAngle(activeCompanyId, brandId);
       const res = await generateContent({
-        prompt: `${brief.topic}. Objetivo: ${brief.objective}.${brief.format === "carousel" ? ` Gere um carrossel de ${brief.count} slides.` : ""}${literalTitleDirective}${sourcesCtx}`,
+        prompt: `${brief.topic}. Objetivo: ${brief.objective}.${brief.format === "carousel" ? ` Gere um carrossel de ${brief.count} slides.` : ""}${sourcesCtx}`,
         platforms: brief.platforms,
         tone: brand?.tone,
         language: "português brasileiro",
         brandProfile: brandTextProfile(brand),
         creativeAngle: creativeAngle.instruction,
+        literalTitle: brief.literalTitle || undefined,
       });
       const plat = brief.platforms[0];
       // Se a IA extraiu o tema do post, sempre usar a legenda gerada (nunca prompt literal)

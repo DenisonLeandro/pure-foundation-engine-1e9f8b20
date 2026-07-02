@@ -32,6 +32,8 @@ export interface GenerateContentParams {
   brandProfile?: BrandProfileForAI;
   /** Instrução de abordagem narrativa (abertura da legenda) para variar entre gerações. */
   creativeAngle?: string;
+  /** Título literal exigido — passado como metadado, nunca embutido no prompt. */
+  literalTitle?: string;
 }
 
 export interface CarouselSlide {
