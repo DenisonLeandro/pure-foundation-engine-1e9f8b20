@@ -11,10 +11,6 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { generateOpenAiImage, editOpenAiImage } from "@/lib/api";
 import { saveVisualToGallery } from "@/lib/gallery";
 import type { BrandProfile } from "@/lib/brand";
-import { emptyDoc } from "./StudioProvider";
-import { applyBrandLogo } from "./brandLogo";
-import { renderDocOffscreen } from "./renderDocOffscreen";
-import type { StudioDoc } from "./types";
 
 /**
  * Modo 1 — "IA cria a arte completa".
@@ -81,25 +77,54 @@ function buildEditPrompt(instruction: string, brand: BrandProfile | null, origin
   ].filter(Boolean).join("\n\n");
 }
 
-/** Sobrepõe a logo real da marca sobre a arte gerada, reusando o renderizador do app. */
-async function overlayBrandLogo(artUrl: string, brand: BrandProfile | null, brandId: string | null): Promise<string> {
-  if (!brand?.logo_url) return artUrl;
-  const base = emptyDoc("image", brandId);
-  // Canvas em 2:3 (mesma proporção da imagem 1024x1536) para não cortar a arte/texto.
-  const doc: StudioDoc = {
-    ...base,
-    canvas: { width: 360, height: 540, aspectRatio: 360 / 540, source: "finalImage" },
-    slides: [{ bg: "#0b0b0f", bgImage: artUrl, bgFit: "cover", els: [] }],
-  };
-  const withLogo = applyBrandLogo(doc, brand.logo_url);
-  try {
-    const [rendered] = await renderDocOffscreen(withLogo, {
-      logo_url: brand.logo_url, handle: brand.handle, name: brand.name, colors: brand.colors,
-    });
-    return rendered || artUrl;
-  } catch {
-    return artUrl; // se a composição falhar, mostra ao menos a arte gerada
+function loadImg(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
+/**
+ * Sobrepõe a logo real da marca sobre a arte, em RESOLUÇÃO NATIVA, via canvas 2D
+ * direto (`drawImage`). Evita o html2canvas do renderizador do app, que
+ * re-rasterizava a imagem inteira e borrava a arte/texto do gpt-image-2.
+ * A arte é desenhada 1:1 (sem reescala) e só a logo é carimbada no canto.
+ */
+async function composeImageWithLogo(artUrl: string, logoUrl?: string | null): Promise<string> {
+  const art = await loadImg(artUrl);
+  const w = art.naturalWidth || 1024;
+  const h = art.naturalHeight || 1536;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return artUrl;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(art, 0, 0, w, h);
+  if (logoUrl) {
+    try {
+      const logo = await loadImg(logoUrl);
+      // Mesmo posicionamento do brandLogo.ts: topo-esquerda, ~11% da largura,
+      // logo "contida" na caixa (preserva a proporção).
+      const box = Math.max(48, Math.round(w * 0.11));
+      const margin = clamp(Math.round(w * 0.04), 14, 48);
+      const lw0 = logo.naturalWidth || box;
+      const lh0 = logo.naturalHeight || box;
+      const scale = Math.min(box / lw0, box / lh0);
+      const lw = lw0 * scale;
+      const lh = lh0 * scale;
+      ctx.drawImage(logo, margin + (box - lw) / 2, margin + (box - lh) / 2, lw, lh);
+    } catch { /* logo é opcional — segue só com a arte */ }
   }
+  return canvas.toDataURL("image/png");
 }
 
 export function AiArtStudio({ onBack }: { onBack: () => void }) {
@@ -124,7 +149,7 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
   /** Aplica a logo sobre a arte limpa e atualiza a imagem exibida. */
   const composeAndShow = async (cleanArt: string) => {
     setArt(cleanArt);
-    const composed = await overlayBrandLogo(cleanArt, brand, brandId);
+    const composed = await composeImageWithLogo(cleanArt, brand?.logo_url);
     setResultUrl(composed);
   };
 
