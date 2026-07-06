@@ -132,7 +132,25 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
       setError(null);
       setAuthUrl(null);
       setLoading(true);
-      setProfileUrls(loadProfileUrls(activeCompanyId));
+      // Hidrata da RPC (fonte de verdade); mantém cache local como fallback.
+      const localCached = loadProfileUrlsLocal(activeCompanyId);
+      setProfileUrls(localCached);
+      if (activeCompanyId) {
+        api.getCompanyProfileUrls(activeCompanyId).then((remote) => {
+          const merged: Record<string, string> = { ...remote };
+          // Migração one-shot: campos que existem só localmente sobem para o banco.
+          const toUpload: Record<string, string> = {};
+          for (const [k, v] of Object.entries(localCached)) {
+            if (v && !remote[k]) toUpload[k] = v;
+          }
+          const finalMap = { ...merged, ...toUpload };
+          setProfileUrls(finalMap);
+          saveProfileUrlsLocal(activeCompanyId, finalMap);
+          if (Object.keys(toUpload).length > 0) {
+            api.setCompanyProfileUrls(activeCompanyId, toUpload).catch(() => {/* noop */});
+          }
+        }).catch(() => {/* mantém localCached */});
+      }
       loadAccounts().then(({ accs }) => {
         // Snapshot de TODOS os ids PFM no momento da abertura — usado para
         // distinguir "conta nova autorizada agora" de "conta já existente no PFM".
