@@ -348,13 +348,25 @@ const PLATFORMS: Record<string, ActorConfig> = {
 
   facebook: {
     actorId: "apify~facebook-pages-scraper",
-    buildInput: (u) => ({
-      startUrls: [{ url: u.startsWith("http") ? u : `https://www.facebook.com/${u}/` }],
-      scrapeAbout: true,
-      scrapePosts: true,
-      scrapeReviews: false,
-      maxPosts: 12,
-    }),
+    buildInput: (u) => {
+      // Aceita URL completa, URL sem protocolo, ou slug puro.
+      const raw = (u || "").trim();
+      let url: string;
+      if (/^https?:\/\//i.test(raw)) {
+        url = raw;
+      } else if (/facebook\.com/i.test(raw)) {
+        url = `https://${raw.replace(/^\/+/, "")}`;
+      } else {
+        url = `https://www.facebook.com/${raw.replace(/^@/, "").replace(/^\/+/, "")}/`;
+      }
+      return {
+        startUrls: [{ url }],
+        scrapeAbout: true,
+        scrapePosts: true,
+        scrapeReviews: false,
+        maxPosts: 12,
+      };
+    },
     normalize: (raw) => {
       const arr: A[] = Array.isArray(raw) ? raw : [raw];
       const p = arr[0] || {};
