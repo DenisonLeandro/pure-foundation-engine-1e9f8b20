@@ -10,6 +10,7 @@
 
 import type { StudioDoc, Slide } from "./types";
 import { getCanvasSize, getExportSize } from "./types";
+import { BRAND_LOGO_ROLE } from "./brandLogo";
 
 export interface RenderBrand {
   logo_url?: string | null;
@@ -121,7 +122,9 @@ function buildSlideNode(
   // logo da marca: selo discreto no canto superior esquerdo, em TODOS os slides
   // (com ou sem foto de fundo) — fundo translúcido + borda sutil pra ficar
   // legível mesmo sobre fotos claras ou escuras.
-  if (brand?.logo_url) {
+  // Só desenha o selo automático quando o slide NÃO tem uma camada brand_logo
+  // editável — senão a exportação duplicaria a logo (mesma trava do DesignCanvas).
+  if (brand?.logo_url && !slide.els.some((e) => e.role === BRAND_LOGO_ROLE)) {
     const badge = document.createElement("div");
     applyStyle(badge, {
       position: "absolute",
