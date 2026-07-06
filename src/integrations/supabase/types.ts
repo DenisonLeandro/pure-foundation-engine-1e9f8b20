@@ -602,6 +602,7 @@ export type Database = {
           id: string
           pexels_api_key: string | null
           postforme_api_key: string | null
+          profile_urls: Json
           unsplash_api_key: string | null
           updated_at: string
         }
@@ -617,6 +618,7 @@ export type Database = {
           id?: string
           pexels_api_key?: string | null
           postforme_api_key?: string | null
+          profile_urls?: Json
           unsplash_api_key?: string | null
           updated_at?: string
         }
@@ -632,6 +634,7 @@ export type Database = {
           id?: string
           pexels_api_key?: string | null
           postforme_api_key?: string | null
+          profile_urls?: Json
           unsplash_api_key?: string | null
           updated_at?: string
         }
@@ -1184,6 +1187,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      get_company_profile_urls: { Args: { _company_id: string }; Returns: Json }
       get_company_role: {
         Args: { _company: string; _user: string }
         Returns: string
@@ -1201,6 +1205,10 @@ export type Database = {
         Returns: boolean
       }
       is_owner_account: { Args: { _user_id: string }; Returns: boolean }
+      set_company_profile_urls: {
+        Args: { _company_id: string; _patch: Json }
+        Returns: Json
+      }
       update_company_integration_keys: {
         Args: { _company_id: string; _patch: Json }
         Returns: Json
