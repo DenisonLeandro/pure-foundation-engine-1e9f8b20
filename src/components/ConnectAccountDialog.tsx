@@ -52,13 +52,15 @@ const PROFILE_URL_PLACEHOLDERS: Record<string, string> = {
   bluesky:   "https://bsky.app/profile/seu.handle",
 };
 
-// ─── Helpers localStorage (escopo por empresa) ──────────────────
+// ─── Helpers profile URLs ──────────────────────────────────────
+// Fonte de verdade: RPC set/get_company_profile_urls (company_configs.profile_urls).
+// localStorage é mantido apenas como cache de leitura e para migração do legado.
 
-function loadProfileUrls(companyId: string | null): Record<string, string> {
+function loadProfileUrlsLocal(companyId: string | null): Record<string, string> {
   try { return JSON.parse(companyStorage.get(companyId, PROFILE_URLS_KEY) || "{}"); }
   catch { return {}; }
 }
-function saveProfileUrls(companyId: string | null, urls: Record<string, string>) {
+function saveProfileUrlsLocal(companyId: string | null, urls: Record<string, string>) {
   companyStorage.set(companyId, PROFILE_URLS_KEY, JSON.stringify(urls));
 }
 
