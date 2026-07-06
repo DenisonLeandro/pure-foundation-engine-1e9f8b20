@@ -430,13 +430,26 @@ export default function Analytics() {
 
     setIsFetching(true);
     try {
-      const savedProfileUrls: Record<string, string> = (() => {
-        try { return JSON.parse(companyStorage.get(activeCompanyId, "profile_urls") || "{}"); }
-        catch { return {}; }
-      })();
+      // Busca URLs de perfil por empresa (banco), com fallback ao legado localStorage.
+      let savedProfileUrls: Record<string, string> = {};
+      try {
+        if (activeCompanyId) {
+          savedProfileUrls = await api.getCompanyProfileUrls(activeCompanyId);
+        }
+      } catch {/* fallback abaixo */}
+      if (!savedProfileUrls || Object.keys(savedProfileUrls).length === 0) {
+        try { savedProfileUrls = JSON.parse(companyStorage.get(activeCompanyId, "profile_urls") || "{}"); }
+        catch { savedProfileUrls = {}; }
+      }
 
+      const { accounts: accountsList, missingUrl } = api.buildAnalyticsAccounts(pfmAccounts, savedProfileUrls);
 
-      const accountsList = api.buildAnalyticsAccounts(pfmAccounts, savedProfileUrls);
+      if (missingUrl.length > 0) {
+        toast({
+          title: "URLs de perfil faltando",
+          description: `Adicione a URL pública em Setup → Conectar rede para: ${missingUrl.join(", ")}`,
+        });
+      }
 
       if (!accountsList.length) {
         toast({ title: "Sem usuários para buscar", description: "Configure URLs de perfil nas Contas.", variant: "destructive" });
