@@ -1,6 +1,6 @@
 # Studio — Dois modos de criação de posts
 
-**Status:** Em execução — Fases 0, 1 e 2 concluídas; Fase 3 pendente
+**Status:** Concluído — Fases 0 a 3 entregues
 **Última atualização:** 06/07/2026
 
 Documento de planejamento das alterações no Studio para oferecer **dois modos
@@ -159,15 +159,23 @@ caixa de texto) vem nas Fases 2–3.
 
 ---
 
-### Fase 3 — Modo 1: editor conversacional *(médio-alto esforço)*
+### Fase 3 — Modo 1: editor conversacional ✅ CONCLUÍDA
 
-- **Backend:** estender `supabase/functions/openai-image/index.ts` para suportar
-  **edição** (`/v1/images/edits`, multipart com imagem de entrada), além da
-  geração atual (`/v1/images/generations`).
-- **Cliente:** adicionar `editOpenAiImage({ image, prompt })` em
+- **Backend:** `openai-image` agora suporta **edição** (`/v1/images/edits`,
+  multipart) quando o corpo traz `image`, além da geração. O fallback Gemini
+  também aceita imagem de entrada para edição.
+- **Cliente:** `editOpenAiImage({ image, prompt, size, quality })` em
   `src/lib/api/openai.ts`.
-- **UI:** caixa de texto "O que deseja mudar?" + histórico (desfazer) + botões de
-  atalho. A cada edição, a logo real é recolocada por cima.
+- **UI:** caixa de texto "Peça uma mudança nesta arte" + atalhos rápidos +
+  "Desfazer". A edição opera sempre sobre a arte **limpa** (sem logo); a logo
+  real é recomposta por cima a cada versão.
+
+**Validado:** type-check, lint e build de produção limpos. Commit `184f105`.
+
+**Nota:** a edge function roda em Deno e não entra no `tsc`/`eslint` do app;
+foi escrita seguindo os padrões já existentes no arquivo (FormData/`atob`/
+`fetch`). Recomenda-se um teste real de edição para confirmar o multipart do
+`/v1/images/edits`.
 
 ---
 
