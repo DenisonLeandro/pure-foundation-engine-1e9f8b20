@@ -131,35 +131,57 @@ export interface AnalyticsResult {
 
 /**
  * Build analytics account list from PFM accounts + saved profile URLs.
- * YouTube and LinkedIn pass the full URL (edge function handles it).
- * Other platforms extract the username/handle from the URL.
+ * YouTube, LinkedIn e Facebook: pass full URL (edge function handles parsing).
+ * Outras plataformas: extraem username/handle da URL, ou usam o handle do PFM.
+ *
+ * Também retorna `missingUrl`: plataformas conectadas cujo scraper Apify
+ * requer URL pública (facebook/linkedin/youtube/tiktok) mas ainda não foi
+ * salva em company_configs.profile_urls — essas contas não são incluídas
+ * na lista final para evitar chamadas ao Apify que voltariam com 0.
  */
+export interface BuildAnalyticsResult {
+  accounts: { platform: string; username: string }[];
+  missingUrl: string[]; // plataformas sem URL salva mas conectadas
+}
+
 export function buildAnalyticsAccounts(
   pfmAccounts: { platform: string; username: string }[],
   profileUrls: Record<string, string>
-): { platform: string; username: string }[] {
-  return pfmAccounts
-    .filter((a) => a.username || profileUrls[a.platform])
+): BuildAnalyticsResult {
+  const missingUrl = new Set<string>();
+  const accounts = pfmAccounts
     .map((a) => {
-      const savedUrl = profileUrls[a.platform] || "";
+      const savedUrl = (profileUrls[a.platform] || "").trim();
       let username = a.username || "";
 
-      if (savedUrl) {
-        // YouTube, LinkedIn e Facebook: pass full URL (edge function handles parsing)
+      if (PLATFORMS_REQUIRING_URL.has(a.platform)) {
+        if (!savedUrl) {
+          missingUrl.add(a.platform);
+          return null;
+        }
+        // Estas plataformas passam a URL completa quando o actor espera URL,
+        // ou extraem o handle quando o actor espera username.
         if (a.platform === "youtube" || a.platform === "linkedin" || a.platform === "facebook") {
           username = savedUrl;
         } else {
-          // Other platforms: extract last segment as username/handle
+          // tiktok: extrai handle da URL
           const urlParts = savedUrl.replace(/\/+$/, "").split("/");
           const lastPart = urlParts[urlParts.length - 1]?.replace("@", "") || "";
-          if (lastPart) username = lastPart;
+          username = lastPart || savedUrl;
         }
+      } else if (savedUrl) {
+        // Plataformas em que o handle basta, mas se o usuário salvou URL, extraímos.
+        const urlParts = savedUrl.replace(/\/+$/, "").split("/");
+        const lastPart = urlParts[urlParts.length - 1]?.replace("@", "") || "";
+        if (lastPart) username = lastPart;
       }
 
       if (!username || username === "YouTube" || username === "Canal YouTube") return null;
       return { platform: a.platform, username };
     })
     .filter(Boolean) as { platform: string; username: string }[];
+
+  return { accounts, missingUrl: [...missingUrl] };
 }
 
 export async function fetchAnalytics(
