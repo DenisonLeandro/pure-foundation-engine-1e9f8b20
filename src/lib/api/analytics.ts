@@ -4,6 +4,34 @@
  */
 
 import { getSupabaseUrl, baseHeaders } from "./_shared";
+import { supabase } from "@/integrations/supabase/client";
+
+// ─── Profile URLs (per-company, stored in company_configs.profile_urls) ────
+
+export async function getCompanyProfileUrls(companyId: string): Promise<Record<string, string>> {
+  const { data, error } = await supabase.rpc("get_company_profile_urls" as never, {
+    _company_id: companyId,
+  } as never);
+  if (error) throw new Error(error.message);
+  return (data ?? {}) as Record<string, string>;
+}
+
+export async function setCompanyProfileUrls(
+  companyId: string,
+  patch: Record<string, string | null>
+): Promise<Record<string, string>> {
+  const { data, error } = await supabase.rpc("set_company_profile_urls" as never, {
+    _company_id: companyId,
+    _patch: patch,
+  } as never);
+  if (error) throw new Error(error.message);
+  return (data ?? {}) as Record<string, string>;
+}
+
+/** Plataformas cujo scraper Apify EXIGE URL pública (não basta o handle do PFM). */
+export const PLATFORMS_REQUIRING_URL = new Set([
+  "facebook", "linkedin", "youtube", "tiktok",
+]);
 
 // TODO: no futuro, passar companyId explicitamente em cada chamada (em vez
 // do setter de módulo) para evitar acoplamento global ao CompanyContext.
