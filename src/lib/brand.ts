@@ -83,6 +83,7 @@ export function brandTextProfile(b?: BrandProfile | null): BrandProfileForAI | u
     avoidWords: b.avoid_words?.length ? b.avoid_words : undefined,
     examplePosts: b.example_posts?.length ? b.example_posts : undefined,
     systemPrompt: b.system_prompt || undefined,
+    values: b.values || undefined,
   };
 }
 

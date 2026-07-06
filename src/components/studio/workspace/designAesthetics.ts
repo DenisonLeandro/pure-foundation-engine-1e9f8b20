@@ -18,6 +18,7 @@
 import type { El, Slide, StudioDoc } from "./types";
 import { uid, CANVAS_W, CANVAS_H } from "./types";
 import { parseHex, getRelativeLuminance } from "./designReadability";
+import { drawFromBag } from "./creativeRotation";
 import type { BrandProfile } from "@/lib/brand";
 
 const READABILITY_PREFIX = "rb-bg-";
@@ -87,16 +88,20 @@ export function getBrandTypography(brand: BrandProfile | null | undefined, prese
 
 interface BrandPalette { colors?: string[] }
 
-/** Escolhe a cor da marca com melhor presença para usar como ACENTO (não cinza). */
-function pickAccent(palette: BrandPalette): string {
-  const colors = (palette.colors || []).filter((c) => parseHex(c));
-  if (!colors.length) return "#f59e0b";
-  // prefere a primeira cor que não seja muito clara nem muito escura
-  for (const c of colors) {
+/** Filtra as cores da marca que têm boa presença visual para acento (nem muito claras nem muito escuras). */
+export function getUsableBrandColors(colors: string[] = []): string[] {
+  const valid = colors.filter((c) => parseHex(c));
+  const wellBalanced = valid.filter((c) => {
     const l = getRelativeLuminance(c);
-    if (l > 0.12 && l < 0.78) return c;
-  }
-  return colors[0];
+    return l > 0.12 && l < 0.78;
+  });
+  return wellBalanced.length ? wellBalanced : valid;
+}
+
+/** Escolhe a cor da marca com melhor presença para usar como ACENTO (não cinza). Determinístico — sempre a mesma para a mesma marca. */
+function pickAccent(palette: BrandPalette): string {
+  const usable = getUsableBrandColors(palette.colors);
+  return usable[0] || "#f59e0b";
 }
 
 /** Heurística: o overlay é "grande" se cobre >45% da área do canvas. */
@@ -258,18 +263,22 @@ export function getCompatiblePresets(): StylePreset[] {
   ];
 }
 
-/** Escolhe um preset aleatório diferente do último usado, respeitando preferência da marca. */
-export function pickNextPreset(brandArtStyle: string | undefined, lastUsed?: StylePreset): StylePreset {
-  // Se a marca tem um art_style preferido, sempre usa esse
+/**
+ * Escolhe o próximo preset visual via baralho sem repetição (todas as opções
+ * aparecem antes de qualquer repetição). `brandArtStyle` é tratado como
+ * PREFERÊNCIA (assinatura da marca): tem mais chance de vir primeiro em cada
+ * ciclo novo do baralho, mas nunca trava a frequência de longo prazo.
+ */
+export function pickNextPreset(
+  brandArtStyle: string | undefined,
+  lastUsed: StylePreset | undefined,
+  bag: StylePreset[] | undefined,
+): { picked: StylePreset; bag: StylePreset[] } {
   const compatible = getCompatiblePresets();
-  if (brandArtStyle && compatible.includes(brandArtStyle as StylePreset)) {
-    return brandArtStyle as StylePreset;
-  }
-
-  // Senão, escolhe aleatório entre compatíveis, evitando repetir o último
-  const candidates = lastUsed ? compatible.filter((p) => p !== lastUsed) : compatible;
-  const picked = candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : "editorial";
-  return picked as StylePreset;
+  const preferred = brandArtStyle && compatible.includes(brandArtStyle as StylePreset)
+    ? (brandArtStyle as StylePreset)
+    : undefined;
+  return drawFromBag(compatible, bag, lastUsed, preferred);
 }
 
 /**
@@ -279,8 +288,9 @@ export function refineDesignAesthetics(
   doc: StudioDoc,
   brand: BrandPalette = {},
   preset: StylePreset = "auto",
+  accentOverride?: string,
 ): StudioDoc {
-  const accent = pickAccent(brand);
+  const accent = accentOverride || pickAccent(brand);
   const slides = doc.slides.map((s) => refineSlide(s, preset, accent));
   return { ...doc, slides };
 }

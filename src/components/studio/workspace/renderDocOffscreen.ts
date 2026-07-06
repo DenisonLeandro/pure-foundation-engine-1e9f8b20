@@ -10,7 +10,6 @@
 
 import type { StudioDoc, Slide } from "./types";
 import { getCanvasSize, getExportSize } from "./types";
-import { BRAND_LOGO_ROLE } from "./brandLogo";
 
 export interface RenderBrand {
   logo_url?: string | null;
@@ -32,6 +31,7 @@ function buildSlideNode(
   canvasH: number,
   brand: RenderBrand | null,
   format: string,
+  imageUrls: string[],
 ): HTMLElement {
   const node = document.createElement("div");
   const accent = brand?.colors?.[2] || "#ffffff";
@@ -46,17 +46,20 @@ function buildSlideNode(
   });
 
   if (slide.bgImage) {
-    const img = document.createElement("img");
-    img.src = slide.bgImage;
-    img.crossOrigin = "anonymous";
-    applyStyle(img, {
+    imageUrls.push(slide.bgImage);
+    // html2canvas não respeita `object-fit` em <img> de forma confiável (estica
+    // em vez de cortar preservando proporção). background-image + background-size
+    // é o caminho que a biblioteca renderiza corretamente.
+    const bg = document.createElement("div");
+    applyStyle(bg, {
       position: "absolute",
       inset: "0",
-      width: "100%",
-      height: "100%",
-      objectFit: slide.bgFit ?? "cover",
+      backgroundImage: `url("${slide.bgImage}")`,
+      backgroundSize: slide.bgFit === "contain" ? "contain" : "cover",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
     });
-    node.appendChild(img);
+    node.appendChild(bg);
   }
 
   for (const e of slide.els) {
@@ -92,13 +95,17 @@ function buildSlideNode(
       wrap.appendChild(span);
     } else if (e.type === "image") {
       if (e.src) {
-        const img = document.createElement("img");
-        img.src = e.src;
-        img.crossOrigin = "anonymous";
+        imageUrls.push(e.src);
+        // Mesmo motivo do fundo: background-image em vez de <img>+object-fit
+        // pro html2canvas cortar preservando proporção em vez de esticar.
+        const img = document.createElement("div");
         applyStyle(img, {
           width: "100%",
           height: "100%",
-          objectFit: e.objectFit ?? "cover",
+          backgroundImage: `url("${e.src}")`,
+          backgroundSize: e.objectFit === "contain" ? "contain" : "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
           borderRadius: e.radius ? `${e.radius}px` : undefined,
           opacity: e.opacity !== undefined ? String(e.opacity) : undefined,
         });
@@ -119,40 +126,10 @@ function buildSlideNode(
     node.appendChild(wrap);
   }
 
-  // logo da marca: selo discreto no canto superior esquerdo, em TODOS os slides
-  // (com ou sem foto de fundo) — fundo translúcido + borda sutil pra ficar
-  // legível mesmo sobre fotos claras ou escuras.
-  // Só desenha o selo automático quando o slide NÃO tem uma camada brand_logo
-  // editável — senão a exportação duplicaria a logo (mesma trava do DesignCanvas).
-  if (brand?.logo_url && !slide.els.some((e) => e.role === BRAND_LOGO_ROLE)) {
-    const badge = document.createElement("div");
-    applyStyle(badge, {
-      position: "absolute",
-      left: "12px",
-      top: "12px",
-      width: "42px",
-      height: "42px",
-      borderRadius: "12px",
-      background: "rgba(10,12,20,0.45)",
-      border: "1px solid rgba(255,255,255,0.4)",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.3)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      backdropFilter: "blur(2px)",
-    });
-    const logo = document.createElement("img");
-    logo.src = brand.logo_url;
-    logo.crossOrigin = "anonymous";
-    applyStyle(logo, {
-      width: "32px",
-      height: "32px",
-      borderRadius: "8px",
-      objectFit: "contain",
-    });
-    badge.appendChild(logo);
-    node.appendChild(badge);
-  }
+  // logo da marca: renderizada exclusivamente pela camada editável brand_logo
+  // (aplicada por applyBrandLogo e desenhada no loop de elementos acima). Sem
+  // selo/pill decorativo aqui para não duplicar a logo no export final.
+
 
   // handle/nome da marca: mantém regra antiga (só em slides "chapados")
   if (!slide.bgImage && format !== "card") {
@@ -175,19 +152,26 @@ function buildSlideNode(
   return node;
 }
 
-async function waitForImages(node: HTMLElement): Promise<void> {
-  const imgs = Array.from(node.querySelectorAll("img"));
+/**
+ * Pré-carrega as URLs usadas via background-image (fundo, imagens soltas, logo).
+ * Como não são mais tags <img>, não dá pra checar `.complete` no DOM — carrega
+ * cada URL num Image() à parte pra garantir que já estão no cache do navegador
+ * antes do html2canvas desenhar o background-image correspondente.
+ */
+async function preloadImages(urls: string[]): Promise<void> {
   await Promise.all(
-    imgs.map((img) =>
-      img.complete && img.naturalWidth > 0
-        ? Promise.resolve()
-        : new Promise<void>((resolve) => {
-            const done = () => resolve();
-            img.addEventListener("load", done, { once: true });
-            img.addEventListener("error", done, { once: true });
-            // safety timeout
-            setTimeout(done, 8000);
-          }),
+    urls.map(
+      (src) =>
+        new Promise<void>((resolve) => {
+          const img = new Image();
+          const done = () => resolve();
+          img.addEventListener("load", done, { once: true });
+          img.addEventListener("error", done, { once: true });
+          img.src = src;
+          if (img.complete) done();
+          // safety timeout
+          setTimeout(done, 8000);
+        }),
     ),
   );
 }
@@ -217,9 +201,10 @@ export async function renderDocOffscreen(doc: StudioDoc, brand: RenderBrand | nu
   const urls: string[] = [];
   try {
     for (const slide of doc.slides) {
-      const node = buildSlideNode(slide, canvas.width, canvas.height, brand, doc.format);
+      const imageUrls: string[] = [];
+      const node = buildSlideNode(slide, canvas.width, canvas.height, brand, doc.format, imageUrls);
+      await preloadImages(imageUrls);
       container.appendChild(node);
-      await waitForImages(node);
       await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 50)));
       try {
         const rendered = await html2canvas(node, {

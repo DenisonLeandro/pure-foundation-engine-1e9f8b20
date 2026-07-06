@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Sparkles, Undo2, Redo2, Send, Building2, PenSquare, LayoutGrid, Film, Image as ImageIcon,
-  PanelLeft, Quote, ArrowLeft, Save, Loader2, Trash2, Eye, EyeOff, Wand2,
+  PanelLeft, Quote, ArrowLeft, Save, Loader2, Trash2, Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +28,7 @@ import type { StudioDoc, StudioFormat } from "./types";
 import { ensureDocHasVisualFallbacks } from "@/pages/Studio";
 import { ensureReadableTextLayers } from "./designReadability";
 import { refineDesignAesthetics, STYLE_PRESETS, type StylePreset } from "./designAesthetics";
-import { applyBrandLogo, removeBrandLogo, docHasBrandLogo } from "./brandLogo";
+import { applyPreparedBrandLogo, docHasBrandLogo, docHasCurrentBrandLogo } from "./brandLogo";
 import { saveStudioDraft, clearStudioDrafts, type StudioDraftInput } from "./studioDraft";
 import { applyAutoShadowsToDoc } from "./textShadowEngine";
 
@@ -164,35 +164,21 @@ function WorkspaceInner({
   }, []);
 
   // ── Logo da marca como camada do design ───────────────────────
-  // Em criações NOVAS, aplica automaticamente quando a marca tem logo.
-  // Em edições (creationId presente), só aplica via toggle (não toca em posts antigos).
-  const logoAutoAppliedRef = useRef<string | null>(null);
+  // Em criações novas, aplica automaticamente quando a marca tem logo.
+  // Em edições, normaliza somente se o post já possuía brand_logo salva.
   useEffect(() => {
     const logo = currentBrand?.logo_url || "";
-    if (editingCreationId) return;
     if (!logo) return;
-    if (docHasBrandLogo(doc)) return;
-    const key = `${doc.brandId ?? "none"}|${logo}|${doc.slides.length}`;
-    if (logoAutoAppliedRef.current === key) return;
-    logoAutoAppliedRef.current = key;
-    replaceDoc(applyBrandLogo(doc, logo));
+    const hasLogo = docHasBrandLogo(doc);
+    if (editingCreationId && !hasLogo) return;
+    if (docHasCurrentBrandLogo(doc, logo)) return;
+    let cancelled = false;
+    applyPreparedBrandLogo(doc, logo).then((next) => {
+      if (!cancelled) replaceDoc(next);
+    });
+    return () => { cancelled = true; };
   }, [currentBrand?.logo_url, doc, editingCreationId, replaceDoc]);
 
-  const logoVisible = docHasBrandLogo(doc);
-  const toggleBrandLogo = () => {
-    if (logoVisible) {
-      replaceDoc(removeBrandLogo(doc));
-      toast.success("Logo ocultada");
-      return;
-    }
-    const logo = currentBrand?.logo_url || "";
-    if (!logo) {
-      toast.message("Cadastre uma logo no perfil da marca para aplicá-la aos posts.");
-      return;
-    }
-    replaceDoc(applyBrandLogo(doc, logo));
-    toast.success("Logo aplicada em todos os slides");
-  };
 
   // Autosave com debounce (700ms) sempre que doc/slide/estilo mudarem.
   useEffect(() => {
@@ -392,18 +378,6 @@ function WorkspaceInner({
           </SelectContent>
         </Select>
 
-        {!staticFallback && (
-          <Button
-            variant={logoVisible ? "default" : "outline"}
-            size="sm"
-            className="ml-1 hidden h-9 gap-1.5 sm:inline-flex"
-            onClick={toggleBrandLogo}
-            title={logoVisible ? "Ocultar logo da marca" : "Aplicar logo da marca"}
-          >
-            {logoVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span className="hidden md:inline">{logoVisible ? "Ocultar logo" : "Mostrar logo"}</span>
-          </Button>
-        )}
 
         <div className="ml-auto flex items-center gap-1.5">
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={undo} disabled={!canUndo} title="Desfazer"><Undo2 className="h-4 w-4" /></Button>

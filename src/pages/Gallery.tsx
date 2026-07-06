@@ -34,6 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { MediaPreviewDialog } from "@/components/MediaPreviewDialog";
 import { getCreations, getCreation, deleteCreation, updateCreation, getCreationLabel, type Creation } from "@/lib/gallery";
+import { scheduleThumbnailRefresh } from "@/lib/gallery-refresh";
 import { aiAssist } from "@/lib/api/ai-assist";
 import { useCompany } from "@/contexts/CompanyContext";
 
@@ -88,7 +89,7 @@ export default function Gallery() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [confirmBulkOpen, setConfirmBulkOpen] = useState(false);
 
-  const { activeCompanyId } = useCompany();
+  const { activeCompanyId, activeCompany } = useCompany();
 
   useEffect(() => {
     let cancelled = false;
@@ -102,10 +103,23 @@ export default function Gallery() {
       if (!cancelled) {
         setCreations(data);
         setLoading(false);
+        // Regenera miniaturas antigas em background (logo/layout desatualizado).
+        if (activeCompany?.logo_url) {
+          scheduleThumbnailRefresh(data, {
+            brand: {
+              logo_url: activeCompany.logo_url,
+              name: activeCompany.name ?? null,
+            },
+            onUpdated: (id, updated) => {
+              if (cancelled) return;
+              setCreations((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
+            },
+          });
+        }
       }
     });
     return () => { cancelled = true; };
-  }, [activeCompanyId]);
+  }, [activeCompanyId, activeCompany?.logo_url, activeCompany?.name]);
 
   const loadCreations = useCallback(async () => {
     if (!activeCompanyId) { setCreations([]); return; }
@@ -662,17 +676,6 @@ function CreationCard({
           </div>
         )}
 
-        {thumb ? (
-          <img
-            src={thumb}
-            alt={creation.templateName ?? "Criação"}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center">
-            <Image className="h-10 w-10 text-muted-foreground/40" />
-          </div>
-        )}
 
         {/* Type overlay icon */}
         {creation.type === "video" && (

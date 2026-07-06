@@ -1,28 +1,48 @@
 ## Diagnóstico
 
-A chave Pexels está, sim, salva e válida no banco (56 caracteres, user_configs do dono Denison, atualizada em 25/06). O RPC `get_company_configs_status` da empresa ativa "teste" também responde `has_pexels: true`. Ou seja, do ponto de vista da configuração, está tudo certo.
+No print, o slide mostra literalmente:
 
-Por isso o erro que você viu ("Pexels não configurado para esta empresa") é estranho — ele só vem da edge `stock-search` quando ela lê `user_configs.pexels_api_key` e encontra `null`. As possibilidades reais são:
+> TÍTULO EXATO (obrigatório, use literalmente, palavra por palavra, sem reescrever nem parafrasear): "Hérnia de disco pode ser acidente de trabalho? Entenda quando"
 
-1. O toast veio de uma chamada **antiga** (antes do último redeploy / antes de salvar a chave) e ficou na tela; agora deve funcionar.
-2. A edge está lendo `user_configs` do **usuário logado da requisição** (não do dono da empresa). Se você estivesse logado como funcionário/convidado da empresa "teste", funcionário não tem chave própria → cai no "não configurado". Como hoje você é o dono, isso não te afeta, mas qualquer membro não-dono receberia esse erro mesmo com a empresa "configurada".
-3. Algum cold start raro pegou versão antiga; pouco provável depois do redeploy de agora há pouco.
+Isso é o **texto da instrução técnica** que o app envia à IA, aparecendo dentro do post. Origem exata:
 
-Os logs da edge nas últimas horas só mostram boot/shutdown — sem nenhuma chamada chegando ao trecho de erro. Isso reforça que o toast é remanescente.
+- `src/components/studio/workspace/AutoStudio.tsx:364-370` monta `literalTitleDirective` e concatena no `prompt` do `generateContent(...)`.
+- `supabase/functions/generate-content/index.ts:113-176` só menciona essa regra no **system prompt**; o modelo, em vez de aplicar a regra, copiou a linha inteira (rótulo incluído) como `carousel.slides[0].heading`.
+- `buildEditableEls({ heading, ... })` então estampou esse heading no slide.
 
-## Plano
+Ou seja: a instrução foi passada no lugar errado (dentro do texto de entrada) e não há sanitizador de saída.
 
-1. **Sem mudanças destrutivas.** Pedir pra você reproduzir uma vez: abrir o Studio na empresa "teste", clicar em **Gerar IA** ou no botão **Pexels** do AssetsRail. Se aparecer o toast de novo, eu pego o log fresco e fecho a causa.
+## Correção (causa raiz + defesa)
 
-2. **Corrigir a causa estrutural** (mesmo que o seu caso de dono já funcione): em `supabase/functions/stock-search/index.ts` (e nas irmãs `firecrawl-search`, `source-extract`, `social-analytics`, `higgsfield-proxy`, `blotato-proxy`, `postforme-proxy`) trocar `getUserConfig(auth.user.id)` por uma busca que use a **chave do dono da empresa ativa**, não a do usuário da requisição. Isso garante que funcionários da empresa também consigam usar Pexels/IA com a chave que o dono cadastrou.
-   - Criar helper `getCompanyOwnerConfig(companyId)` em `supabase/functions/_shared/company-secrets.ts`:
-     - valida membership ativo via `validateCompanyMembership`
-     - busca `company_members` com `role='owner' AND status='active'` para achar o `user_id` do dono
-     - lê `user_configs` daquele dono e devolve `pexels_api_key`, `firecrawl_api_key`, etc.
-   - Substituir nas 6 edges acima. Comportamento atual para donos permanece idêntico (o "owner" é ele mesmo).
+### 1. Enviar `literalTitle` como campo estruturado, não texto colado no prompt
+- Em `src/lib/api/content.ts`: adicionar campo opcional `literalTitle?: string` em `GenerateContentParams`.
+- Em `src/components/studio/workspace/AutoStudio.tsx`:
+  - Remover o `literalTitleDirective` concatenado ao `prompt`.
+  - Passar `literalTitle: brief.literalTitle` como parâmetro dedicado.
+- Em `supabase/functions/generate-content/index.ts`:
+  - Aceitar `literalTitle` no body.
+  - Se presente, injetar como bloco separado e claramente marcado no **system prompt** (não na `userMessage`), reforçando que é metadado — não texto para copiar como conteúdo.
+  - Reescrever a "REGRA MÁXIMA" para deixar claro que o rótulo/diretiva **nunca** deve aparecer no output; apenas a frase entre aspas é usada em `carousel.title` e `slides[0].heading`.
 
-3. **Adicionar um log mínimo** no caminho "não configurado" do `stock-search` (`console.warn` com `companyId` e `userId`, sem vazar chave), pra qualquer ocorrência futura aparecer no log e a causa ficar óbvia.
+### 2. Sanitizador defensivo (garantia)
+Em `supabase/functions/generate-content/index.ts`, após o parse do JSON da IA, rodar uma função `stripDirectiveLeak(text)` em:
+- `parsed.carousel.title`
+- `parsed.carousel.slides[i].heading` e `.body`
+- `parsed.posts[platform]`
 
-4. **Redeploy** das 6 edges e te avisar pra testar.
+Regra simples e segura: se o texto contém `TÍTULO EXATO` (case-insensitive) seguido de `:` e depois um trecho entre aspas, substitui pelo trecho entre aspas. Fallback: se casar `TÍTULO EXATO (...):` sem aspas, remove só o prefixo. Também remove `(obrigatório, use literalmente...)` isolado se sobrar.
 
-Nada do fluxo de salvar chaves no Setup nem o front muda. Você não precisa cadastrar a chave de novo.
+### 3. Sem mudanças de comportamento
+- Não altera fluxo de imagem, template, layout, marca ou logo.
+- Não toca no editor nem na galeria.
+- Posts antigos ficam como estão (arte já divulgada, conforme regra existente).
+
+## Arquivos a alterar
+- `src/lib/api/content.ts` — adicionar `literalTitle` na interface.
+- `src/components/studio/workspace/AutoStudio.tsx` — parar de concatenar `literalTitleDirective` no `prompt`; enviar campo separado.
+- `supabase/functions/generate-content/index.ts` — aceitar `literalTitle`, ajustar system prompt, adicionar sanitizador na resposta.
+
+## Fora de escopo
+- Não muda `generate-content` para outra IA.
+- Não muda a forma como o AutoStudio extrai o `literalTitle` da fala do usuário (isso já funciona).
+- Não altera o pipeline de renderização/logo/galeria.
