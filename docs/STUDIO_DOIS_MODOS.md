@@ -177,6 +177,14 @@ foi escrita seguindo os padrões já existentes no arquivo (FormData/`atob`/
 `fetch`). Recomenda-se um teste real de edição para confirmar o multipart do
 `/v1/images/edits`.
 
+**Correção pós-teste (commit `6f46fba`):** a edição enviava só a instrução
+curta do usuário + a imagem, sem ancorar o tema. Ao repintar a imagem inteira,
+o gpt-image-2 perdia a amarração com o assunto e podia trocar o tema do nada
+(um post de vale-alimentação virou infográfico de câncer de ovário). O
+`buildEditPrompt` passou a carregar o **tema original** + "mude só o que foi
+pedido, preserve o resto" + aviso da logo + cores. Também resolve a colisão do
+título com a logo (o aviso do canto livre voltou a ir em toda edição).
+
 ---
 
 ## 5. Arquivos que serão tocados
