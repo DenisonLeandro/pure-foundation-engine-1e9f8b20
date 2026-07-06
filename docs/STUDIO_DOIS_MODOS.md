@@ -105,6 +105,14 @@ mecanismo único e previsível — exatamente a base em que o Modo 1 vai se apoi
 **Entregue:** guard aplicado (`!slide.els.some((e) => e.role === BRAND_LOGO_ROLE)`).
 Validado por type-check, lint, testes e build de produção. Commit `8416953`.
 
+**Nota (superseded):** a `main` corrigiu o mesmo bug em paralelo, de forma mais
+abrangente — **removeu o selo automático por completo** (logo passa a ser
+renderizada só pela camada `brand_logo`) e, no mesmo commit, consertou a
+**imagem esticada** no export (`html2canvas` não respeita `object-fit` →
+troca para `background-image`). Ao mergear a `main`, o `renderDocOffscreen.ts`
+ficou com a versão dela (superior); nossa correção local foi descartada por
+redundância. O bug da logo duplicada **está resolvido** de qualquer forma.
+
 ---
 
 ### Fase 1 — Modo 2 exposto na entrada *(baixo esforço)*
