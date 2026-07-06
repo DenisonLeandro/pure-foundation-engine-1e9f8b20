@@ -1,6 +1,6 @@
 # Studio — Dois modos de criação de posts
 
-**Status:** Em execução — Fase 0 concluída; Fases 1–3 pendentes
+**Status:** Em execução — Fases 0 e 1 concluídas; Fases 2–3 pendentes
 **Última atualização:** 06/07/2026
 
 Documento de planejamento das alterações no Studio para oferecer **dois modos
@@ -115,13 +115,22 @@ redundância. O bug da logo duplicada **está resolvido** de qualquer forma.
 
 ---
 
-### Fase 1 — Modo 2 exposto na entrada *(baixo esforço)*
+### Fase 1 — Modo 2 exposto na entrada ✅ CONCLUÍDA
 
-- `StudioEntry.tsx`: reformular para os 2 cartões; adicionar "Foto real + texto
-  editável".
-- `Studio.tsx`: roteamento — o Modo 2 abre o fluxo de foto do Pexels + canvas.
-- Garantir que o texto abre como objetos `El` editáveis (já é assim).
-- Remover o cartão de criação manual da entrada.
+- `StudioEntry.tsx`: reformulado para os 2 cartões — "Foto real + texto editável"
+  (Modo 2, funcional) e "IA cria a arte completa" (Modo 1, cartão "Em breve").
+- `Studio.tsx`: a escolha do cartão passa a origem da imagem via nova prop.
+- `AutoStudio.tsx`: nova prop `initialImageSource` (default da origem da imagem).
+- Cartão de criação manual removido da entrada.
+
+**Descoberta:** o Modo 2 **já existia** dentro do fluxo "Criar com IA"
+(`AutoStudio`) — havia um seletor "Origem da imagem" (Pexels/AI) com Pexels como
+padrão, produzindo foto de fundo + texto editável no canvas. A Fase 1 apenas
+**expôs** isso como um modo claro na entrada. O seletor interno permanece
+disponível dentro do fluxo (flexibilidade); o Modo 1 dedicado (imagem chapada +
+caixa de texto) vem nas Fases 2–3.
+
+**Validado:** type-check, lint e build de produção limpos. Commit `b5e491e`.
 
 ---
 
