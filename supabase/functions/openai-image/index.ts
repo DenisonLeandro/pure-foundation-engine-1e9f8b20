@@ -21,7 +21,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Troque para "gpt-image-1" caso a API recuse "gpt-image-2".
 const DEFAULT_IMAGE_MODEL = "gpt-image-2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -147,16 +146,12 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Edge Functions têm limite de 150s. `quality: "high"` em gpt-image-2
-    // costuma estourar esse limite → rebaixamos para "medium" no servidor.
-    const safeQuality = quality === "high" ? "medium" : (quality || "medium");
-
     const payload: Record<string, unknown> = {
       model: model || DEFAULT_IMAGE_MODEL,
       prompt,
       n,
       size,
-      quality: safeQuality,
+      quality: quality || "medium",
     };
     if (background) payload.background = background;
 
@@ -199,7 +194,7 @@ Deno.serve(async (req: Request) => {
       operation: "default",
       units: images.length,
       unitType: "image",
-      metadata: { model: payload.model, size, quality: safeQuality },
+      metadata: { model: payload.model, size, quality: payload.quality },
     });
 
     return new Response(JSON.stringify({ images, model: payload.model }), {
