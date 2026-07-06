@@ -1,6 +1,6 @@
 # Studio — Dois modos de criação de posts
 
-**Status:** Em execução — Fase 0 concluída; Fases 1–3 pendentes
+**Status:** Concluído — Fases 0 a 3 entregues
 **Última atualização:** 06/07/2026
 
 Documento de planejamento das alterações no Studio para oferecer **dois modos
@@ -115,40 +115,67 @@ redundância. O bug da logo duplicada **está resolvido** de qualquer forma.
 
 ---
 
-### Fase 1 — Modo 2 exposto na entrada *(baixo esforço)*
+### Fase 1 — Modo 2 exposto na entrada ✅ CONCLUÍDA
 
-- `StudioEntry.tsx`: reformular para os 2 cartões; adicionar "Foto real + texto
-  editável".
-- `Studio.tsx`: roteamento — o Modo 2 abre o fluxo de foto do Pexels + canvas.
-- Garantir que o texto abre como objetos `El` editáveis (já é assim).
-- Remover o cartão de criação manual da entrada.
+- `StudioEntry.tsx`: reformulado para os 2 cartões — "Foto real + texto editável"
+  (Modo 2, funcional) e "IA cria a arte completa" (Modo 1, cartão "Em breve").
+- `Studio.tsx`: a escolha do cartão passa a origem da imagem via nova prop.
+- `AutoStudio.tsx`: nova prop `initialImageSource` (default da origem da imagem).
+- Cartão de criação manual removido da entrada.
 
----
+**Descoberta:** o Modo 2 **já existia** dentro do fluxo "Criar com IA"
+(`AutoStudio`) — havia um seletor "Origem da imagem" (Pexels/AI) com Pexels como
+padrão, produzindo foto de fundo + texto editável no canvas. A Fase 1 apenas
+**expôs** isso como um modo claro na entrada. O seletor interno permanece
+disponível dentro do fluxo (flexibilidade); o Modo 1 dedicado (imagem chapada +
+caixa de texto) vem nas Fases 2–3.
 
-### Fase 2 — Modo 1: geração *(médio esforço)*
-
-- Novo caminho de prompt que **permite** texto e layout completos (sem tocar no
-  caminho do Modo 2). Prompts atuais que **proíbem** texto:
-  - `src/lib/brand.ts` → `brandImageDirective` ("Não renderize texto…").
-  - `AutoStudio.tsx` / `Copilot.tsx` → "ABSOLUTAMENTE PROIBIDO texto".
-- Entrada crua: caixa de texto livre + injeção só das **cores da marca ativa**
-  (diretiva mínima, não a `brandImageDirective` completa).
-- A IA escreve a copy (via `aiAssist`) e ela entra no prompt da imagem.
-- Saída: imagem gerada (`source: "finalImage"`) + **logo real sobreposta**
-  (reusar posicionamento de `brandLogo.ts`).
-- Componente novo de tela de resultado (ex: `AiImageEditor.tsx`).
+**Validado:** type-check, lint e build de produção limpos. Commit `b5e491e`.
 
 ---
 
-### Fase 3 — Modo 1: editor conversacional *(médio-alto esforço)*
+### Fase 2 — Modo 1: geração ✅ CONCLUÍDA
 
-- **Backend:** estender `supabase/functions/openai-image/index.ts` para suportar
-  **edição** (`/v1/images/edits`, multipart com imagem de entrada), além da
-  geração atual (`/v1/images/generations`).
-- **Cliente:** adicionar `editOpenAiImage({ image, prompt })` em
+- Componente novo `AiArtStudio.tsx` (fluxo dedicado do Modo 1, isolado do
+  `AutoStudio`).
+- Entrada crua: **caixa de texto livre** — sem presets de objetivo, sem
+  sugestões de direção, sem a `brandImageDirective` completa. Injeção
+  automática apenas das **cores da marca ativa** (`buildArtPrompt`).
+- Geração via `generateOpenAiImage` (gpt-image-2, `quality: "high"`), com o
+  texto **embutido** na imagem (o novo prompt permite texto).
+- **Logo real sobreposta** por cima reusando `applyBrandLogo` +
+  `renderDocOffscreen` (mesmo posicionamento do resto do app), nunca desenhada
+  pela IA. Uma dica curta no prompt reserva o canto superior esquerdo p/ a logo.
+- Resultado: "Gerar outra" + "Salvar na Galeria" (`saveVisualToGallery`).
+- Entrada: cartão "IA cria a arte completa" ativado; `Studio.tsx` ganhou o
+  modo `aiart`; `StudioEntry.onPick` passou a emitir `"modo1" | "modo2"`.
+
+**Validado:** type-check, lint e build de produção limpos. Commit `8a0e89e`.
+
+**Pendências deixadas para a Fase 3 / refino:**
+- Editor por caixa de texto (reedição via `/edits`).
+- Legenda automática (hoje salva sem legenda) e publicação direta.
+- Possível ajuste de proporção (gera 2:3; Instagram usa 4:5).
+
+---
+
+### Fase 3 — Modo 1: editor conversacional ✅ CONCLUÍDA
+
+- **Backend:** `openai-image` agora suporta **edição** (`/v1/images/edits`,
+  multipart) quando o corpo traz `image`, além da geração. O fallback Gemini
+  também aceita imagem de entrada para edição.
+- **Cliente:** `editOpenAiImage({ image, prompt, size, quality })` em
   `src/lib/api/openai.ts`.
-- **UI:** caixa de texto "O que deseja mudar?" + histórico (desfazer) + botões de
-  atalho. A cada edição, a logo real é recolocada por cima.
+- **UI:** caixa de texto "Peça uma mudança nesta arte" + atalhos rápidos +
+  "Desfazer". A edição opera sempre sobre a arte **limpa** (sem logo); a logo
+  real é recomposta por cima a cada versão.
+
+**Validado:** type-check, lint e build de produção limpos. Commit `184f105`.
+
+**Nota:** a edge function roda em Deno e não entra no `tsc`/`eslint` do app;
+foi escrita seguindo os padrões já existentes no arquivo (FormData/`atob`/
+`fetch`). Recomenda-se um teste real de edição para confirmar o multipart do
+`/v1/images/edits`.
 
 ---
 

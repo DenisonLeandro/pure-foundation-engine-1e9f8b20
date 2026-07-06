@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { StudioEntry } from "@/components/studio/workspace/StudioEntry";
 import { AutoStudio } from "@/components/studio/workspace/AutoStudio";
+import { AiArtStudio } from "@/components/studio/workspace/AiArtStudio";
 import { StudioWorkspace } from "@/components/studio/workspace/StudioWorkspace";
 import { emptyDoc } from "@/components/studio/workspace/StudioProvider";
 import { loadLatestStudioDraft, loadStudioFlowDraft, type StudioDraft, type StudioFlowDraft } from "@/components/studio/workspace/studioDraft";
@@ -186,12 +187,14 @@ export default function Studio() {
   const isEditFromGallery = nav?.mode === "edit" || !!nav?.creationId;
 
   // Deep-link com estado abre direto no modo assistido (canvas) pré-preenchido.
-  const [mode, setMode] = useState<"entry" | "auto" | "assisted">(
+  const [mode, setMode] = useState<"entry" | "auto" | "assisted" | "aiart">(
     isEditFromGallery || navInitial ? "assisted" : "entry"
   );
   const [handoffDoc, setHandoffDoc] = useState<StudioDoc | undefined>(undefined);
   /** creationId passado do modo auto quando o usuário clica "Refinar no canvas". */
   const [handoffCreationId, setHandoffCreationId] = useState<string | undefined>(undefined);
+  /** Origem da imagem escolhida na tela inicial (Modo 2 = pexels). */
+  const [entryImageSource, setEntryImageSource] = useState<"pexels" | "ai" | undefined>(undefined);
 
   // Restaura rascunho local ao abrir o Studio sem state — uma única vez, antes de o canvas montar.
   useEffect(() => {
@@ -235,8 +238,18 @@ export default function Studio() {
   // Após descartar o rascunho, volta para a entrada com o Studio limpo.
   const handleDraftDiscarded = () => { setDraft(null); setFlowDraft(null); setHandoffDoc(undefined); setHandoffCreationId(undefined); setMode("entry"); };
 
+  const handleEntryPick = (choice: "modo1" | "modo2") => {
+    if (choice === "modo1") { setMode("aiart"); return; }
+    setEntryImageSource("pexels");
+    setMode("auto");
+  };
+
   if (mode === "entry") {
-    return <StudioEntry onPick={setMode} />;
+    return <StudioEntry onPick={handleEntryPick} />;
+  }
+
+  if (mode === "aiart") {
+    return <AiArtStudio onBack={back} />;
   }
 
   if (mode === "auto") {
@@ -246,6 +259,7 @@ export default function Studio() {
         onEditInCanvas={(d, cid) => { setHandoffDoc(d); setHandoffCreationId(cid); setMode("assisted"); }}
         initialForm={flowDraft?.autoForm}
         initialDoc={flowDraft?.autoDoc}
+        initialImageSource={entryImageSource}
       />
     );
   }
