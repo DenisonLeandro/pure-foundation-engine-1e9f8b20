@@ -74,9 +74,11 @@ interface AutoStudioProps {
   onBack: () => void;
   initialForm?: AutoFormDraft;
   initialDoc?: StudioDoc;
+  /** Origem da imagem pré-selecionada na tela inicial (Modo 2 = pexels). */
+  initialImageSource?: "pexels" | "ai";
 }
 
-export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: AutoStudioProps) {
+export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc, initialImageSource }: AutoStudioProps) {
   const { brands, defaultBrand } = useBrands();
   const { user } = useAuth();
   const { activeCompanyId } = useCompany();
@@ -86,7 +88,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
   const brand = (brands.find((b) => b.id === brandId) || defaultBrand || null) as BrandProfile | null;
 
   const [prompt, setPrompt] = useState(initialForm?.prompt ?? "");
-  const [imageSource, setImageSource] = useState<"pexels" | "ai">(initialForm?.imageSource ?? "pexels");
+  const [imageSource, setImageSource] = useState<"pexels" | "ai">(initialForm?.imageSource ?? initialImageSource ?? "pexels");
   const [layoutMode, setLayoutMode] = useState<string>(initialForm?.layoutMode ?? "auto");
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");

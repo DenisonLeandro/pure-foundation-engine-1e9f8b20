@@ -192,6 +192,8 @@ export default function Studio() {
   const [handoffDoc, setHandoffDoc] = useState<StudioDoc | undefined>(undefined);
   /** creationId passado do modo auto quando o usuário clica "Refinar no canvas". */
   const [handoffCreationId, setHandoffCreationId] = useState<string | undefined>(undefined);
+  /** Origem da imagem escolhida na tela inicial (Modo 2 = pexels). */
+  const [entryImageSource, setEntryImageSource] = useState<"pexels" | "ai" | undefined>(undefined);
 
   // Restaura rascunho local ao abrir o Studio sem state — uma única vez, antes de o canvas montar.
   useEffect(() => {
@@ -235,8 +237,10 @@ export default function Studio() {
   // Após descartar o rascunho, volta para a entrada com o Studio limpo.
   const handleDraftDiscarded = () => { setDraft(null); setFlowDraft(null); setHandoffDoc(undefined); setHandoffCreationId(undefined); setMode("entry"); };
 
+  const handleEntryPick = (src: "pexels" | "ai") => { setEntryImageSource(src); setMode("auto"); };
+
   if (mode === "entry") {
-    return <StudioEntry onPick={setMode} />;
+    return <StudioEntry onPick={handleEntryPick} />;
   }
 
   if (mode === "auto") {
@@ -246,6 +250,7 @@ export default function Studio() {
         onEditInCanvas={(d, cid) => { setHandoffDoc(d); setHandoffCreationId(cid); setMode("assisted"); }}
         initialForm={flowDraft?.autoForm}
         initialDoc={flowDraft?.autoDoc}
+        initialImageSource={entryImageSource}
       />
     );
   }
