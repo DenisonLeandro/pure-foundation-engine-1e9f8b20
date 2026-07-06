@@ -1,6 +1,6 @@
 # Studio — Dois modos de criação de posts
 
-**Status:** Em execução — Fases 0 e 1 concluídas; Fases 2–3 pendentes
+**Status:** Em execução — Fases 0, 1 e 2 concluídas; Fase 3 pendente
 **Última atualização:** 06/07/2026
 
 Documento de planejamento das alterações no Studio para oferecer **dois modos
@@ -134,18 +134,28 @@ caixa de texto) vem nas Fases 2–3.
 
 ---
 
-### Fase 2 — Modo 1: geração *(médio esforço)*
+### Fase 2 — Modo 1: geração ✅ CONCLUÍDA
 
-- Novo caminho de prompt que **permite** texto e layout completos (sem tocar no
-  caminho do Modo 2). Prompts atuais que **proíbem** texto:
-  - `src/lib/brand.ts` → `brandImageDirective` ("Não renderize texto…").
-  - `AutoStudio.tsx` / `Copilot.tsx` → "ABSOLUTAMENTE PROIBIDO texto".
-- Entrada crua: caixa de texto livre + injeção só das **cores da marca ativa**
-  (diretiva mínima, não a `brandImageDirective` completa).
-- A IA escreve a copy (via `aiAssist`) e ela entra no prompt da imagem.
-- Saída: imagem gerada (`source: "finalImage"`) + **logo real sobreposta**
-  (reusar posicionamento de `brandLogo.ts`).
-- Componente novo de tela de resultado (ex: `AiImageEditor.tsx`).
+- Componente novo `AiArtStudio.tsx` (fluxo dedicado do Modo 1, isolado do
+  `AutoStudio`).
+- Entrada crua: **caixa de texto livre** — sem presets de objetivo, sem
+  sugestões de direção, sem a `brandImageDirective` completa. Injeção
+  automática apenas das **cores da marca ativa** (`buildArtPrompt`).
+- Geração via `generateOpenAiImage` (gpt-image-2, `quality: "high"`), com o
+  texto **embutido** na imagem (o novo prompt permite texto).
+- **Logo real sobreposta** por cima reusando `applyBrandLogo` +
+  `renderDocOffscreen` (mesmo posicionamento do resto do app), nunca desenhada
+  pela IA. Uma dica curta no prompt reserva o canto superior esquerdo p/ a logo.
+- Resultado: "Gerar outra" + "Salvar na Galeria" (`saveVisualToGallery`).
+- Entrada: cartão "IA cria a arte completa" ativado; `Studio.tsx` ganhou o
+  modo `aiart`; `StudioEntry.onPick` passou a emitir `"modo1" | "modo2"`.
+
+**Validado:** type-check, lint e build de produção limpos. Commit `8a0e89e`.
+
+**Pendências deixadas para a Fase 3 / refino:**
+- Editor por caixa de texto (reedição via `/edits`).
+- Legenda automática (hoje salva sem legenda) e publicação direta.
+- Possível ajuste de proporção (gera 2:3; Instagram usa 4:5).
 
 ---
 
