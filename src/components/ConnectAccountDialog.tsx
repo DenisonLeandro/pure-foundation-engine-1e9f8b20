@@ -431,10 +431,26 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
     reusableByPlatform.set(p, arr);
   }
 
+  const profileUrlSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const updateProfileUrl = (platform: string, url: string) => {
     const updated = { ...profileUrls, [platform]: url };
     setProfileUrls(updated);
-    saveProfileUrls(activeCompanyId, updated);
+    saveProfileUrlsLocal(activeCompanyId, updated);
+
+    // Debounce da gravação no banco (500ms desde a última tecla).
+    if (!activeCompanyId) return;
+    const existing = profileUrlSaveTimersRef.current[platform];
+    if (existing) clearTimeout(existing);
+    profileUrlSaveTimersRef.current[platform] = setTimeout(() => {
+      const value = url.trim();
+      api.setCompanyProfileUrls(activeCompanyId, { [platform]: value || null }).catch((err) => {
+        toast({
+          title: "Não foi possível salvar a URL",
+          description: err instanceof Error ? err.message : "",
+          variant: "destructive",
+        });
+      });
+    }, 500);
   };
 
 
