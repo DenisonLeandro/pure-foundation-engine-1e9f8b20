@@ -1,6 +1,6 @@
 # Studio — Dois modos de criação de posts
 
-**Status:** Plano aprovado, aguardando execução
+**Status:** Em execução — Fase 0 concluída; Fases 1–3 pendentes
 **Última atualização:** 06/07/2026
 
 Documento de planejamento das alterações no Studio para oferecer **dois modos
@@ -71,7 +71,7 @@ editor adequado ao seu formato:
 
 ## 4. Fases de construção
 
-### Fase 0 — Correção do bug da logo duplicada *(prep, baixo esforço)*
+### Fase 0 — Correção do bug da logo duplicada ✅ CONCLUÍDA
 
 **Problema confirmado:** a logo é renderizada por dois mecanismos que não
 conversam:
@@ -101,6 +101,9 @@ Isso explica o "às vezes duplica": buga só na imagem final, não no preview.
 mecanismo único e previsível — exatamente a base em que o Modo 1 vai se apoiar.
 
 **Arquivo:** `src/components/studio/workspace/renderDocOffscreen.ts`
+
+**Entregue:** guard aplicado (`!slide.els.some((e) => e.role === BRAND_LOGO_ROLE)`).
+Validado por type-check, lint, testes e build de produção. Commit `8416953`.
 
 ---
 
