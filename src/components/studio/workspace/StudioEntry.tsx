@@ -1,7 +1,7 @@
 import { Sparkles, Wand2, Image as ImageIcon, ArrowRight } from "lucide-react";
 import { useBrands } from "@/hooks/use-brands";
 
-export function StudioEntry({ onPick }: { onPick: (imageSource: "pexels" | "ai") => void }) {
+export function StudioEntry({ onPick }: { onPick: (mode: "modo1" | "modo2") => void }) {
   const { defaultBrand } = useBrands();
 
   return (
@@ -19,28 +19,28 @@ export function StudioEntry({ onPick }: { onPick: (imageSource: "pexels" | "ai")
       </div>
 
       <div className="grid w-full gap-4 sm:grid-cols-2">
-        {/* Modo 1 — IA cria a arte completa (em construção; ativa na próxima fase) */}
-        <div
-          aria-disabled="true"
-          className="group relative flex cursor-not-allowed flex-col items-start gap-3 rounded-2xl border border-dashed border-border p-6 text-left opacity-70"
+        {/* Modo 1 — IA cria a arte completa */}
+        <button
+          onClick={() => onPick("modo1")}
+          className="group flex flex-col items-start gap-3 rounded-2xl border border-border bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 p-6 text-left transition-all hover:border-violet-500/60 hover:shadow-lg hover:shadow-violet-500/10"
         >
-          <span className="absolute right-4 top-4 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-            Em breve
-          </span>
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-violet-600">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-md">
             <Wand2 className="h-6 w-6" />
           </div>
           <div>
             <h2 className="text-lg font-semibold">IA cria a arte completa</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              A IA gera a imagem inteira do post — arte e texto — nas cores da sua marca. Você refina pedindo mudanças numa caixa de texto.
+              A IA gera a imagem inteira do post — arte e texto — nas cores da sua marca, com a sua logo por cima.
             </p>
           </div>
-        </div>
+          <span className="mt-auto flex items-center gap-1 text-sm font-medium text-violet-600 group-hover:gap-2 transition-all">
+            Começar <ArrowRight className="h-4 w-4" />
+          </span>
+        </button>
 
         {/* Modo 2 — Foto real + texto editável */}
         <button
-          onClick={() => onPick("pexels")}
+          onClick={() => onPick("modo2")}
           className="group flex flex-col items-start gap-3 rounded-2xl border border-border bg-gradient-to-br from-violet-500/5 to-fuchsia-500/5 p-6 text-left transition-all hover:border-violet-500/60 hover:shadow-lg hover:shadow-violet-500/10"
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-500 text-white shadow-md">

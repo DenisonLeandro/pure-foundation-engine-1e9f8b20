@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { StudioEntry } from "@/components/studio/workspace/StudioEntry";
 import { AutoStudio } from "@/components/studio/workspace/AutoStudio";
+import { AiArtStudio } from "@/components/studio/workspace/AiArtStudio";
 import { StudioWorkspace } from "@/components/studio/workspace/StudioWorkspace";
 import { emptyDoc } from "@/components/studio/workspace/StudioProvider";
 import { loadLatestStudioDraft, loadStudioFlowDraft, type StudioDraft, type StudioFlowDraft } from "@/components/studio/workspace/studioDraft";
@@ -186,7 +187,7 @@ export default function Studio() {
   const isEditFromGallery = nav?.mode === "edit" || !!nav?.creationId;
 
   // Deep-link com estado abre direto no modo assistido (canvas) pré-preenchido.
-  const [mode, setMode] = useState<"entry" | "auto" | "assisted">(
+  const [mode, setMode] = useState<"entry" | "auto" | "assisted" | "aiart">(
     isEditFromGallery || navInitial ? "assisted" : "entry"
   );
   const [handoffDoc, setHandoffDoc] = useState<StudioDoc | undefined>(undefined);
@@ -237,10 +238,18 @@ export default function Studio() {
   // Após descartar o rascunho, volta para a entrada com o Studio limpo.
   const handleDraftDiscarded = () => { setDraft(null); setFlowDraft(null); setHandoffDoc(undefined); setHandoffCreationId(undefined); setMode("entry"); };
 
-  const handleEntryPick = (src: "pexels" | "ai") => { setEntryImageSource(src); setMode("auto"); };
+  const handleEntryPick = (choice: "modo1" | "modo2") => {
+    if (choice === "modo1") { setMode("aiart"); return; }
+    setEntryImageSource("pexels");
+    setMode("auto");
+  };
 
   if (mode === "entry") {
     return <StudioEntry onPick={handleEntryPick} />;
+  }
+
+  if (mode === "aiart") {
+    return <AiArtStudio onBack={back} />;
   }
 
   if (mode === "auto") {
