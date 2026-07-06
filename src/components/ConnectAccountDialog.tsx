@@ -52,13 +52,15 @@ const PROFILE_URL_PLACEHOLDERS: Record<string, string> = {
   bluesky:   "https://bsky.app/profile/seu.handle",
 };
 
-// ─── Helpers localStorage (escopo por empresa) ──────────────────
+// ─── Helpers profile URLs ──────────────────────────────────────
+// Fonte de verdade: RPC set/get_company_profile_urls (company_configs.profile_urls).
+// localStorage é mantido apenas como cache de leitura e para migração do legado.
 
-function loadProfileUrls(companyId: string | null): Record<string, string> {
+function loadProfileUrlsLocal(companyId: string | null): Record<string, string> {
   try { return JSON.parse(companyStorage.get(companyId, PROFILE_URLS_KEY) || "{}"); }
   catch { return {}; }
 }
-function saveProfileUrls(companyId: string | null, urls: Record<string, string>) {
+function saveProfileUrlsLocal(companyId: string | null, urls: Record<string, string>) {
   companyStorage.set(companyId, PROFILE_URLS_KEY, JSON.stringify(urls));
 }
 
@@ -86,7 +88,7 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
   const [error, setError]             = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [linkingExisting, setLinkingExisting] = useState<string | null>(null);
-  const [profileUrls, setProfileUrls] = useState<Record<string, string>>(() => loadProfileUrls(activeCompanyId));
+  const [profileUrls, setProfileUrls] = useState<Record<string, string>>(() => loadProfileUrlsLocal(activeCompanyId));
 
   // Bluesky
   const [bskyHandle, setBskyHandle]     = useState("");
@@ -130,7 +132,25 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
       setError(null);
       setAuthUrl(null);
       setLoading(true);
-      setProfileUrls(loadProfileUrls(activeCompanyId));
+      // Hidrata da RPC (fonte de verdade); mantém cache local como fallback.
+      const localCached = loadProfileUrlsLocal(activeCompanyId);
+      setProfileUrls(localCached);
+      if (activeCompanyId) {
+        api.getCompanyProfileUrls(activeCompanyId).then((remote) => {
+          const merged: Record<string, string> = { ...remote };
+          // Migração one-shot: campos que existem só localmente sobem para o banco.
+          const toUpload: Record<string, string> = {};
+          for (const [k, v] of Object.entries(localCached)) {
+            if (v && !remote[k]) toUpload[k] = v;
+          }
+          const finalMap = { ...merged, ...toUpload };
+          setProfileUrls(finalMap);
+          saveProfileUrlsLocal(activeCompanyId, finalMap);
+          if (Object.keys(toUpload).length > 0) {
+            api.setCompanyProfileUrls(activeCompanyId, toUpload).catch(() => {/* noop */});
+          }
+        }).catch(() => {/* mantém localCached */});
+      }
       loadAccounts().then(({ accs }) => {
         // Snapshot de TODOS os ids PFM no momento da abertura — usado para
         // distinguir "conta nova autorizada agora" de "conta já existente no PFM".
@@ -411,10 +431,26 @@ export function ConnectAccountDialog({ open, onOpenChange }: ConnectAccountDialo
     reusableByPlatform.set(p, arr);
   }
 
+  const profileUrlSaveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
   const updateProfileUrl = (platform: string, url: string) => {
     const updated = { ...profileUrls, [platform]: url };
     setProfileUrls(updated);
-    saveProfileUrls(activeCompanyId, updated);
+    saveProfileUrlsLocal(activeCompanyId, updated);
+
+    // Debounce da gravação no banco (500ms desde a última tecla).
+    if (!activeCompanyId) return;
+    const existing = profileUrlSaveTimersRef.current[platform];
+    if (existing) clearTimeout(existing);
+    profileUrlSaveTimersRef.current[platform] = setTimeout(() => {
+      const value = url.trim();
+      api.setCompanyProfileUrls(activeCompanyId, { [platform]: value || null }).catch((err) => {
+        toast({
+          title: "Não foi possível salvar a URL",
+          description: err instanceof Error ? err.message : "",
+          variant: "destructive",
+        });
+      });
+    }, 500);
   };
 
 

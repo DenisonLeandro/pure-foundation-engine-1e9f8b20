@@ -4,6 +4,34 @@
  */
 
 import { getSupabaseUrl, baseHeaders } from "./_shared";
+import { supabase } from "@/integrations/supabase/client";
+
+// ─── Profile URLs (per-company, stored in company_configs.profile_urls) ────
+
+export async function getCompanyProfileUrls(companyId: string): Promise<Record<string, string>> {
+  const { data, error } = await supabase.rpc("get_company_profile_urls" as never, {
+    _company_id: companyId,
+  } as never);
+  if (error) throw new Error(error.message);
+  return (data ?? {}) as Record<string, string>;
+}
+
+export async function setCompanyProfileUrls(
+  companyId: string,
+  patch: Record<string, string | null>
+): Promise<Record<string, string>> {
+  const { data, error } = await supabase.rpc("set_company_profile_urls" as never, {
+    _company_id: companyId,
+    _patch: patch,
+  } as never);
+  if (error) throw new Error(error.message);
+  return (data ?? {}) as Record<string, string>;
+}
+
+/** Plataformas cujo scraper Apify EXIGE URL pública (não basta o handle do PFM). */
+export const PLATFORMS_REQUIRING_URL = new Set([
+  "facebook", "linkedin", "youtube", "tiktok",
+]);
 
 // TODO: no futuro, passar companyId explicitamente em cada chamada (em vez
 // do setter de módulo) para evitar acoplamento global ao CompanyContext.
@@ -103,35 +131,57 @@ export interface AnalyticsResult {
 
 /**
  * Build analytics account list from PFM accounts + saved profile URLs.
- * YouTube and LinkedIn pass the full URL (edge function handles it).
- * Other platforms extract the username/handle from the URL.
+ * YouTube, LinkedIn e Facebook: pass full URL (edge function handles parsing).
+ * Outras plataformas: extraem username/handle da URL, ou usam o handle do PFM.
+ *
+ * Também retorna `missingUrl`: plataformas conectadas cujo scraper Apify
+ * requer URL pública (facebook/linkedin/youtube/tiktok) mas ainda não foi
+ * salva em company_configs.profile_urls — essas contas não são incluídas
+ * na lista final para evitar chamadas ao Apify que voltariam com 0.
  */
+export interface BuildAnalyticsResult {
+  accounts: { platform: string; username: string }[];
+  missingUrl: string[]; // plataformas sem URL salva mas conectadas
+}
+
 export function buildAnalyticsAccounts(
   pfmAccounts: { platform: string; username: string }[],
   profileUrls: Record<string, string>
-): { platform: string; username: string }[] {
-  return pfmAccounts
-    .filter((a) => a.username || profileUrls[a.platform])
+): BuildAnalyticsResult {
+  const missingUrl = new Set<string>();
+  const accounts = pfmAccounts
     .map((a) => {
-      const savedUrl = profileUrls[a.platform] || "";
+      const savedUrl = (profileUrls[a.platform] || "").trim();
       let username = a.username || "";
 
-      if (savedUrl) {
-        // YouTube, LinkedIn e Facebook: pass full URL (edge function handles parsing)
+      if (PLATFORMS_REQUIRING_URL.has(a.platform)) {
+        if (!savedUrl) {
+          missingUrl.add(a.platform);
+          return null;
+        }
+        // Estas plataformas passam a URL completa quando o actor espera URL,
+        // ou extraem o handle quando o actor espera username.
         if (a.platform === "youtube" || a.platform === "linkedin" || a.platform === "facebook") {
           username = savedUrl;
         } else {
-          // Other platforms: extract last segment as username/handle
+          // tiktok: extrai handle da URL
           const urlParts = savedUrl.replace(/\/+$/, "").split("/");
           const lastPart = urlParts[urlParts.length - 1]?.replace("@", "") || "";
-          if (lastPart) username = lastPart;
+          username = lastPart || savedUrl;
         }
+      } else if (savedUrl) {
+        // Plataformas em que o handle basta, mas se o usuário salvou URL, extraímos.
+        const urlParts = savedUrl.replace(/\/+$/, "").split("/");
+        const lastPart = urlParts[urlParts.length - 1]?.replace("@", "") || "";
+        if (lastPart) username = lastPart;
       }
 
       if (!username || username === "YouTube" || username === "Canal YouTube") return null;
       return { platform: a.platform, username };
     })
     .filter(Boolean) as { platform: string; username: string }[];
+
+  return { accounts, missingUrl: [...missingUrl] };
 }
 
 export async function fetchAnalytics(
