@@ -152,14 +152,27 @@ export default function Dashboard() {
     setIsFetchingAnalytics(true);
 
     try {
-      // Use Apify for REAL analytics (followers, likes, engagement)
-      const savedProfileUrls: Record<string, string> = (() => {
-        try { return JSON.parse(companyStorage.get(activeCompanyId, "profile_urls") || "{}"); }
-        catch { return {}; }
-      })();
+      // Use Apify for REAL analytics (followers, likes, engagement).
+      // Busca URLs de perfil por empresa no banco (com fallback ao legado localStorage).
+      let savedProfileUrls: Record<string, string> = {};
+      try {
+        if (activeCompanyId) {
+          savedProfileUrls = await api.getCompanyProfileUrls(activeCompanyId);
+        }
+      } catch {/* fallback abaixo */}
+      if (!savedProfileUrls || Object.keys(savedProfileUrls).length === 0) {
+        try { savedProfileUrls = JSON.parse(companyStorage.get(activeCompanyId, "profile_urls") || "{}"); }
+        catch { savedProfileUrls = {}; }
+      }
 
+      const { accounts: accountsList, missingUrl } = api.buildAnalyticsAccounts(pfmAccounts, savedProfileUrls);
 
-      const accountsList = api.buildAnalyticsAccounts(pfmAccounts, savedProfileUrls);
+      if (missingUrl.length > 0) {
+        toast({
+          title: "URLs de perfil faltando",
+          description: `Adicione a URL pública em Setup → Conectar rede para: ${missingUrl.join(", ")}`,
+        });
+      }
 
       if (accountsList.length === 0) {
         toast({ title: "Nenhuma conta com username para buscar analytics", variant: "destructive" });
