@@ -56,6 +56,31 @@ function buildArtPrompt(userText: string, brand: BrandProfile | null): string {
   ].filter(Boolean).join("\n\n");
 }
 
+/**
+ * Prompt de EDIÇÃO. Precisa ANCORAR o tema original do post — senão a IA, ao
+ * repintar a imagem inteira, perde a amarração com o assunto e pode trocar o
+ * tema do nada. Carrega também as restrições da geração (paleta e manter o
+ * canto superior esquerdo livre p/ a logo).
+ */
+function buildEditPrompt(instruction: string, brand: BrandProfile | null, originalTopic: string): string {
+  const colors = (brand?.colors || []).filter(Boolean);
+  const colorLine = colors.length ? `Mantenha a paleta da marca: ${colors.join(", ")}.` : "";
+  const logoHint = brand?.logo_url
+    ? "Deixe o canto superior esquerdo relativamente livre (sem título, texto nem elementos importantes ali) — a logo da marca fica sobreposta nesse canto."
+    : "";
+  const topic = originalTopic.trim();
+  const topicLine = topic
+    ? `IMPORTANTE: esta arte é um post sobre "${topic}". Mantenha EXATAMENTE o mesmo tema, mensagem e textos — não invente outro assunto.`
+    : "";
+  return [
+    topicLine,
+    `Alteração pedida: ${instruction.trim()}. Aplique SOMENTE essa mudança e preserve todo o resto da arte.`,
+    colorLine,
+    logoHint,
+    "Mantenha a imagem como um post final e completo para redes sociais, com o texto embutido em português brasileiro e acabamento profissional.",
+  ].filter(Boolean).join("\n\n");
+}
+
 /** Sobrepõe a logo real da marca sobre a arte gerada, reusando o renderizador do app. */
 async function overlayBrandLogo(artUrl: string, brand: BrandProfile | null, brandId: string | null): Promise<string> {
   if (!brand?.logo_url) return artUrl;
@@ -128,7 +153,7 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
     setEditing(true);
     try {
       const { images } = await editOpenAiImage({
-        image: art, prompt: instr, size: IMG_SIZE, quality: IMG_QUALITY,
+        image: art, prompt: buildEditPrompt(instr, brand, prompt), size: IMG_SIZE, quality: IMG_QUALITY,
       });
       const newArt = images?.[0];
       if (!newArt) { toast.error("A IA não retornou a imagem editada."); return; }
