@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
-import { Wand2, Loader2, ArrowLeft, Sparkles, RefreshCw, Save } from "lucide-react";
+import { Wand2, Loader2, ArrowLeft, Sparkles, RefreshCw, Save, Undo2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
 import { useCompany } from "@/contexts/CompanyContext";
-import { generateOpenAiImage } from "@/lib/api";
+import { generateOpenAiImage, editOpenAiImage } from "@/lib/api";
 import { saveVisualToGallery } from "@/lib/gallery";
 import type { BrandProfile } from "@/lib/brand";
 import { emptyDoc } from "./StudioProvider";
@@ -22,9 +24,20 @@ import type { StudioDoc } from "./types";
  * objetivo, sem direções prontas. A logo real é sobreposta por cima (nítida),
  * nunca desenhada pela IA.
  *
- * A edição por caixa de texto (reedição da imagem via /edits) chega na próxima
- * fase; por isso guardamos a arte "limpa" separada da versão com a logo.
+ * A edição é conversacional: o usuário descreve a mudança numa caixa de texto e
+ * a IA REEDITA a imagem (`/v1/images/edits`). A edição opera sempre sobre a arte
+ * "limpa" (sem logo) e a logo real é recolocada por cima a cada versão.
  */
+
+const IMG_SIZE = "1024x1536" as const;
+const IMG_QUALITY = "high" as const;
+
+const QUICK_EDITS = [
+  "Deixe o título maior e mais legível",
+  "Torne o visual mais minimalista",
+  "Troque o fundo mantendo o texto",
+  "Deixe as cores mais vibrantes",
+];
 
 /** Monta o prompt do Modo 1: descrição do usuário + só as cores da marca. */
 function buildArtPrompt(userText: string, brand: BrandProfile | null): string {
@@ -73,26 +86,69 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
 
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editPrompt, setEditPrompt] = useState("");
+
+  const [art, setArt] = useState<string | null>(null);        // arte limpa (sem logo) — base das edições
   const [resultUrl, setResultUrl] = useState<string | null>(null); // arte + logo (exibida e salva)
+  const [past, setPast] = useState<string[]>([]);             // versões limpas anteriores (desfazer)
+
+  const busy = generating || editing;
+
+  /** Aplica a logo sobre a arte limpa e atualiza a imagem exibida. */
+  const composeAndShow = async (cleanArt: string) => {
+    setArt(cleanArt);
+    const composed = await overlayBrandLogo(cleanArt, brand, brandId);
+    setResultUrl(composed);
+  };
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Descreva o post que você quer criar."); return; }
-    setGenerating(true); setResultUrl(null);
+    setGenerating(true); setResultUrl(null); setArt(null); setPast([]);
     try {
       const { images } = await generateOpenAiImage({
-        prompt: buildArtPrompt(prompt, brand), size: "1024x1536", quality: "high", n: 1,
+        prompt: buildArtPrompt(prompt, brand), size: IMG_SIZE, quality: IMG_QUALITY, n: 1,
       });
-      const art = images?.[0];
-      if (!art) { toast.error("A IA não retornou imagem."); return; }
-      const composed = await overlayBrandLogo(art, brand, brandId);
-      setResultUrl(composed);
+      const newArt = images?.[0];
+      if (!newArt) { toast.error("A IA não retornou imagem."); return; }
+      await composeAndShow(newArt);
       toast.success("Arte gerada!");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao gerar a arte");
     } finally {
       setGenerating(false);
     }
+  };
+
+  const handleEdit = async (instruction: string) => {
+    const instr = instruction.trim();
+    if (!instr) { toast.error("Descreva a mudança que você quer."); return; }
+    if (!art) return;
+    setEditing(true);
+    try {
+      const { images } = await editOpenAiImage({
+        image: art, prompt: instr, size: IMG_SIZE, quality: IMG_QUALITY,
+      });
+      const newArt = images?.[0];
+      if (!newArt) { toast.error("A IA não retornou a imagem editada."); return; }
+      setPast((p) => [...p, art]);
+      await composeAndShow(newArt);
+      setEditPrompt("");
+      toast.success("Arte atualizada!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao editar a arte");
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleUndo = async () => {
+    if (!past.length) return;
+    const prev = past[past.length - 1];
+    setPast((p) => p.slice(0, -1));
+    await composeAndShow(prev);
+    toast.message("Desfeita a última mudança.");
   };
 
   const handleSave = async () => {
@@ -147,28 +203,63 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
         <Button
           className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-500"
           onClick={handleGenerate}
-          disabled={generating || !prompt.trim()}
+          disabled={busy || !prompt.trim()}
         >
-          {generating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando a arte…</> : <><Sparkles className="mr-2 h-4 w-4" /> Gerar arte</>}
+          {generating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Gerando a arte…</> : <><Sparkles className="mr-2 h-4 w-4" /> {resultUrl ? "Gerar do zero" : "Gerar arte"}</>}
         </Button>
       </div>
 
       {resultUrl && (
-        <div className="space-y-3">
-          <div className="mx-auto w-full max-w-sm overflow-hidden rounded-xl border border-border">
+        <div className="space-y-4">
+          <div className="relative mx-auto w-full max-w-sm overflow-hidden rounded-xl border border-border">
             <img src={resultUrl} alt="Arte gerada pela IA" className="block w-full" />
+            {editing && (
+              <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm">
+                <Loader2 className="h-7 w-7 animate-spin text-violet-500" />
+              </div>
+            )}
           </div>
+
+          {/* Editor conversacional */}
+          <div className="space-y-2 rounded-xl border border-border p-4">
+            <Label className="flex items-center gap-1.5 text-xs font-medium">
+              <Sparkles className="h-3.5 w-3.5 text-violet-500" /> Peça uma mudança nesta arte
+            </Label>
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_EDITS.map((q) => (
+                <button key={q} onClick={() => !busy && handleEdit(q)} disabled={busy}>
+                  <Badge variant="secondary" className="cursor-pointer text-[11px] hover:bg-accent">{q}</Badge>
+                </button>
+              ))}
+            </div>
+            <div className="flex items-end gap-2">
+              <Textarea
+                value={editPrompt}
+                onChange={(e) => setEditPrompt(e.target.value)}
+                rows={2}
+                placeholder="Ex: deixe o fundo mais escuro e destaque a palavra 'direito' em laranja."
+                className="flex-1"
+              />
+              <Button onClick={() => handleEdit(editPrompt)} disabled={busy || !editPrompt.trim()} title="Aplicar mudança">
+                {editing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              A IA repinta a imagem a cada pedido (pode variar levemente outras partes). A logo é recolocada por cima automaticamente.
+            </p>
+          </div>
+
           <div className="flex flex-wrap justify-center gap-2">
-            <Button variant="outline" onClick={handleGenerate} disabled={generating}>
+            <Button variant="outline" onClick={handleUndo} disabled={busy || !past.length}>
+              <Undo2 className="mr-2 h-4 w-4" /> Desfazer
+            </Button>
+            <Button variant="outline" onClick={handleGenerate} disabled={busy}>
               <RefreshCw className="mr-2 h-4 w-4" /> Gerar outra
             </Button>
-            <Button onClick={handleSave} disabled={saving}>
+            <Button onClick={handleSave} disabled={busy || saving}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />} Salvar na Galeria
             </Button>
           </div>
-          <p className="text-center text-xs text-muted-foreground">
-            Em breve: pedir alterações nesta arte por uma caixa de texto.
-          </p>
         </div>
       )}
     </div>

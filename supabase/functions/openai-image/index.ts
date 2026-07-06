@@ -4,7 +4,12 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
- * OpenAI Image Generation proxy.
+ * OpenAI Image proxy — geração e edição.
+ *
+ * - Sem `image` no corpo → geração (`/v1/images/generations`).
+ * - Com `image` (data URL ou http URL) → edição (`/v1/images/edits`): a IA
+ *   repinta a imagem enviada seguindo o `prompt`. Usado pelo Modo 1 do Studio
+ *   ("IA cria a arte completa") para refinar a arte por uma caixa de texto.
  *
  * Resolução da chave (nesta ordem):
  *   1. header `x-openai-api-key` (chave por-usuário, opcional)
@@ -38,6 +43,32 @@ async function resolveOpenAiKey(headerKey: string | null): Promise<string | null
   return Deno.env.get("OPENAI_API_KEY") ?? null;
 }
 
+/** Converte uma data URL (base64) ou http URL numa Blob para upload multipart. */
+async function imageToBlob(src: string): Promise<{ blob: Blob; filename: string }> {
+  if (/^https?:\/\//i.test(src)) {
+    const r = await fetch(src);
+    const blob = await r.blob();
+    const type = blob.type || "image/png";
+    const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+    return { blob, filename: `image.${ext}` };
+  }
+  const comma = src.indexOf(",");
+  const meta = comma >= 0 ? src.slice(0, comma) : "";
+  const b64 = comma >= 0 ? src.slice(comma + 1) : src;
+  const mime = /data:(.*?);base64/.exec(meta)?.[1] || "image/png";
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
+  return { blob: new Blob([bytes], { type: mime }), filename: `image.${ext}` };
+}
+
+function parseImages(data: { data?: Array<{ b64_json?: string; url?: string }> }): string[] {
+  return (data.data || [])
+    .map((d) => (d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url))
+    .filter((u): u is string => !!u);
+}
+
 interface RequestBody {
   prompt: string;
   size?: string;        // "1024x1024" | "1024x1536" | "1536x1024" | "auto"
@@ -46,6 +77,7 @@ interface RequestBody {
   quality?: string;     // gpt-image: "low" | "medium" | "high" | "auto"
   background?: string;  // "transparent" | "opaque" | "auto"
   companyId?: string;
+  image?: string;       // presente → modo edição (data URL ou http URL)
 }
 
 Deno.serve(async (req: Request) => {
@@ -65,7 +97,8 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: RequestBody = await req.json();
-    const { prompt, size = "1024x1024", n = 1, model, quality, background, companyId } = body;
+    const { prompt, size = "1024x1024", n = 1, model, quality, background, companyId, image } = body;
+    const isEdit = typeof image === "string" && image.length > 0;
 
     if (!prompt?.trim()) {
       return new Response(JSON.stringify({ error: "Missing 'prompt'" }), {
@@ -77,6 +110,7 @@ Deno.serve(async (req: Request) => {
     const apiKey = await resolveOpenAiKey(req.headers.get("x-openai-api-key"));
 
     // Fallback: sem chave OpenAI → usa Lovable AI Gateway (Gemini image).
+    // Gemini aceita imagem de entrada, então também cobre a edição.
     if (!apiKey) {
       const lovableKey = Deno.env.get("LOVABLE_API_KEY");
       if (!lovableKey) {
@@ -86,7 +120,13 @@ Deno.serve(async (req: Request) => {
         );
       }
       try {
-        console.log(`[openai-image] fallback Lovable AI Gateway (Gemini image) size=${size} n=${n}`);
+        console.log(`[openai-image] fallback Lovable AI (Gemini) ${isEdit ? "edit" : "generate"} size=${size} n=${n}`);
+        const content = isEdit
+          ? [
+              { type: "text", text: prompt },
+              { type: "image_url", image_url: { url: image } },
+            ]
+          : prompt;
         const gwResp = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
           method: "POST",
           headers: {
@@ -96,7 +136,7 @@ Deno.serve(async (req: Request) => {
           },
           body: JSON.stringify({
             model: "google/gemini-2.5-flash-image",
-            messages: [{ role: "user", content: prompt }],
+            messages: [{ role: "user", content }],
             modalities: ["image", "text"],
             n,
           }),
@@ -116,20 +156,16 @@ Deno.serve(async (req: Request) => {
         }
 
         const gwData = await gwResp.json();
-        const images: string[] = (gwData.data || [])
-          .map((d: { b64_json?: string; url?: string }) =>
-            d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url
-          )
-          .filter(Boolean);
+        const images = parseImages(gwData);
 
         await logApiUsage({
           companyId,
           userId: auth.user.id,
           service: "gemini",
-          operation: "image",
+          operation: isEdit ? "image_edit" : "image",
           units: images.length,
           unitType: "image",
-          metadata: { model: "google/gemini-2.5-flash-image", fallback: true },
+          metadata: { model: "google/gemini-2.5-flash-image", fallback: true, edit: isEdit },
         });
 
         return new Response(JSON.stringify({ images, model: "google/gemini-2.5-flash-image" }), {
@@ -146,25 +182,45 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const payload: Record<string, unknown> = {
-      model: model || DEFAULT_IMAGE_MODEL,
-      prompt,
-      n,
-      size,
-      quality: quality || "medium",
-    };
-    if (background) payload.background = background;
+    const resolvedModel = model || DEFAULT_IMAGE_MODEL;
+    const resolvedQuality = quality || "medium";
+    let resp: Response;
 
-    console.log(`[openai-image] model=${payload.model} size=${size} n=${n}`);
-
-    const resp = await fetch("https://api.openai.com/v1/images/generations", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    if (isEdit) {
+      // Edição: multipart/form-data com a imagem de entrada. NÃO definir
+      // Content-Type manualmente — o fetch adiciona o boundary do multipart.
+      const { blob, filename } = await imageToBlob(image as string);
+      const form = new FormData();
+      form.append("model", resolvedModel);
+      form.append("prompt", prompt);
+      form.append("image", blob, filename);
+      form.append("size", size);
+      form.append("quality", resolvedQuality);
+      console.log(`[openai-image] EDIT model=${resolvedModel} size=${size}`);
+      resp = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}` },
+        body: form,
+      });
+    } else {
+      const payload: Record<string, unknown> = {
+        model: resolvedModel,
+        prompt,
+        n,
+        size,
+        quality: resolvedQuality,
+      };
+      if (background) payload.background = background;
+      console.log(`[openai-image] model=${resolvedModel} size=${size} n=${n}`);
+      resp = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+    }
 
     if (!resp.ok) {
       const errText = await resp.text();
@@ -180,24 +236,19 @@ Deno.serve(async (req: Request) => {
     }
 
     const data = await resp.json();
-    // gpt-image-* retorna b64_json; dall-e pode retornar url.
-    const images: string[] = (data.data || [])
-      .map((d: { b64_json?: string; url?: string }) =>
-        d.b64_json ? `data:image/png;base64,${d.b64_json}` : d.url
-      )
-      .filter(Boolean);
+    const images = parseImages(data);
 
     await logApiUsage({
       companyId,
       userId: auth.user.id,
       service: "openai_image",
-      operation: "default",
+      operation: isEdit ? "edit" : "default",
       units: images.length,
       unitType: "image",
-      metadata: { model: payload.model, size, quality: payload.quality },
+      metadata: { model: resolvedModel, size, quality: resolvedQuality, edit: isEdit },
     });
 
-    return new Response(JSON.stringify({ images, model: payload.model }), {
+    return new Response(JSON.stringify({ images, model: resolvedModel }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
