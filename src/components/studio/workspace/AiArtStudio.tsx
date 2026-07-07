@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
 import { useCompany } from "@/contexts/CompanyContext";
-import { generateOpenAiImage, editOpenAiImage } from "@/lib/api";
+import { generateOpenAiImage, editOpenAiImage, generateContent } from "@/lib/api";
 import { saveVisualToGallery, sanitizeDesignDoc } from "@/lib/gallery";
-import type { BrandProfile } from "@/lib/brand";
+import { brandTextProfile, type BrandProfile } from "@/lib/brand";
 
 /**
  * Modo 1 — "IA cria a arte completa".
