@@ -167,6 +167,8 @@ function WorkspaceInner({
   // Em criações novas, aplica automaticamente quando a marca tem logo.
   // Em edições, normaliza somente se o post já possuía brand_logo salva.
   useEffect(() => {
+    // AiArtStudio já carimba a logo dentro da imagem — não sobrepor uma segunda camada.
+    if (doc.logoBaked) return;
     const logo = currentBrand?.logo_url || "";
     if (!logo) return;
     const hasLogo = docHasBrandLogo(doc);
