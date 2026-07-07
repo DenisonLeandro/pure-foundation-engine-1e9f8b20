@@ -142,6 +142,8 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editPrompt, setEditPrompt] = useState("");
+  const [caption, setCaption] = useState("");
+  const [captionLoading, setCaptionLoading] = useState(false);
 
   const [art, setArt] = useState<string | null>(null);        // arte limpa (sem logo) — base das edições
   const [resultUrl, setResultUrl] = useState<string | null>(null); // arte + logo (exibida e salva)
@@ -156,14 +158,38 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
     setResultUrl(composed);
   };
 
+  /** Gera legenda para Instagram baseada no prompt/tema, em pt-BR. */
+  const generateCaption = async (topic: string) => {
+    if (!topic.trim()) return;
+    setCaptionLoading(true);
+    try {
+      const res = await generateContent({
+        prompt: topic,
+        platforms: ["instagram"],
+        tone: brand?.tone,
+        language: "português brasileiro",
+        brandProfile: brandTextProfile(brand),
+      });
+      const text = res.posts?.instagram || Object.values(res.posts || {})[0] || "";
+      if (text) setCaption(text);
+    } catch (e) {
+      console.warn("[AiArtStudio] falha ao gerar legenda:", e);
+    } finally {
+      setCaptionLoading(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Descreva o post que você quer criar."); return; }
-    setGenerating(true); setResultUrl(null); setArt(null); setPast([]);
+    setGenerating(true); setResultUrl(null); setArt(null); setPast([]); setCaption("");
     try {
-      const { images } = await generateOpenAiImage({
-        prompt: buildArtPrompt(prompt, brand), size: IMG_SIZE, quality: IMG_QUALITY, n: 1,
-      });
-      const newArt = images?.[0];
+      const [imgRes] = await Promise.all([
+        generateOpenAiImage({
+          prompt: buildArtPrompt(prompt, brand), size: IMG_SIZE, quality: IMG_QUALITY, n: 1,
+        }),
+        generateCaption(prompt),
+      ]);
+      const newArt = imgRes.images?.[0];
       if (!newArt) { toast.error("A IA não retornou imagem."); return; }
       await composeAndShow(newArt);
       toast.success("Arte gerada!");
