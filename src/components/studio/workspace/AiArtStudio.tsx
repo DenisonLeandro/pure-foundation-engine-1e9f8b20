@@ -209,11 +209,25 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
     if (!activeCompanyId) { toast.error("Selecione uma empresa antes de salvar."); return; }
     setSaving(true);
     try {
+      // designDoc mínimo com logoBaked:true — evita o Studio sobrepor uma
+      // segunda logo quando o post for reaberto para edição/publicação.
+      const designDoc = {
+        format: "post" as const,
+        brandId: brand?.id ?? null,
+        slides: [{ bg: "#0b0b0f", bgImage: resultUrl, bgFit: "contain" as const, els: [] }],
+        caption: "",
+        hashtags: [],
+        platforms: ["instagram" as const],
+        schedule: { when: "now" as const },
+        canvas: { width: 1024, height: 1280, aspectRatio: 1024 / 1280, source: "finalImage" as const },
+        logoBaked: true,
+      };
       const created = await saveVisualToGallery({
         urls: [resultUrl],
         prompt: prompt.trim() || undefined,
         templateName: "Studio · IA completa",
         caption: "",
+        designDoc,
       });
       if (!created?.id) { toast.error("Falha ao salvar na Galeria."); return; }
       toast.success("Salvo na Galeria!");
