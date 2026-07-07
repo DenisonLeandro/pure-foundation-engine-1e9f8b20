@@ -82,7 +82,9 @@ export function getExportSize(doc?: Pick<StudioDoc, "canvas"> | null): { width: 
   return { width: size.width * EXPORT_SCALE, height: size.height * EXPORT_SCALE, scale: EXPORT_SCALE };
 }
 
-// Tamanho do gpt-image-2 mais próximo de 4:5 (o modelo aceita 1024x1536 = 2:3).
-export const IMAGE_SIZE = "1024x1536" as const;
+// 4:5 nativo do gpt-image-2 (Instagram feed). 1024×1280 = 4:5 exato e válido
+// (ambos múltiplos de 16). 1080×1350 seria o ideal, mas 1080 não é múltiplo
+// de 16, então o modelo rejeita; o export reescala 1024×1280 → 1080×1350.
+export const IMAGE_SIZE = "1024x1280" as const;
 
 export const uid = () => Math.random().toString(36).slice(2, 9);

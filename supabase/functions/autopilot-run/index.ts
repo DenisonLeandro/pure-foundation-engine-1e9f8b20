@@ -532,7 +532,7 @@ async function handleSchedule(calendarId: string) {
             const r = await fetch(`${SUPABASE_URL}/functions/v1/openai-image`, {
               method: "POST",
               headers: { "Content-Type": "application/json", apikey: anon, Authorization: `Bearer ${anon}` },
-              body: JSON.stringify({ prompt, size: "1024x1536", quality: "medium", n: 1 }),
+              body: JSON.stringify({ prompt, size: "1024x1280", quality: "medium", n: 1 }),
             });
             if (r.ok) {
               const data = await r.json();

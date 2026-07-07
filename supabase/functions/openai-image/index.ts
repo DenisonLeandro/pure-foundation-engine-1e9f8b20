@@ -71,7 +71,7 @@ function parseImages(data: { data?: Array<{ b64_json?: string; url?: string }> }
 
 interface RequestBody {
   prompt: string;
-  size?: string;        // "1024x1024" | "1024x1536" | "1536x1024" | "auto"
+  size?: string;        // gpt-image-2 aceita dims custom (múltiplos de 16). Ex.: "1024x1280" (4:5), "1024x1024", "1024x1536", "auto"
   n?: number;
   model?: string;
   quality?: string;     // gpt-image: "low" | "medium" | "high" | "auto"
