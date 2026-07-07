@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
 import { useCompany } from "@/contexts/CompanyContext";
-import { generateOpenAiImage, editOpenAiImage } from "@/lib/api";
+import { generateOpenAiImage, editOpenAiImage, generateContent } from "@/lib/api";
 import { saveVisualToGallery, sanitizeDesignDoc } from "@/lib/gallery";
-import type { BrandProfile } from "@/lib/brand";
+import { brandTextProfile, type BrandProfile } from "@/lib/brand";
 
 /**
  * Modo 1 — "IA cria a arte completa".
@@ -142,6 +142,8 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editPrompt, setEditPrompt] = useState("");
+  const [caption, setCaption] = useState("");
+  const [captionLoading, setCaptionLoading] = useState(false);
 
   const [art, setArt] = useState<string | null>(null);        // arte limpa (sem logo) — base das edições
   const [resultUrl, setResultUrl] = useState<string | null>(null); // arte + logo (exibida e salva)
@@ -156,14 +158,38 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
     setResultUrl(composed);
   };
 
+  /** Gera legenda para Instagram baseada no prompt/tema, em pt-BR. */
+  const generateCaption = async (topic: string) => {
+    if (!topic.trim()) return;
+    setCaptionLoading(true);
+    try {
+      const res = await generateContent({
+        prompt: topic,
+        platforms: ["instagram"],
+        tone: brand?.tone,
+        language: "português brasileiro",
+        brandProfile: brandTextProfile(brand),
+      });
+      const text = res.posts?.instagram || Object.values(res.posts || {})[0] || "";
+      if (text) setCaption(text);
+    } catch (e) {
+      console.warn("[AiArtStudio] falha ao gerar legenda:", e);
+    } finally {
+      setCaptionLoading(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim()) { toast.error("Descreva o post que você quer criar."); return; }
-    setGenerating(true); setResultUrl(null); setArt(null); setPast([]);
+    setGenerating(true); setResultUrl(null); setArt(null); setPast([]); setCaption("");
     try {
-      const { images } = await generateOpenAiImage({
-        prompt: buildArtPrompt(prompt, brand), size: IMG_SIZE, quality: IMG_QUALITY, n: 1,
-      });
-      const newArt = images?.[0];
+      const [imgRes] = await Promise.all([
+        generateOpenAiImage({
+          prompt: buildArtPrompt(prompt, brand), size: IMG_SIZE, quality: IMG_QUALITY, n: 1,
+        }),
+        generateCaption(prompt),
+      ]);
+      const newArt = imgRes.images?.[0];
       if (!newArt) { toast.error("A IA não retornou imagem."); return; }
       await composeAndShow(newArt);
       toast.success("Arte gerada!");
@@ -215,7 +241,7 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
         format: "post" as const,
         brandId: brand?.id ?? null,
         slides: [{ bg: "#0b0b0f", bgImage: resultUrl, bgFit: "contain" as const, els: [] }],
-        caption: "",
+        caption,
         hashtags: [],
         platforms: ["instagram" as const],
         schedule: { when: "now" as const },
@@ -226,7 +252,7 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
         urls: [resultUrl],
         prompt: prompt.trim() || undefined,
         templateName: "Studio · IA completa",
-        caption: "",
+        caption,
         designDoc: sanitizeDesignDoc(designDoc),
       });
       if (!created?.id) { toast.error("Falha ao salvar na Galeria."); return; }
@@ -313,6 +339,36 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
             </div>
             <p className="text-[11px] text-muted-foreground">
               A IA repinta a imagem a cada pedido (pode variar levemente outras partes). A logo é recolocada por cima automaticamente.
+            </p>
+          </div>
+
+          {/* Legenda gerada pela IA — editável */}
+          <div className="space-y-2 rounded-xl border border-border p-4">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5 text-xs font-medium">
+                <Sparkles className="h-3.5 w-3.5 text-violet-500" /> Legenda do post
+              </Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => generateCaption(prompt)}
+                disabled={captionLoading || !prompt.trim()}
+                title="Gerar outra legenda"
+              >
+                {captionLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                {caption ? "Regerar" : "Gerar"}
+              </Button>
+            </div>
+            <Textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              rows={5}
+              placeholder={captionLoading ? "Gerando legenda…" : "A legenda aparecerá aqui. Você pode editar antes de salvar."}
+              disabled={captionLoading}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              A legenda é salva junto do post e usada ao publicar/agendar.
             </p>
           </div>
 
