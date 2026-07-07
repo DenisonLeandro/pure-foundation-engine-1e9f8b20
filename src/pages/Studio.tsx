@@ -82,11 +82,15 @@ function buildStaticFallbackDoc(nav: NavState, urls: string[]): StudioDoc {
   const isCarousel = urls.length > 1;
   const base = emptyDoc(isCarousel ? "carousel" : "post", null);
   const firstMeta = nav.finalImageMeta?.[0] ?? null;
+  // Posts antigos do modo "IA cria a arte completa" já têm a logo pintada na
+  // imagem — não deixar o Studio sobrepor uma segunda camada de logo.
+  const logoBaked = nav.title === "Studio · IA completa" || undefined;
   return {
     ...base,
     canvas: canvasFromImageMeta(firstMeta, "fallback") ?? fallbackCanvas,
     slides: urls.map((url) => ({ bg: "#0b0b0f", bgImage: url, bgFit: "contain", els: [] })),
     caption: typeof nav.caption === "string" ? nav.caption : base.caption,
+    ...(logoBaked ? { logoBaked: true } : {}),
   };
 }
 
