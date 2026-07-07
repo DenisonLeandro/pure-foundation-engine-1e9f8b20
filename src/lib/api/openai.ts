@@ -44,7 +44,7 @@ export interface OpenAiImageEditParams {
   image: string;
   /** Instrução da mudança desejada. */
   prompt: string;
-  size?: "1024x1024" | "1024x1536" | "1536x1024" | "auto";
+  size?: "1024x1024" | "1024x1280" | "1024x1536" | "1536x1024" | "auto";
   quality?: "low" | "medium" | "high" | "auto";
 }
 
