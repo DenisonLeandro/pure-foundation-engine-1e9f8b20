@@ -241,7 +241,7 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
         format: "post" as const,
         brandId: brand?.id ?? null,
         slides: [{ bg: "#0b0b0f", bgImage: resultUrl, bgFit: "contain" as const, els: [] }],
-        caption: "",
+        caption,
         hashtags: [],
         platforms: ["instagram" as const],
         schedule: { when: "now" as const },
@@ -252,7 +252,7 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
         urls: [resultUrl],
         prompt: prompt.trim() || undefined,
         templateName: "Studio · IA completa",
-        caption: "",
+        caption,
         designDoc: sanitizeDesignDoc(designDoc),
       });
       if (!created?.id) { toast.error("Falha ao salvar na Galeria."); return; }
