@@ -241,7 +241,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       direction ? `Direção de arte adicional: ${direction}.` : "",
       hints?.visualSuggestion ? `Direção criativa sugerida pela curadoria de conteúdo: ${hints.visualSuggestion}.` : "",
       hints?.imageKeywords?.length ? `Palavras-chave visuais a considerar (não usar como texto na imagem): ${hints.imageKeywords.join(", ")}.` : "",
-      `Arte vertical (1024x1536) de fundo para post sobre "${topic}" (objetivo: ${objective}).`,
+      `Arte vertical 4:5 (1024x1280) de fundo para post sobre "${topic}" (objetivo: ${objective}).`,
       `CENA ESPECÍFICA deste slide (${idx + 1}/${total}) — siga à risca, não invente outra: ${sceneBrief}`,
       `Composição editorial profissional, padrão de produção alto (estilo campanha de marca premium 2026), profundidade de campo real, luz motivada e atmosfera coerente com a cena. Evite o "look genérico de IA": nada de simetria perfeita de rosto, nada de pele plástica/excessivamente lisa, nada de mãos/dedos malformados, nada de composição "pessoa sorrindo de frente, fundo borrado" repetida em todo slide.`,
       `Deixe ${cleanAreaPt[cleanArea]} (será sobreposto por texto editável).`,
@@ -249,7 +249,7 @@ export function AutoStudio({ onEditInCanvas, onBack, initialForm, initialDoc }: 
       `ABSOLUTAMENTE PROIBIDO: qualquer texto, tipografia, caracteres, palavras, números ou logotipos renderizados na imagem.`,
     ].filter(Boolean).join("\n\n");
 
-    const { images } = await generateOpenAiImage({ prompt: artPrompt, size: "1024x1536", quality: "high", n: 1 });
+    const { images } = await generateOpenAiImage({ prompt: artPrompt, size: "1024x1280", quality: "high", n: 1 });
     const bg = images?.[0];
     if (!bg) return {};
 

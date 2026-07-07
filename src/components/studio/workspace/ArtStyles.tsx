@@ -47,7 +47,7 @@ export function ArtStyles() {
         textClause,
         "Composição profissional, pronta para publicação.",
       ].filter(Boolean).join("\n\n");
-      const { images } = await generateOpenAiImage({ prompt, size: "1024x1536", quality: "medium", n: 1 });
+      const { images } = await generateOpenAiImage({ prompt, size: "1024x1280", quality: "medium", n: 1 });
       if (!images?.[0]) { toast.error("Falha ao gerar a arte."); return; }
       apply(images[0]);
       toast.success(`Arte "${style.name}" gerada`);

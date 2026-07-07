@@ -95,7 +95,7 @@ export function Copilot() {
   const genImage = async (extra: string): Promise<string | undefined> => {
     const { images } = await generateOpenAiImage({
       prompt: [brandImageDirective(brand), fullPrompt(), extra].filter(Boolean).join("\n\n"),
-      size: "1024x1536", quality: "medium", n: 1,
+      size: "1024x1280", quality: "medium", n: 1,
     });
     return images?.[0];
   };
@@ -210,7 +210,7 @@ export function Copilot() {
       const q = intent.trim() || selectedEl?.text || brand?.industry || brand?.name || "imagem";
       let url: string | undefined;
       if (source === "ai") {
-        const { images } = await generateOpenAiImage({ prompt: [brandImageDirective(brand), q].filter(Boolean).join("\n\n"), size: "1024x1536", quality: "medium", n: 1 });
+        const { images } = await generateOpenAiImage({ prompt: [brandImageDirective(brand), q].filter(Boolean).join("\n\n"), size: "1024x1280", quality: "medium", n: 1 });
         url = images?.[0];
       } else {
         if (!activeCompanyId) { toast.error("Selecione uma empresa."); return; }

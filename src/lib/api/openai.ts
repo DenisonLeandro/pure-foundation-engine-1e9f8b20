@@ -7,7 +7,7 @@ import { getSupabaseUrl, baseHeaders } from "./_shared";
 
 export interface OpenAiImageParams {
   prompt: string;
-  size?: "1024x1024" | "1024x1536" | "1536x1024" | "auto";
+  size?: "1024x1024" | "1024x1280" | "1024x1536" | "1536x1024" | "auto";
   n?: number;
   model?: string;
   quality?: "low" | "medium" | "high" | "auto";
