@@ -57,6 +57,8 @@ export interface StudioDoc {
   canvas?: { width: number; height: number; aspectRatio?: number; source?: "finalImage" | "designDoc" | "fallback" };
   /** Canvas em que os elementos foram originalmente posicionados/dimensionados. Usado para reescalar ao reabrir. */
   authoredCanvas?: { width: number; height: number };
+  /** true = a logo da marca já está pintada dentro das imagens/bgImage; Studio não deve sobrepor camada de logo. */
+  logoBaked?: boolean;
 }
 
 // Canvas 4:5 (1080×1350) — padrão Instagram 2026.
