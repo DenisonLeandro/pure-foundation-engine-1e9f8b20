@@ -8,8 +8,12 @@
  * saiam todos com a mesma cara.
  */
 
-const W = 1024;
-const H = 1536;
+// Canvas 4:5 (1080×1350) — mesma proporção do editor/export (types.ts) e do
+// feed do Instagram. Compor em 2:3 fazia o post ser cortado ~8% em cima e
+// embaixo (o rodapé sumia). Os templates abaixo são ancorados às bordas ou
+// proporcionais a H, então reposicionam sozinhos com a nova altura.
+const W = 1080;
+const H = 1350;
 
 export type SlideTemplate = "bottom" | "top" | "center-card" | "side-bar" | "kicker" | "quote";
 
