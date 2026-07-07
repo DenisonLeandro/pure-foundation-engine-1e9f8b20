@@ -171,6 +171,15 @@ function WorkspaceInner({
     if (doc.logoBaked) return;
     const logo = currentBrand?.logo_url || "";
     if (!logo) return;
+    // Fallback estático: todos os slides são só imagem de fundo (sem els editáveis
+    // não-logo). Nesses casos a logo já vem queimada no PNG — não sobrepor.
+    const allSlidesAreFinalImage =
+      doc.slides.length > 0 &&
+      doc.slides.every((s) => {
+        const nonLogoEls = (s.els || []).filter((e) => e.role !== "brand_logo");
+        return nonLogoEls.length === 0 && !!s.bgImage;
+      });
+    if (allSlidesAreFinalImage) return;
     const hasLogo = docHasBrandLogo(doc);
     if (editingCreationId && !hasLogo) return;
     if (docHasCurrentBrandLogo(doc, logo)) return;

@@ -1,47 +1,44 @@
 ## Problema
 
-No modo **"IA cria a arte completa"** (`AiArtStudio`), a IA gera a arte e o app **carimba a logo real da marca no canto superior esquerdo via canvas** antes de salvar na Galeria. Ou seja, a imagem salva já tem a logo pintada dentro.
+Ao abrir da Galeria, no Studio (canvas), aparecem 2 logos: a que a IA já carimbou dentro da imagem + uma segunda camada `brand_logo` sobreposta pelo Studio.
 
-Quando o usuário abre esse post no Studio para publicar, o `StudioWorkspace` roda um efeito que **aplica automaticamente uma camada `brand_logo` sobre a imagem** — resultado: **duas logos** (a pintada dentro da imagem + a camada nova).
+O ajuste anterior marcava `logoBaked: true` em posts novos do "IA cria a arte completa" e adicionava um guard no `useEffect` de logo. Ainda assim a segunda camada está aparecendo — provável causa: em algum caminho o `logoBaked` não sobrevive (sanitize/persist em cadeia, dedup por prompt em `saveVisualToGallery`, ou o post foi salvo antes do fix chegar). O `useEffect` do StudioWorkspace então roda `applyPreparedBrandLogo` porque o doc não tem `logoBaked` nem camada `brand_logo` pré-existente.
 
-O guarda atual (`if (editingCreationId && !hasLogo) return;`) não protege esse caso: a criação salva pelo AiArtStudio não tem `designDoc`, então o Studio abre um doc de fallback com `els: []` (sem camada `brand_logo`), o efeito considera "não tem logo ainda" e adiciona a camada por cima da imagem já com logo.
+## Correção (defensiva, em 3 camadas)
 
-O usuário quer manter a IA gerando/embutindo a logo e apenas remover a duplicação.
+### 1. `src/pages/Studio.tsx` — normalizar o doc de entrada
 
-## Fix (escopo mínimo, só apresentação)
+Antes de entregar o doc ao `StudioProvider`, aplicar uma função `stampLogoBakedIfAiArt(nav, doc)` em **ambos** os caminhos (`prepareDesignDocForEdit` e `buildStaticFallbackDoc`) que:
 
-Sinalizar que o post do AiArtStudio já tem a logo embutida e fazer o Studio pular a aplicação automática nesses casos.
+- Detecta um post de "IA cria a arte completa" por qualquer um destes sinais:
+  - `nav.title === "Studio · IA completa"` (templateName da Galeria).
+  - `doc.logoBaked === true` (posts salvos pelo fix anterior).
+  - `doc.canvas?.source === "finalImage"` (marcador que o AiArtStudio grava).
+  - Doc "estático": todos os slides sem `els` editáveis e com `bgImage` presente em `nav.finalImageUrls`.
+- Quando detectado: força `logoBaked: true` **e** remove qualquer `el` com `role === "brand_logo"` de todos os slides (limpeza defensiva, caso alguém tenha sobreposto no passado).
 
-### 1. `src/components/studio/workspace/types.ts`
-Adicionar campo opcional `logoBaked?: boolean` em `StudioDoc`. Marca "a logo já está pintada dentro das imagens deste doc — não sobrepor camada".
+### 2. `src/components/studio/workspace/StudioWorkspace.tsx` — endurecer o guard
 
-### 2. `src/components/studio/workspace/AiArtStudio.tsx`
-No `handleSave`, montar um `designDoc` mínimo e enviá-lo para `saveVisualToGallery`:
-- `format: "post"`, `brandId`, `canvas` derivado das dimensões da imagem (1024×1280),
-- 1 slide com `bgImage: resultUrl` (imagem composta) e `els: []`,
-- `logoBaked: true`,
-- `caption: ""`, `hashtags: []`, `platforms: []`, `schedule: { when: "now" }`.
+O `useEffect` que aplica a logo passa a checar, além de `doc.logoBaked`:
 
-Isso garante que, ao reabrir da Galeria, o `prepareDesignDocForEdit` carregue o doc com a marcação preservada.
+- Se todos os slides já têm `bgImage` **e** nenhum tem `els` editáveis não-logo (fallback estático), não aplica logo. Isso cobre posts antigos abertos como imagem final onde a logo já está queimada no PNG.
+- Mantém o retorno antecipado original.
 
-### 3. `src/components/studio/workspace/StudioWorkspace.tsx`
-No efeito que aplica a logo (linhas ~169–180), incluir guarda no topo:
-```ts
-if (doc.logoBaked) return;
-```
-Também tratar como "já tem logo" em `docHasBrandLogo` conceitualmente: como o efeito já sai, basta o `return` cedo — sem outras mudanças.
+### 3. `src/components/studio/workspace/AiArtStudio.tsx` — garantir persistência do flag
 
-### 4. Fallback para posts antigos do AiArtStudio
-Criações salvas antes deste fix não têm `designDoc` nem `logoBaked`. Para elas, quando abertas por `buildStaticFallbackDoc` (Studio.tsx), detectar heurística simples: se `nav.title === "Studio · IA completa"` (templateName usado pelo AiArtStudio) → setar `logoBaked: true` no doc de fallback. Uma linha em `buildStaticFallbackDoc`.
+- Continuar salvando `logoBaked: true` no designDoc.
+- Adicionalmente marcar `canvas.source: "finalImage"` (já está) para que o passo 1 do Studio detecte mesmo se o campo `logoBaked` for perdido em alguma normalização futura.
+- Nenhuma outra mudança de lógica.
 
 ## Fora de escopo
 
-- Nenhuma mudança em edge functions, banco, prompts da IA ou fluxo de publicação.
-- A composição (canvas + baked logo) do AiArtStudio continua exatamente como está — usuário pediu para manter.
-- Outros modos do Studio (Modo 2 / assistido / auto) continuam aplicando a camada de logo normalmente.
+- Não altera a composição da logo dentro do AiArtStudio (a IA continua carimbando).
+- Não muda edge functions, DB, publish drawer, `renderDocOffscreen` nem `gallery-refresh`.
+- Não afeta posts editáveis normais (com `els` de texto/forma) — o guard só age quando o slide é uma imagem final com logo queimada.
 
-## Verificação
+## Como validar
 
-1. Gerar um post no modo "IA cria tudo" com marca com logo → salvar na Galeria.
-2. Abrir esse post na Galeria → clicar em editar/postar → confirmar visualmente **uma única logo**.
-3. Gerar um post no Modo 2 (assistido, com imagem stock) → confirmar que a camada de logo continua sendo aplicada (não regride).
+1. Abrir "IA cria a arte completa", gerar arte, salvar.
+2. Ir na Galeria → clicar Editar no post recém-criado.
+3. Canvas do Studio deve mostrar **apenas 1 logo** (a queimada pela IA), sem selo extra no canto.
+4. Repetir com um post antigo do mesmo modo (templateName "Studio · IA completa") — mesmo comportamento.

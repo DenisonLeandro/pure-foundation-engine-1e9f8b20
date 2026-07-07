@@ -62,6 +62,36 @@ function hasValidDesignDoc(doc: NavState["designDoc"]): doc is StudioDoc {
     && doc.slides.every((s) => s && typeof s === "object" && Array.isArray((s as Slide).els));
 }
 
+/**
+ * Normaliza o doc pra evitar logo duplicada em posts do modo "IA cria a arte
+ * completa": marca `logoBaked` e remove qualquer camada `brand_logo` residual.
+ * Aciona por múltiplos sinais para sobreviver a sanitize/dedup entre saves.
+ */
+function stampLogoBakedIfAiArt(nav: NavState, doc: StudioDoc): StudioDoc {
+  const finalUrls = new Set((nav.finalImageUrls ?? []).filter(isHttpUrl));
+  const allSlidesAreFinalImage =
+    doc.slides.length > 0 &&
+    doc.slides.every((s) => {
+      const nonLogoEls = (s.els || []).filter((e) => e.role !== "brand_logo");
+      if (nonLogoEls.length > 0) return false;
+      return !!s.bgImage && (finalUrls.size === 0 || finalUrls.has(s.bgImage));
+    });
+
+  const isAiArt =
+    nav.title === "Studio · IA completa" ||
+    doc.logoBaked === true ||
+    doc.canvas?.source === "finalImage" ||
+    allSlidesAreFinalImage;
+
+  if (!isAiArt) return doc;
+
+  const slides = doc.slides.map((s) => ({
+    ...s,
+    els: (s.els || []).filter((e) => e.role !== "brand_logo"),
+  }));
+  return { ...doc, slides, logoBaked: true };
+}
+
 function prepareDesignDocForEdit(nav: NavState, doc: StudioDoc): StudioDoc {
   // Abre o design_doc EXATAMENTE como foi salvo — sem reescalar, sem injetar
   // bgImage da Galeria por cima (isso duplicaria o texto rasterizado).
@@ -71,27 +101,25 @@ function prepareDesignDocForEdit(nav: NavState, doc: StudioDoc): StudioDoc {
     ? { ...doc.canvas, source: "designDoc" as const }
     : { ...fallbackCanvas, source: "designDoc" as const };
 
-  return {
+  const prepared: StudioDoc = {
     ...doc,
     canvas: targetCanvas,
     caption: typeof nav.caption === "string" ? nav.caption : doc.caption,
   };
+  return stampLogoBakedIfAiArt(nav, prepared);
 }
 
 function buildStaticFallbackDoc(nav: NavState, urls: string[]): StudioDoc {
   const isCarousel = urls.length > 1;
   const base = emptyDoc(isCarousel ? "carousel" : "post", null);
   const firstMeta = nav.finalImageMeta?.[0] ?? null;
-  // Posts antigos do modo "IA cria a arte completa" já têm a logo pintada na
-  // imagem — não deixar o Studio sobrepor uma segunda camada de logo.
-  const logoBaked = nav.title === "Studio · IA completa" || undefined;
-  return {
+  const fallback: StudioDoc = {
     ...base,
     canvas: canvasFromImageMeta(firstMeta, "fallback") ?? fallbackCanvas,
     slides: urls.map((url) => ({ bg: "#0b0b0f", bgImage: url, bgFit: "contain", els: [] })),
     caption: typeof nav.caption === "string" ? nav.caption : base.caption,
-    ...(logoBaked ? { logoBaked: true } : {}),
   };
+  return stampLogoBakedIfAiArt(nav, fallback);
 }
 
 /** Aplica fallback de imagem por slide (índice). Não duplica se o slide já tiver visual. */
