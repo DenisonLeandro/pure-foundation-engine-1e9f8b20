@@ -342,6 +342,36 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
             </p>
           </div>
 
+          {/* Legenda gerada pela IA — editável */}
+          <div className="space-y-2 rounded-xl border border-border p-4">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-1.5 text-xs font-medium">
+                <Sparkles className="h-3.5 w-3.5 text-violet-500" /> Legenda do post
+              </Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => generateCaption(prompt)}
+                disabled={captionLoading || !prompt.trim()}
+                title="Gerar outra legenda"
+              >
+                {captionLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                {caption ? "Regerar" : "Gerar"}
+              </Button>
+            </div>
+            <Textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              rows={5}
+              placeholder={captionLoading ? "Gerando legenda…" : "A legenda aparecerá aqui. Você pode editar antes de salvar."}
+              disabled={captionLoading}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              A legenda é salva junto do post e usada ao publicar/agendar.
+            </p>
+          </div>
+
           <div className="flex flex-wrap justify-center gap-2">
             <Button variant="outline" onClick={handleUndo} disabled={busy || !past.length}>
               <Undo2 className="mr-2 h-4 w-4" /> Desfazer
