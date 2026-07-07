@@ -25,7 +25,10 @@ import type { BrandProfile } from "@/lib/brand";
  * "limpa" (sem logo) e a logo real é recolocada por cima a cada versão.
  */
 
-const IMG_SIZE = "1024x1536" as const;
+// 4:5 (feed do Instagram). O gpt-image-2 aceita dims custom múltiplas de 16;
+// 1024×1280 é 4:5 exato. Antes era 1024×1536 (2:3), mais alto que o feed, o
+// que cortava topo/rodapé (logo e chamada) ao publicar.
+const IMG_SIZE = "1024x1280" as const;
 const IMG_QUALITY = "high" as const;
 
 const QUICK_EDITS = [
@@ -100,7 +103,7 @@ function clamp(n: number, min: number, max: number): number {
 async function composeImageWithLogo(artUrl: string, logoUrl?: string | null): Promise<string> {
   const art = await loadImg(artUrl);
   const w = art.naturalWidth || 1024;
-  const h = art.naturalHeight || 1536;
+  const h = art.naturalHeight || 1280;
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
