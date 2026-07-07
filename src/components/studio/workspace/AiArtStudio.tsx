@@ -227,7 +227,7 @@ export function AiArtStudio({ onBack }: { onBack: () => void }) {
         prompt: prompt.trim() || undefined,
         templateName: "Studio · IA completa",
         caption: "",
-        designDoc,
+        designDoc: sanitizeDesignDoc(designDoc),
       });
       if (!created?.id) { toast.error("Falha ao salvar na Galeria."); return; }
       toast.success("Salvo na Galeria!");
