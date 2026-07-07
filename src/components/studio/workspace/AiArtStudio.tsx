@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { useBrands } from "@/hooks/use-brands";
 import { useCompany } from "@/contexts/CompanyContext";
 import { generateOpenAiImage, editOpenAiImage } from "@/lib/api";
-import { saveVisualToGallery } from "@/lib/gallery";
+import { saveVisualToGallery, sanitizeDesignDoc } from "@/lib/gallery";
 import type { BrandProfile } from "@/lib/brand";
 
 /**
