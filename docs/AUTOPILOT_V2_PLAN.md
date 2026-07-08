@@ -1,7 +1,7 @@
 # Autopilot v2 — Plano de Reescrita (documento vivo)
 
-> Status: **em detalhamento colaborativo**. Nada implementado ainda.
-> Este documento é a especificação que guiará a implementação. Atualizado a cada rodada da conversa.
+> Status: **spec revisada — aguardando aprovação final pra implementar.** Nada implementado ainda.
+> Este documento é a especificação que guiará a implementação. Produto, arquitetura técnica e UI fechados e revisados.
 
 ## Decisões travadas
 
@@ -12,15 +12,20 @@
 
 ## Visão-base (o "uau")
 
-A pessoa **cola um plano de conteúdo do mês** (uma tabela com data · categoria · tema) e o Autopilot faz **todo o resto sozinho**:
+A pessoa **cola um plano de conteúdo** (de qualquer período — data · tema, categoria opcional) e o Autopilot faz **todo o resto sozinho**:
 
 ```
-CONFIG (uma vez)
-  Usuário cola o plano do mês → IA lê e salva 1 post por dia pro mês inteiro
+CONFIGURA (uma vez)
+  Cola o plano (período livre) → IA estrutura → confirma a grade editável
+  → escolhe marca e contas
 
-TODO DIA (automático, de manhã)
-  Pega o tema do dia → gera arte + legenda → agenda no melhor horário (Apify)
-  → publica → repete dia após dia
+GERA E APROVA (uma vez, logo após configurar)
+  IA gera TODOS os posts do ciclo em background (arte estilo Studio + legenda)
+  → pessoa revisa em lote e aprova
+
+RODA SOZINHO (o resto do ciclo)
+  Agenda tudo no Post for Me (melhor horário) → PFM publica dia a dia
+  → confirma publicação → 7 dias antes do fim, avisa pra colar o próximo
 ```
 
 ### Exemplo de entrada (real, fornecido pelo usuário)
@@ -34,11 +39,11 @@ Ex.: `02/07/2026 | Quinta | Acidente de Trabalho | Hérnia de Disco Pode Ser Con
 | Etapa | Recurso existente | Novo? |
 |---|---|---|
 | Parser do plano colado | IA texto (Lovable Gateway / `generate-content`) | **novo** (parser) |
-| Arte do tema | `openai-image` (gpt-image-2, marca-raiz) | já usado |
+| Arte do tema | pipeline do Studio "A IA cria tudo" (`openai-image` + composição de logo) | **port p/ backend** (logo no servidor) |
 | Legenda | `generate-content` | já usado |
 | Agendar/publicar | `postforme-proxy` (Post for Me) | já usado |
 | Melhor horário | `social-analytics` (Apify) | **lógica nova** |
-| Rodar todo dia | cron + fila de jobs | novo (motor) |
+| Executar o ciclo (gerar → agendar → confirmar) | cron + fila de jobs | novo (motor) |
 
 ## Detalhado ✅
 
@@ -66,7 +71,8 @@ Pré-requisitos coletados no assistente (ordem a refinar):
 - **Marca** (`brand_profiles`) — define tom/cores/estilo da arte e da legenda. **Obrigatório.**
 - **Plataformas + contas conectadas** (Post for Me) — onde publicar. **Obrigatório.**
 - **Plano de conteúdo** (telas 1–2 acima).
-- **Horário de publicação** — vem do Apify (🔍 a definir na fila).
+- **Fuso horário** — auto-detectado do navegador e confirmado (ver seção 9).
+- **Horário de publicação** — automático (melhor horário, ver seção 3), com override opcional.
 
 **Multi-plataforma:** o **mesmo post vai igual pra todas as plataformas** selecionadas (mesma arte, mesma legenda). Sem adaptação por rede na v2.
 
@@ -210,7 +216,7 @@ Todas as decisões de produto estão fechadas.
 
 ---
 
-# Arquitetura técnica (proposta — a validar)
+# Arquitetura técnica (revisada)
 
 ## Tabelas novas (escopo por empresa, RLS via `company_members`)
 
@@ -226,7 +232,7 @@ platforms text[]
 social_account_ids text[]
 timezone text             -- IANA (ex.: America/Sao_Paulo)
 requires_approval bool default true
-status text               -- draft|generating|review|approved|active|completed|failed
+status text               -- draft|generating|review|approved|active|completed|failed|paused|canceled
 period_start date
 period_end date
 raw_plan_text text        -- texto original colado (referência)
@@ -266,7 +272,7 @@ post_id uuid null
 kind text                 -- gen_image|gen_caption|schedule_post|confirm_post
 status text               -- queued|running|done|failed
 attempts int default 0
-max_attempts int default 3
+max_attempts int default 4
 next_attempt_at timestamptz
 last_error text
 payload jsonb
@@ -282,14 +288,21 @@ draft → generating → ready → approved → scheduled → published
                        ↘ (falha) → failed
                        ↘ (removido na revisão) → removed
 ```
-**Plano (derivado dos posts):** draft → generating → review → approved → active → completed (+ failed).
+**Plano (derivado dos posts):** draft → generating → review → approved → active → completed. Ramos laterais: `paused` (retomável), `canceled` (encerrado), `failed`.
+
+**Falha não bloqueia o ciclo:** um post `failed` não trava os demais (jobs são por post). Ele aparece na UI com o erro e um botão "tentar de novo"; o resto do plano segue publicando.
 
 ## Motor (fila de jobs)
 - **Worker** `autopilot-worker`: claim atômico (`FOR UPDATE SKIP LOCKED`), processa 1 job por vez.
   - Sucesso → job=done + avança estado do post.
   - Falha → attempts++, se < max: requeue com backoff (`next_attempt_at = now + backoff`); senão job=failed + post=failed + erro visível na UI.
-- **Tick** `autopilot-tick` (substitui `autopilot-cron`): enfileira `confirm_post` de posts agendados cuja hora passou + invoca o worker. Sem regra de negócio no cron.
-- **Tipos de job:** `gen_image`, `gen_caption`, `schedule_post`, `confirm_post`. (Parse do plano é **síncrono** na UI.)
+- **Tick** `autopilot-tick` (substitui `autopilot-cron`): a cada passagem —
+  1. enfileira `confirm_post` de posts agendados cuja hora passou;
+  2. marca `plan=completed` quando todos os posts terminaram (`published`/`failed`/`removed`) ou `period_end` passou;
+  3. dispara o aviso **"plano acabando (7 dias)"** (uma vez por plano);
+  4. invoca o worker.
+  Sem regra de negócio pesada no cron — só detecção de transições + disparo.
+- **Tipos de job:** `gen_image`, `gen_caption`, `schedule_post`, `confirm_post`. (Parse do plano é **síncrono** na UI. Regenerar arte/legenda na revisão reusa `gen_image`/`gen_caption` para um único post.)
 
 ## Orquestração
 ```
@@ -340,8 +353,13 @@ Princípio: **simplicidade radical** (usável por quem nunca abriu o app).
 ## Permissões (por empresa)
 - **Criar/editar/gerar planos:** owner, admin e editor.
 - **Aprovar (gatilho de publicação):** **os três papéis** (owner, admin, editor). Mais ágil; sem separação hierárquica de aprovação na v2.
-- **Pausar/cancelar plano:** owner, admin, editor (a refinar se editor pode cancelar plano de outro).
+- **Pausar/cancelar plano:** owner, admin, editor.
 - RLS das 3 tabelas: escopo por `company_members` (qualquer membro ativo da empresa opera dentro do escopo dela).
+
+## Pausar & cancelar plano
+- **Pausar** (`active → paused`): interrompe futuras publicações. Os posts ainda `scheduled` no Post for Me são **desagendados** via **`pfm_delete_post`** (tool já existente no `postforme-proxy`) e voltam a `approved`. **Retomável** (`paused → active`): reenfileira `schedule_post` dos pendentes (reagenda no PFM). Posts já `published` ficam como estão.
+- **Cancelar** (`* → canceled`): encerra o plano de vez, desagenda (`pfm_delete_post`) o que faltava, **não retomável**. Histórico do que já publicou é preservado.
+- Dependência confirmada: `postforme-proxy` expõe `pfm_delete_post` e `pfm_update_post` — desagendar/editar agendamento é suportado.
 
 ## Custos
 - Gerar um ciclo = ~N imagens (gpt-image-2 *high*) + N legendas + N expansões de briefing, na chave da própria empresa (custo real dela).
