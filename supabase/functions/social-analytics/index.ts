@@ -238,12 +238,44 @@ function uniquePosts(posts: A[]): A[] {
   const seen = new Set<string>();
   return posts.filter((post) => {
     if (!isObj(post)) return false;
-    const key = firstText(post, ["url", "postUrl", "videoUrl", "webVideoUrl", "id", "shortCode", "awemeId"]) ||
-      `${firstText(post, ["title", "text", "message", "desc", "caption"]).slice(0, 80)}:${firstText(post, ["date", "timestamp", "publishedAt", "createTime"])}`;
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
+    const textKey = firstText(post, ["title", "text", "message", "desc", "caption"]).slice(0, 120);
+    const dateKey = firstText(post, ["date", "timestamp", "publishedAt", "postCreatedAt", "createTime"]);
+    const keys = [
+      firstText(post, ["url", "postUrl", "videoUrl", "webVideoUrl", "shortCode", "awemeId"]),
+      firstText(post, ["id", "post_id", "postId"]),
+      textKey ? `${textKey}:${dateKey}` : "",
+      textKey && !dateKey ? `text:${textKey}` : "",
+    ].filter(Boolean);
+    if (!keys.length || keys.some((key) => seen.has(key))) return false;
+    keys.forEach((key) => seen.add(key));
     return true;
   });
+}
+
+function metricValue(value: A): number {
+  if (Array.isArray(value)) return value.length;
+  const direct = safeNum(value);
+  if (direct > 0) return direct;
+  if (!isObj(value)) return 0;
+  const counted = firstNum(value, ["count", "totalCount", "total", "value"]);
+  if (counted > 0) return counted;
+  if (Array.isArray(value.items)) return value.items.length;
+  const numericChildren = Object.values(value).filter((item): item is number => typeof item === "number" && Number.isFinite(item));
+  return numericChildren.length ? numericChildren.reduce((sum, item) => sum + item, 0) : 0;
+}
+
+function nestedMetricNum(obj: A, keys: string[]): number {
+  if (!obj) return 0;
+  const direct = metricValue(firstValue(obj, keys));
+  if (direct > 0) return direct;
+  for (const bucket of ["stats", "statistics", "metrics", "engagement", "counts", "metadata", "comments", "reactions"]) {
+    const value = obj?.[bucket];
+    if (isObj(value)) {
+      const found = metricValue(firstValue(value, keys));
+      if (found > 0) return found;
+    }
+  }
+  return 0;
 }
 
 function hasEngagement(post: A): boolean {
