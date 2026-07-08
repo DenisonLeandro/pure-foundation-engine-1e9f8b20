@@ -1023,9 +1023,11 @@ const ENRICHMENTS: Record<string, EnrichmentActorConfig[] | string> = {
       },
       merge: (profile, raw) => {
         const items: A[] = Array.isArray(raw) ? raw : [];
-        if (!items.length) return;
+        const pageUrl = normalizeFacebookUrl(profile.username || "");
+        const posts = uniquePosts(items).filter((item) => looksLikeFacebookPost(item, pageUrl));
+        if (!posts.length) return;
         if (!profile.enrichment) profile.enrichment = {};
-        profile.enrichment.reels = items.slice(0, 5).map((r: A) => ({
+        profile.enrichment.reels = posts.slice(0, 5).map((r: A) => ({
           text: r.text || r.postText || r.description || "",
           likes: safeNum(r.likesCount || r.likes || r.reactions),
           comments: safeNum(r.commentsCount || r.comments),
@@ -1036,18 +1038,18 @@ const ENRICHMENTS: Record<string, EnrichmentActorConfig[] | string> = {
         }));
 
         // Enrich Facebook engagement from reels if profile had no data
-        if (profile.engagementRate === null && profile.followers > 0 && items.length > 0) {
-          const cnt = items.length;
-          const totalLikes = items.reduce((s: number, r: A) => s + safeNum(r.likesCount || r.likes || r.reactions), 0);
-          const totalComments = items.reduce((s: number, r: A) => s + safeNum(r.commentsCount || r.comments), 0);
-          const totalViews = items.reduce((s: number, r: A) => s + safeNum(r.viewCount || r.views || r.playsCount), 0);
+        if (profile.engagementRate === null && profile.followers > 0 && posts.length > 0) {
+          const cnt = posts.length;
+          const totalLikes = posts.reduce((s: number, r: A) => s + safeNum(r.likesCount || r.likes || r.reactions), 0);
+          const totalComments = posts.reduce((s: number, r: A) => s + safeNum(r.commentsCount || r.comments), 0);
+          const totalViews = posts.reduce((s: number, r: A) => s + safeNum(r.viewCount || r.views || r.playsCount), 0);
           profile.avgLikes = Math.round(totalLikes / cnt);
           profile.avgComments = Math.round(totalComments / cnt);
           profile.avgViews = totalViews > 0 ? Math.round(totalViews / cnt) : null;
           profile.engagementRate = +((profile.avgLikes + profile.avgComments) / profile.followers * 100).toFixed(2);
           // Populate recentPosts from reels if empty
           if (!profile.recentPosts.length) {
-            profile.recentPosts = items.slice(0, 6).map((r: A) => ({
+            profile.recentPosts = posts.slice(0, 6).map((r: A) => ({
               text: r.text || r.postText || r.description || "",
               likes: safeNum(r.likesCount || r.likes || r.reactions),
               comments: safeNum(r.commentsCount || r.comments),
