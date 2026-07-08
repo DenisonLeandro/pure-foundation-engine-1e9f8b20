@@ -40,10 +40,25 @@ Ex.: `02/07/2026 | Quinta | Acidente de Trabalho | Hérnia de Disco Pode Ser Con
 | Melhor horário | `social-analytics` (Apify) | **lógica nova** |
 | Rodar todo dia | cron + fila de jobs | novo (motor) |
 
+## Detalhado ✅
+
+### 1. Entrada do plano (fluxo de onboarding do plano)
+
+Fluxo em telas (assistente):
+
+- **Tela 1 — Colar o plano.** Um campo único onde a pessoa cola o plano em **qualquer formato** (tabela, lista, texto corrido). Período **livre e arbitrário**: 1 semana, 20 dias, 1 mês, 2 meses… sem limite fixo. A IA se vira pra estruturar.
+- **Tela 2 — Confirmar a grade.** O app mostra como **interpretou**, em forma de tabela, pra pessoa verificar se está certo antes de seguir. (Editabilidade da tabela: 🔍 a definir — ver abaixo.)
+- **Tela 3+ —** segue pro restante da configuração.
+
+**Campos por linha:**
+- **Obrigatórios:** `data` + `tema`. Suficiente pra IA (a) saber o dia do post e (b) criar arte + legenda.
+- **Opcionais:** `categoria` (e o que mais a IA detectar) — usado como contexto extra, não bloqueia.
+
+**Parser:** IA lê texto livre e devolve linhas estruturadas `{ data, tema, categoria? }`. Robusto a formatos bagunçados (copiado de ChatGPT/Excel/Word).
+
 ## Pontos a detalhar (fila) — 🔍 a definir
 
-1. **Entrada do plano** — formato aceito (colar tabela/CSV/texto livre?), robustez do parser, 1 post/dia vs múltiplos, o que fazer com colunas fora do padrão.
-2. **Melhor horário via Apify** — como determinar (dados disponíveis por conta? fallback de horários padrão?).
+1. **Melhor horário via Apify** — como determinar (dados disponíveis por conta? fallback de horários padrão?).
 3. **Arte** — estilo/consistência de marca, single vs carrossel, quanto a IA decide.
 4. **Legenda** — tom, CTA, hashtags, adaptação por plataforma.
 5. **Aprovação** — 100% automático vs revisão/preview (especialmente no 1º mês).
