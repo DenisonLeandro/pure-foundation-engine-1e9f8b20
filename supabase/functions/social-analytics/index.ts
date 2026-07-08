@@ -327,31 +327,22 @@ const PLATFORMS: Record<string, ActorConfig> = {
     // UPGRADED: apidojo~tiktok-profile-scraper (4.4★, 2.4K users)
     // 98% success rate, 425 posts/sec, 40+ data fields per profile
     actorId: "apidojo~tiktok-profile-scraper",
-    buildInput: (u) => {
-      // Extrair handle de URL ou usar direto
-      let handle = u.replace(/^@/, "");
-      if (handle.includes("tiktok.com")) {
-        const parts = handle.replace(/\/+$/, "").split("/");
-        handle = (parts[parts.length - 1] || "").replace(/^@/, "");
-      }
-      console.log(`[social-analytics] TikTok handle: "${handle}" (from input: "${u}")`);
-      return { usernames: [handle], maxItems: 12 };
-    },
+    buildInput: (u) => ({ usernames: [extractTikTokHandle(u)], maxItems: 12 }),
     normalize: (raw) => {
-      const arr: A[] = Array.isArray(raw) ? raw : [raw];
+      const arrItems: A[] = arr(raw);
       // apidojo returns flat items: first may be profile, rest are videos
       // Or profile object with nested videos
-      const first = arr[0] || {};
-      const stats = first.stats || first.authorStats || {};
+      const first = arrItems.find((x: A) => x?.user || x?.author || x?.stats || x?.authorStats || x?.uniqueId) || arrItems[0] || {};
+      const stats = first.stats || first.authorStats || first.userStats || first.author?.stats || {};
 
       // Check if items are videos or profile+videos mixed
-      const isProfile = !!(first.uniqueId || first.user || stats.followerCount);
+      const isProfile = !!(first.uniqueId || first.user || first.author || stats.followerCount || stats.fans);
       const p = isProfile ? first : {};
-      const userObj = p.user || p;
+      const userObj = p.user || p.author || p.authorMeta || p;
       const userStats = p.stats || userObj.stats || stats;
 
       const videos: A[] = p.latestVideos || p.videos || p.items ||
-        arr.filter((x: A) => x.desc || x.text || x.videoUrl || x.webVideoUrl);
+        arrItems.filter((x: A) => x.desc || x.text || x.videoUrl || x.webVideoUrl || x.playCount || x.stats?.playCount);
       const cnt = videos.length || 1;
 
       const totalLikes = videos.reduce((s: number, v: A) => s + safeNum(v.diggCount || v.stats?.diggCount || v.likes || v.likesCount), 0);
@@ -363,12 +354,12 @@ const PLATFORMS: Record<string, ActorConfig> = {
 
       return {
         platform: "tiktok",
-        username: userObj.uniqueId || p.uniqueId || p.name || "",
-        displayName: userObj.nickname || p.nickname || p.nickName || "",
-        profileImageUrl: userObj.avatarLarger || p.avatarLarger || p.avatar || userObj.avatarMedium || "",
+        username: userObj.uniqueId || userObj.username || p.uniqueId || p.name || "",
+        displayName: userObj.nickname || userObj.name || p.nickname || p.nickName || "",
+        profileImageUrl: userObj.avatarLarger || p.avatarLarger || p.avatar || userObj.avatarMedium || userObj.avatarThumb || "",
         followers,
         following: safeNum(userStats.followingCount || p.following || p.followingCount || userObj.followingCount),
-        posts: safeNum(userStats.videoCount || p.videoCount || userObj.videoCount),
+        posts: safeNum(userStats.videoCount || p.videoCount || userObj.videoCount || videos.length),
         engagementRate: followers > 0 ? +(avgL / followers * 100).toFixed(2) : null,
         avgLikes: avgL,
         avgComments: Math.round(totalComments / cnt),
@@ -390,26 +381,26 @@ const PLATFORMS: Record<string, ActorConfig> = {
   youtube: {
     actorId: "streamers~youtube-channel-scraper",
     buildInput: (u) => ({
-      startUrls: [{ url: u.startsWith("http") ? u : `https://www.youtube.com/@${u}` }],
-      maxVideos: 3,
+      startUrls: [{ url: normalizeYouTubeUrl(u) }],
+      maxVideos: 12,
     }),
     normalize: (raw) => {
-      const arr: A[] = Array.isArray(raw) ? raw : [raw];
-      const p = arr[0] || {};
-      const videos: A[] = p.videos || p.latestVideos || [];
+      const arrItems: A[] = arr(raw);
+      const p = arrItems.find((x: A) => x?.channelName || x?.subscriberCount || x?.subscribers || x?.channelId || x?.url) || arrItems[0] || {};
+      const videos: A[] = p.videos || p.latestVideos || p.items || arrItems.filter((x: A) => x?.title && (x?.viewCount || x?.views || x?.videoUrl || x?.url));
       const cnt = videos.length || 1;
       const totalViews = videos.reduce((s: number, v: A) => s + safeNum(v.viewCount || v.views), 0);
       const totalLikes = videos.reduce((s: number, v: A) => s + safeNum(v.likes || v.likeCount), 0);
       const totalComments = videos.reduce((s: number, v: A) => s + safeNum(v.commentsCount || v.commentCount), 0);
-      const subs = safeNum(p.subscriberCount || p.subscribers || p.subscribersCount);
+      const subs = safeNum(p.subscriberCount || p.subscribers || p.subscribersCount || p.channel?.subscriberCount || p.stats?.subscribers);
       return {
         platform: "youtube",
-        username: p.channelName || p.title || "",
-        displayName: p.channelName || p.title || "",
-        profileImageUrl: p.avatar || p.thumbnailUrl || p.channelImage || "",
+        username: p.channelName || p.handle || p.title || p.channelId || "",
+        displayName: p.channelName || p.title || p.name || "",
+        profileImageUrl: p.avatar || p.thumbnailUrl || p.channelImage || p.channel?.thumbnail || "",
         followers: subs,
         following: 0,
-        posts: safeNum(p.videoCount || p.videosCount),
+        posts: safeNum(p.videoCount || p.videosCount || p.stats?.videoCount || videos.length),
         engagementRate: subs > 0 ? +(Math.round(totalLikes / cnt) / subs * 100).toFixed(2) : null,
         avgLikes: Math.round(totalLikes / cnt),
         avgComments: Math.round(totalComments / cnt),
@@ -431,16 +422,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
   facebook: {
     actorId: "apify~facebook-pages-scraper",
     buildInput: (u) => {
-      // Aceita URL completa, URL sem protocolo, ou slug puro.
-      const raw = (u || "").trim();
-      let url: string;
-      if (/^https?:\/\//i.test(raw)) {
-        url = raw;
-      } else if (/facebook\.com/i.test(raw)) {
-        url = `https://${raw.replace(/^\/+/, "")}`;
-      } else {
-        url = `https://www.facebook.com/${raw.replace(/^@/, "").replace(/^\/+/, "")}/`;
-      }
+      const url = normalizeFacebookUrl(u);
       return {
         startUrls: [{ url }],
         scrapeAbout: true,
@@ -450,18 +432,18 @@ const PLATFORMS: Record<string, ActorConfig> = {
       };
     },
     normalize: (raw) => {
-      const arr: A[] = Array.isArray(raw) ? raw : [raw];
-      const p = arr[0] || {};
-      const profile = p.personalProfile || {};
+      const arrItems: A[] = arr(raw);
+      const p = arrItems.find((x: A) => x?.pageName || x?.followers || x?.followersCount || x?.likes || x?.title || x?.name) || arrItems[0] || {};
+      const profile = p.personalProfile || p.profile || p.about || {};
 
       // O actor retorna campos variados dependendo do tipo de página
       const followers = safeNum(
         p.likes || p.followers || p.followersCount ||
-        p.likeCount || p.followerCount ||
-        profile.friends || profile.followersCount || 0
+        p.likeCount || p.followerCount || p.followers_count ||
+        profile.friends || profile.followersCount || profile.followers || 0
       );
 
-      const posts: A[] = p.posts || p.latestPosts || [];
+      const posts: A[] = p.posts || p.latestPosts || p.timelinePosts || p.items || arrItems.filter((x: A) => x?.postUrl || x?.message || x?.text || x?.postText);
       const cnt = posts.length || 1;
       const totalLikes = posts.reduce((s: number, v: A) => s + safeNum(v.likes || v.likesCount || v.reactions || 0), 0);
       const totalComments = posts.reduce((s: number, v: A) => s + safeNum(v.comments || v.commentsCount || 0), 0);
@@ -471,8 +453,8 @@ const PLATFORMS: Record<string, ActorConfig> = {
       return {
         platform: "facebook",
         username: p.pageName || p.pageUrl || p.name || "",
-        displayName: p.title || p.name || profile.name || "",
-        profileImageUrl: profile.profilePicLarge || profile.profilePicMedium || p.profileImage || p.imageUrl || "",
+        displayName: p.title || p.name || p.pageName || profile.name || "",
+        profileImageUrl: profile.profilePicLarge || profile.profilePicMedium || p.profileImage || p.imageUrl || p.logo || "",
         followers,
         following: 0,
         posts: safeNum(p.postsCount || posts.length || 0),
