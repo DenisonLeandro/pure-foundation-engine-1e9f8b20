@@ -491,7 +491,7 @@ export default function Analytics() {
       .filter((p) => requested.has(p.platform))
       .forEach((p) => byPlatform.set(p.platform, p));
 
-    fresh.forEach((p) => byPlatform.set(p.platform, p));
+    fresh.forEach((p) => byPlatform.set(p.platform, mergeProfileMetrics(byPlatform.get(p.platform), p)));
 
     return [...byPlatform.values()].sort(
       (a, b) => requestedPlatforms.indexOf(a.platform) - requestedPlatforms.indexOf(b.platform)
@@ -576,7 +576,7 @@ export default function Analytics() {
       if (result.errors?.length > 0) {
         const errorDetails = result.errors
           .slice(0, 3)
-          .map((e) => `${platformName(e.platform)}: ${e.error}`)
+          .map((e) => `${platformName(e.platform)}: ${friendlyAnalyticsError(e.error)}`)
           .join(" • ");
         toast({
           title: `${result.results.length} perfil(is) carregados, ${result.errors.length} com erro`,
