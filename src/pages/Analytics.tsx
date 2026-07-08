@@ -111,18 +111,19 @@ function hasPositiveNumber(value: number | null | undefined): boolean {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-function looksLikeRealAnalyticsPost(post: ProfileAnalytics["recentPosts"][number] | undefined): boolean {
+function looksLikeRealAnalyticsPost(post: ProfileAnalytics["recentPosts"][number] | undefined, platform?: string): boolean {
   if (!post) return false;
   const url = (post.url || "").toLowerCase();
   const hasPostUrl = /instagram\.com\/p\/|instagram\.com\/reel\/|facebook\.com\/.+\/(posts|videos|reel|reels|photos)|story_fbid=|youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/|tiktok\.com\/@[^/]+\/video\/|(?:x|twitter)\.com\/[^/]+\/status\/|linkedin\.com\/feed\/update/i.test(url);
   const hasContent = Boolean((post.text || "").trim());
+  const hasLongFacebookText = platform === "facebook" && (post.text || "").trim().length >= 20;
   const hasDate = Boolean(post.date && !Number.isNaN(new Date(post.date).getTime()));
   const hasMetric = hasPositiveNumber(post.likes) || hasPositiveNumber(post.comments) || hasPositiveNumber(post.views);
-  return Boolean(hasPostUrl || (hasContent && (hasDate || hasMetric)) || (hasDate && hasMetric));
+  return Boolean(hasPostUrl || hasLongFacebookText || (hasContent && (hasDate || hasMetric)) || (hasDate && hasMetric));
 }
 
 function sanitizeAnalyticsProfile(profile: ProfileAnalytics): ProfileAnalytics {
-  const recentPosts = (profile.recentPosts ?? []).filter(looksLikeRealAnalyticsPost);
+  const recentPosts = (profile.recentPosts ?? []).filter((post) => looksLikeRealAnalyticsPost(post, profile.platform));
   const hadPosts = (profile.recentPosts ?? []).length > 0;
   const lostAllPosts = hadPosts && recentPosts.length === 0;
 
@@ -575,7 +576,7 @@ export default function Analytics() {
         const { data: userData } = await supabase.auth.getUser();
         const uid = userData?.user?.id;
         const profilesToPersist = safeResultProfiles.filter((p) =>
-          (p.platform !== "facebook" || (p.recentPosts?.length ?? 0) > 0 || hasPositiveNumber(p.avgComments) || hasPositiveNumber(p.avgLikes))
+          (p.platform !== "facebook" || (p.recentPosts?.length ?? 0) > 0 || p.avgComments === 0 || p.avgLikes === 0 || hasPositiveNumber(p.avgComments) || hasPositiveNumber(p.avgLikes))
         );
         if (uid && profilesToPersist.length) {
           const rows = profilesToPersist.map((p) => ({
