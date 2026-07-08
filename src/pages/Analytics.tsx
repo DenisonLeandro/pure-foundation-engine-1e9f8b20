@@ -111,18 +111,19 @@ function hasPositiveNumber(value: number | null | undefined): boolean {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
-function looksLikeRealAnalyticsPost(post: ProfileAnalytics["recentPosts"][number] | undefined): boolean {
+function looksLikeRealAnalyticsPost(post: ProfileAnalytics["recentPosts"][number] | undefined, platform?: string): boolean {
   if (!post) return false;
   const url = (post.url || "").toLowerCase();
   const hasPostUrl = /instagram\.com\/p\/|instagram\.com\/reel\/|facebook\.com\/.+\/(posts|videos|reel|reels|photos)|story_fbid=|youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/|tiktok\.com\/@[^/]+\/video\/|(?:x|twitter)\.com\/[^/]+\/status\/|linkedin\.com\/feed\/update/i.test(url);
   const hasContent = Boolean((post.text || "").trim());
+  const hasLongFacebookText = platform === "facebook" && (post.text || "").trim().length >= 20;
   const hasDate = Boolean(post.date && !Number.isNaN(new Date(post.date).getTime()));
   const hasMetric = hasPositiveNumber(post.likes) || hasPositiveNumber(post.comments) || hasPositiveNumber(post.views);
-  return Boolean(hasPostUrl || (hasContent && (hasDate || hasMetric)) || (hasDate && hasMetric));
+  return Boolean(hasPostUrl || hasLongFacebookText || (hasContent && (hasDate || hasMetric)) || (hasDate && hasMetric));
 }
 
 function sanitizeAnalyticsProfile(profile: ProfileAnalytics): ProfileAnalytics {
-  const recentPosts = (profile.recentPosts ?? []).filter(looksLikeRealAnalyticsPost);
+  const recentPosts = (profile.recentPosts ?? []).filter((post) => looksLikeRealAnalyticsPost(post, profile.platform));
   const hadPosts = (profile.recentPosts ?? []).length > 0;
   const lostAllPosts = hadPosts && recentPosts.length === 0;
 
@@ -473,13 +474,10 @@ export default function Analytics() {
           .order("fetched_at", { ascending: false })
           .limit(50);
         if (error || !data?.length) return;
-        const seen = new Set<string>();
-        const rows: ProfileAnalytics[] = [];
+        const byPlatform = new Map<string, ProfileAnalytics>();
         for (const r of data) {
           const k = `${r.platform}:${r.username}`;
-          if (seen.has(k)) continue;
-          seen.add(k);
-          rows.push(sanitizeAnalyticsProfile({
+          const row = sanitizeAnalyticsProfile({
             platform: r.platform as ProfileAnalytics["platform"],
             username: r.username,
             displayName: r.display_name ?? undefined,
@@ -494,8 +492,10 @@ export default function Analytics() {
             recentPosts: (r.recent_posts as unknown as ProfileAnalytics["recentPosts"]) ?? [],
             enrichment: (r.raw_data as unknown as ProfileAnalytics["enrichment"]) ?? undefined,
             fetchedAt: r.fetched_at ?? undefined,
-          } as ProfileAnalytics));
+          } as ProfileAnalytics);
+          byPlatform.set(k, mergeProfileMetrics(byPlatform.get(k), row));
         }
+        const rows = [...byPlatform.values()];
         if (rows.length) {
           setAnalyticsState(rows);
           companyStorage.set(activeCompanyId, "analytics", JSON.stringify(rows));
@@ -575,8 +575,12 @@ export default function Analytics() {
       try {
         const { data: userData } = await supabase.auth.getUser();
         const uid = userData?.user?.id;
-        if (uid && safeResultProfiles.length) {
-          const rows = safeResultProfiles.map((p) => ({
+        const freshPlatforms = new Set(safeResultProfiles.map((p) => p.platform));
+        const profilesToPersist = mergedResults.filter((p) => freshPlatforms.has(p.platform)).filter((p) =>
+          (p.platform !== "facebook" || (p.recentPosts?.length ?? 0) > 0 || p.avgComments === 0 || p.avgLikes === 0 || hasPositiveNumber(p.avgComments) || hasPositiveNumber(p.avgLikes))
+        );
+        if (uid && profilesToPersist.length) {
+          const rows = profilesToPersist.map((p) => ({
             user_id: uid,
             company_id: activeCompanyId,
             platform: p.platform,
@@ -713,7 +717,7 @@ export default function Analytics() {
 
   const allRecentPosts = useMemo(
       () => analytics
-      .flatMap((a) => (a.recentPosts ?? []).filter(looksLikeRealAnalyticsPost).map((p) => ({ ...p, platform: a.platform, profileName: a.displayName || a.username })))
+      .flatMap((a) => (a.recentPosts ?? []).filter((post) => looksLikeRealAnalyticsPost(post, a.platform)).map((p) => ({ ...p, platform: a.platform, profileName: a.displayName || a.username })))
       .sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
       .slice(0, 15),
     [analytics]

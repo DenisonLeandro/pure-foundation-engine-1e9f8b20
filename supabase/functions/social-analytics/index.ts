@@ -238,18 +238,51 @@ function uniquePosts(posts: A[]): A[] {
   const seen = new Set<string>();
   return posts.filter((post) => {
     if (!isObj(post)) return false;
-    const key = firstText(post, ["url", "postUrl", "videoUrl", "webVideoUrl", "id", "shortCode", "awemeId"]) ||
-      `${firstText(post, ["title", "text", "message", "desc", "caption"]).slice(0, 80)}:${firstText(post, ["date", "timestamp", "publishedAt", "createTime"])}`;
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
+    const textKey = firstText(post, ["title", "text", "message", "desc", "caption"]).slice(0, 120);
+    const dateKey = firstText(post, ["date", "timestamp", "publishedAt", "postCreatedAt", "createTime"]);
+    const keys = [
+      firstText(post, ["url", "postUrl", "videoUrl", "webVideoUrl", "shortCode", "awemeId"]),
+      firstText(post, ["id", "post_id", "postId"]),
+      textKey ? `${textKey}:${dateKey}` : "",
+      textKey ? `text:${textKey}` : "",
+    ].filter(Boolean);
+    if (!keys.length || keys.some((key) => seen.has(key))) return false;
+    keys.forEach((key) => seen.add(key));
     return true;
   });
+}
+
+function metricValue(value: A): number {
+  if (Array.isArray(value)) return value.length;
+  const direct = safeNum(value);
+  if (direct > 0) return direct;
+  if (!isObj(value)) return 0;
+  const counted = firstNum(value, ["count", "totalCount", "total", "value"]);
+  if (counted > 0) return counted;
+  if (Array.isArray(value.items)) return value.items.length;
+  const numericChildren = Object.values(value).filter((item): item is number => typeof item === "number" && Number.isFinite(item));
+  return numericChildren.length ? numericChildren.reduce((sum, item) => sum + item, 0) : 0;
+}
+
+function nestedMetricNum(obj: A, keys: string[]): number {
+  if (!obj) return 0;
+  const direct = metricValue(firstValue(obj, keys));
+  if (direct > 0) return direct;
+  for (const bucket of ["stats", "statistics", "metrics", "engagement", "counts", "metadata", "comments", "reactions"]) {
+    const value = obj?.[bucket];
+    if (isObj(value)) {
+      const found = metricValue(firstValue(value, keys));
+      if (found > 0) return found;
+    }
+  }
+  return 0;
 }
 
 function hasEngagement(post: A): boolean {
   return nestedNum(post, [
     "likes", "likeCount", "likesCount", "diggCount", "reactions", "reactionCount", "reactionsCount",
-    "comments", "commentCount", "commentsCount", "replyCount", "shares", "shareCount", "views", "viewCount", "playCount",
+    "reactions_count", "comments", "commentCount", "commentsCount", "comments_count", "replyCount",
+    "shares", "shareCount", "sharesCount", "reshare_count", "views", "viewCount", "playCount",
   ]) > 0;
 }
 
@@ -258,7 +291,8 @@ function cleanUrl(value: string): string {
 }
 
 function objectUrl(obj: A): string {
-  return firstText(obj, ["postUrl", "url", "permalinkUrl", "link", "videoUrl", "watchUrl", "webVideoUrl", "shareUrl", "tweetUrl"]);
+  return firstText(obj, ["postUrl", "url", "permalinkUrl", "link", "videoUrl", "watchUrl", "webVideoUrl", "shareUrl", "tweetUrl"]) ||
+    firstText(obj?.post, ["url", "postUrl", "permalinkUrl", "link"]);
 }
 
 function hasAnyText(obj: A, keys: string[]): boolean {
@@ -271,15 +305,19 @@ function hasAnyDate(obj: A): boolean {
 
 function looksLikeFacebookPost(obj: A, pageUrl = ""): boolean {
   if (!isObj(obj)) return false;
+  if (obj.recordType === "page_summary") return false;
   const url = objectUrl(obj);
   const sameAsPage = pageUrl && url && cleanUrl(url) === cleanUrl(pageUrl);
   const postUrl = /facebook\.com\/.+\/(posts|videos|reel|reels|photos)\b|story_fbid=|fbid=|permalink\.php/i.test(url);
+  const hasNestedContent = hasAnyText(obj?.content, ["text", "message", "caption", "description"]);
+  const hasPostId = Boolean(firstText(obj, ["post_id", "postId", "postID", "id"]) || firstText(obj?.post, ["id"])) &&
+    (obj.recordType === "post" || obj.recordType === "facebook_post" || hasEngagement(obj));
   const profileOnly = Boolean(
     obj.pageName || obj.pageUrl || obj.profileUrl || obj.personalProfile || obj.about || obj.pageInfo ||
     obj.followers || obj.followersCount || obj.followerCount || obj.fans || obj.fanCount
   ) && !postUrl && !hasAnyDate(obj) && !hasAnyText(obj, ["text", "message", "postText", "description", "caption"]);
   if (sameAsPage || profileOnly) return false;
-  return Boolean(postUrl || hasAnyText(obj, ["text", "message", "postText", "description", "caption"]) || hasAnyDate(obj));
+  return Boolean(postUrl || hasPostId || hasAnyText(obj, ["text", "message", "postText", "description", "caption", "content"]) || hasNestedContent || hasAnyDate(obj));
 }
 
 function looksLikeYouTubeVideo(obj: A): boolean {
@@ -630,15 +668,15 @@ const PLATFORMS: Record<string, ActorConfig> = {
   },
 
   facebook: {
-    actorId: "apify~facebook-pages-scraper",
+    actorId: "calm_builder~facebook-posts-scraper",
     buildInput: (u) => {
       const url = normalizeFacebookUrl(u);
       return {
         startUrls: [{ url }],
-        scrapeAbout: true,
-        scrapePosts: true,
-        scrapeReviews: false,
-        maxPosts: 12,
+        maxPosts: 8,
+        includeComments: true,
+        maxComments: 5,
+        proxyConfiguration: { useApifyProxy: true },
       };
     },
     normalize: (raw) => {
@@ -652,6 +690,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
 
       const followers = safeNum(
         p.followers || p.followersCount || p.followerCount || p.followers_count ||
+        p.followers_count_text || p.followersText || p.fans || p.fanCount ||
         profile.followersCount || profile.followers || profile.followerCount || p.likes || p.likeCount || profile.friends || 0
       );
 
@@ -664,10 +703,10 @@ const PLATFORMS: Record<string, ActorConfig> = {
         )),
       ]).filter((x) => looksLikeFacebookPost(x, pageUrl));
       const cnt = posts.length || 1;
-      const totalLikes = posts.reduce((s: number, v: A) => s + nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount"]), 0);
-      const totalComments = posts.reduce((s: number, v: A) => s + nestedNum(v, ["comments", "commentsCount", "commentCount"]), 0);
-      const totalShares = posts.reduce((s: number, v: A) => s + nestedNum(v, ["shares", "sharesCount", "shareCount"]), 0);
-      const totalViews = posts.reduce((s: number, v: A) => s + nestedNum(v, ["views", "viewCount", "plays", "playsCount"]), 0);
+      const totalLikes = posts.reduce((s: number, v: A) => s + nestedMetricNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]), 0);
+      const totalComments = posts.reduce((s: number, v: A) => s + nestedMetricNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]), 0);
+      const totalShares = posts.reduce((s: number, v: A) => s + nestedMetricNum(v, ["shares", "sharesCount", "shareCount", "reshare_count"]), 0);
+      const totalViews = posts.reduce((s: number, v: A) => s + nestedMetricNum(v, ["views", "viewCount", "plays", "playsCount"]), 0);
       const avgL = posts.length ? Math.round(totalLikes / cnt) : null;
       const avgC = posts.length ? Math.round(totalComments / cnt) : null;
       const avgS = posts.length ? Math.round(totalShares / cnt) : 0;
@@ -679,19 +718,19 @@ const PLATFORMS: Record<string, ActorConfig> = {
         profileImageUrl: firstText(profile, ["profilePicLarge", "profilePicMedium", "profilePic", "imageUrl"]) || firstText(p, ["profileImage", "imageUrl", "logo", "avatar"]),
         followers,
         following: 0,
-        posts: safeNum(p.postsCount || p.postCount || profile.postsCount || posts.length || 0),
+        posts: safeNum(p.postsCollected || p.postsCount || p.postCount || profile.postsCount || posts.length || 0),
         engagementRate: engagementRateFrom(followers, avgL, avgC, avgS),
         avgLikes: avgL,
         avgComments: avgC,
         avgViews: totalViews > 0 ? Math.round(totalViews / cnt) : null,
         recentPosts: posts.slice(0, 6).map((v: A) => ({
-          text: firstText(v, ["text", "message", "postText", "description", "caption"]),
-          likes: nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount"]),
-          comments: nestedNum(v, ["comments", "commentsCount", "commentCount"]),
-          views: nestedNum(v, ["views", "viewCount", "plays", "playsCount"]),
-          date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt"]),
-          url: firstText(v, ["postUrl", "url", "permalinkUrl", "link"]),
-          mediaUrl: firstText(v, ["imageUrl", "fullPicture", "thumbnailUrl", "thumbnail", "videoUrl"]) || firstText(v.media?.[0], ["url"]),
+          text: firstText(v, ["text", "message", "postText", "description", "caption", "content"]) || firstText(v.content, ["text", "message", "caption", "description"]),
+          likes: nestedMetricNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]),
+          comments: nestedMetricNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]),
+          views: nestedMetricNum(v, ["views", "viewCount", "plays", "playsCount"]),
+          date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt", "postCreatedAt", "publishedAt"]) || firstText(v.publishedAt, ["iso", "date", "text"]),
+          url: objectUrl(v),
+          mediaUrl: firstText(v, ["imageUrl", "fullPicture", "thumbnailUrl", "thumbnail", "videoUrl"]) || firstText(v.media?.[0], ["url"]) || firstText(v.media, ["url", "thumbnailUrl"]),
         })),
         fetchedAt: new Date().toISOString(),
       };
@@ -1023,9 +1062,11 @@ const ENRICHMENTS: Record<string, EnrichmentActorConfig[] | string> = {
       },
       merge: (profile, raw) => {
         const items: A[] = Array.isArray(raw) ? raw : [];
-        if (!items.length) return;
+        const pageUrl = normalizeFacebookUrl(profile.username || "");
+        const posts = uniquePosts(items).filter((item) => looksLikeFacebookPost(item, pageUrl));
+        if (!posts.length) return;
         if (!profile.enrichment) profile.enrichment = {};
-        profile.enrichment.reels = items.slice(0, 5).map((r: A) => ({
+        profile.enrichment.reels = posts.slice(0, 5).map((r: A) => ({
           text: r.text || r.postText || r.description || "",
           likes: safeNum(r.likesCount || r.likes || r.reactions),
           comments: safeNum(r.commentsCount || r.comments),
@@ -1036,18 +1077,18 @@ const ENRICHMENTS: Record<string, EnrichmentActorConfig[] | string> = {
         }));
 
         // Enrich Facebook engagement from reels if profile had no data
-        if (profile.engagementRate === null && profile.followers > 0 && items.length > 0) {
-          const cnt = items.length;
-          const totalLikes = items.reduce((s: number, r: A) => s + safeNum(r.likesCount || r.likes || r.reactions), 0);
-          const totalComments = items.reduce((s: number, r: A) => s + safeNum(r.commentsCount || r.comments), 0);
-          const totalViews = items.reduce((s: number, r: A) => s + safeNum(r.viewCount || r.views || r.playsCount), 0);
+        if (profile.engagementRate === null && profile.followers > 0 && posts.length > 0) {
+          const cnt = posts.length;
+          const totalLikes = posts.reduce((s: number, r: A) => s + safeNum(r.likesCount || r.likes || r.reactions), 0);
+          const totalComments = posts.reduce((s: number, r: A) => s + safeNum(r.commentsCount || r.comments), 0);
+          const totalViews = posts.reduce((s: number, r: A) => s + safeNum(r.viewCount || r.views || r.playsCount), 0);
           profile.avgLikes = Math.round(totalLikes / cnt);
           profile.avgComments = Math.round(totalComments / cnt);
           profile.avgViews = totalViews > 0 ? Math.round(totalViews / cnt) : null;
           profile.engagementRate = +((profile.avgLikes + profile.avgComments) / profile.followers * 100).toFixed(2);
           // Populate recentPosts from reels if empty
           if (!profile.recentPosts.length) {
-            profile.recentPosts = items.slice(0, 6).map((r: A) => ({
+            profile.recentPosts = posts.slice(0, 6).map((r: A) => ({
               text: r.text || r.postText || r.description || "",
               likes: safeNum(r.likesCount || r.likes || r.reactions),
               comments: safeNum(r.commentsCount || r.comments),
