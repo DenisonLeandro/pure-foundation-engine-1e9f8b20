@@ -111,13 +111,36 @@ Conforme o Autopilot publica, o histórico cresce e a camada 1 fica mais precisa
 
 🔍 A refinar depois: formato/proporção da imagem (1024x1280 hoje), quantas variações gerar por post (1 vs escolher entre N).
 
+### 5. Legenda
+
+**100% definida pela IA, guiada pela marca.** Tamanho, gancho, CTA, hashtags, emojis e tom — tudo derivado do `brand_profiles`. A pessoa configura a marca uma vez; a legenda sempre sai coerente. Sem campos manuais de CTA/hashtags fixas na v2 (a IA decide por tema + marca).
+
+### 6. Aprovação humana
+
+**Modelo 1 — aprovação em LOTE, uma vez ("configura e esquece"):**
+```
+Cola plano → confirma a grade → IA gera TODOS os posts do ciclo (arte + legenda)
+→ pessoa revisa tudo numa tela única → aprova → o ciclo inteiro roda sozinho
+```
+- **Obrigatoriedade:** opcional, **ligada por padrão**. Começa exigindo aprovação (seguro, ainda mais com texto carimbado na arte — A2); quem confia pode desligar e deixar 100% automático.
+- A geração acontece **adiantada** (logo após a config), criando a janela de revisão — não "na manhã do dia". A publicação no dia é do post já aprovado.
+
+**Jornada completa (até aqui):**
+```
+1. Cola o plano (período livre)
+2. Confirma/edita a grade interpretada pela IA
+3. Config: marca + plataformas/contas
+4. IA gera o ciclo todo em background (arte A2 + legenda) — fila de jobs
+5. Revisa tudo numa tela → aprova (ou edita/regenera/remove por post)
+6. Autopilot agenda cada post no melhor horário (camadas) na data do plano
+7. Publica dia a dia, sozinho → confirma publicação
+```
+
 ## Pontos a detalhar (fila) — 🔍 a definir
 
-1. **Legenda** — tom, CTA, hashtags.
-3. **Aprovação** — 100% automático vs revisão/preview (especialmente no 1º mês).
-4. **Fim do mês/recorrência** — o que acontece quando o plano acaba (pede o próximo? reusa? avisa?).
-5. **Edição/preview** — calendário editável antes de publicar, mesmo no modo automático.
-6. **Timezone & horário do "de manhã"** — quando gera vs quando publica.
-7. **Motor/estado** — tabelas, máquina de estados, fila de jobs (detalhar após as regras de produto).
+1. **Tela de revisão** — ações por post (aprovar/editar/regenerar/remover) e como a pessoa é avisada que o lote ficou pronto (geração assíncrona).
+2. **Fim do ciclo/recorrência** — o que acontece quando o plano acaba (pede o próximo? reusa? avisa?).
+3. **Timezone & agendamento** — quando gera vs quando publica.
+4. **Motor/estado** — tabelas, máquina de estados, fila de jobs (detalhar após as regras de produto).
 
 _(Itens serão movidos para seções detalhadas conforme decididos.)_
