@@ -575,7 +575,8 @@ export default function Analytics() {
       try {
         const { data: userData } = await supabase.auth.getUser();
         const uid = userData?.user?.id;
-        const profilesToPersist = safeResultProfiles.filter((p) =>
+        const freshPlatforms = new Set(safeResultProfiles.map((p) => p.platform));
+        const profilesToPersist = mergedResults.filter((p) => freshPlatforms.has(p.platform)).filter((p) =>
           (p.platform !== "facebook" || (p.recentPosts?.length ?? 0) > 0 || p.avgComments === 0 || p.avgLikes === 0 || hasPositiveNumber(p.avgComments) || hasPositiveNumber(p.avgLikes))
         );
         if (uid && profilesToPersist.length) {
