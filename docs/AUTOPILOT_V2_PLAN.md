@@ -136,10 +136,23 @@ Cola plano → confirma a grade → IA gera TODOS os posts do ciclo (arte + lege
 7. Publica dia a dia, sozinho → confirma publicação
 ```
 
+### 7. Tela de revisão
+
+**Ações por post:**
+- ✅ Aprovar (e "aprovar tudo" em lote)
+- ✏️ Editar a legenda
+- 🔄 Regenerar a arte
+- 🔄 Regenerar a legenda
+- 🗑️ Remover o post
+- 🕐 Ajustar horário/data (override opcional)
+
+**Limitação registrada (a revisitar):** editar diretamente o **texto dentro da arte** NÃO entra no conjunto v2. Se o A2 errar a grafia na imagem, o recurso é **regenerar a arte** (que pode errar de novo). Mitigações do lado do prompt (texto exato + curto) reduzem, mas não zeram. Candidato a evoluir depois (editar texto-da-arte ou verificação OCR).
+
+**Aviso de lote pronto (geração é assíncrona):** **app + e-mail.** Badge/estado no app quando a pessoa volta **e** e-mail com link direto pra tela de revisão ("seus posts estão prontos"). Infra de e-mail já existe (função `company-invite`).
+
 ## Pontos a detalhar (fila) — 🔍 a definir
 
-1. **Tela de revisão** — ações por post (aprovar/editar/regenerar/remover) e como a pessoa é avisada que o lote ficou pronto (geração assíncrona).
-2. **Fim do ciclo/recorrência** — o que acontece quando o plano acaba (pede o próximo? reusa? avisa?).
+1. **Fim do ciclo/recorrência** — o que acontece quando o plano acaba (pede o próximo? reusa? avisa?).
 3. **Timezone & agendamento** — quando gera vs quando publica.
 4. **Motor/estado** — tabelas, máquina de estados, fila de jobs (detalhar após as regras de produto).
 
