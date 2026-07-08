@@ -703,10 +703,10 @@ const PLATFORMS: Record<string, ActorConfig> = {
         )),
       ]).filter((x) => looksLikeFacebookPost(x, pageUrl));
       const cnt = posts.length || 1;
-      const totalLikes = posts.reduce((s: number, v: A) => s + nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]), 0);
-      const totalComments = posts.reduce((s: number, v: A) => s + nestedNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]), 0);
-      const totalShares = posts.reduce((s: number, v: A) => s + nestedNum(v, ["shares", "sharesCount", "shareCount", "reshare_count"]), 0);
-      const totalViews = posts.reduce((s: number, v: A) => s + nestedNum(v, ["views", "viewCount", "plays", "playsCount"]), 0);
+      const totalLikes = posts.reduce((s: number, v: A) => s + nestedMetricNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]), 0);
+      const totalComments = posts.reduce((s: number, v: A) => s + nestedMetricNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]), 0);
+      const totalShares = posts.reduce((s: number, v: A) => s + nestedMetricNum(v, ["shares", "sharesCount", "shareCount", "reshare_count"]), 0);
+      const totalViews = posts.reduce((s: number, v: A) => s + nestedMetricNum(v, ["views", "viewCount", "plays", "playsCount"]), 0);
       const avgL = posts.length ? Math.round(totalLikes / cnt) : null;
       const avgC = posts.length ? Math.round(totalComments / cnt) : null;
       const avgS = posts.length ? Math.round(totalShares / cnt) : 0;
@@ -725,9 +725,9 @@ const PLATFORMS: Record<string, ActorConfig> = {
         avgViews: totalViews > 0 ? Math.round(totalViews / cnt) : null,
         recentPosts: posts.slice(0, 6).map((v: A) => ({
           text: firstText(v, ["text", "message", "postText", "description", "caption", "content"]) || firstText(v.content, ["text", "message", "caption", "description"]),
-          likes: nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]),
-          comments: nestedNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]),
-          views: nestedNum(v, ["views", "viewCount", "plays", "playsCount"]),
+          likes: nestedMetricNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]),
+          comments: nestedMetricNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]),
+          views: nestedMetricNum(v, ["views", "viewCount", "plays", "playsCount"]),
           date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt", "postCreatedAt", "publishedAt"]) || firstText(v.publishedAt, ["iso", "date", "text"]),
           url: objectUrl(v),
           mediaUrl: firstText(v, ["imageUrl", "fullPicture", "thumbnailUrl", "thumbnail", "videoUrl"]) || firstText(v.media?.[0], ["url"]) || firstText(v.media, ["url", "thumbnailUrl"]),
