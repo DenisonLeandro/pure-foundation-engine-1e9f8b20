@@ -473,13 +473,10 @@ export default function Analytics() {
           .order("fetched_at", { ascending: false })
           .limit(50);
         if (error || !data?.length) return;
-        const seen = new Set<string>();
-        const rows: ProfileAnalytics[] = [];
+        const byPlatform = new Map<string, ProfileAnalytics>();
         for (const r of data) {
           const k = `${r.platform}:${r.username}`;
-          if (seen.has(k)) continue;
-          seen.add(k);
-          rows.push(sanitizeAnalyticsProfile({
+          const row = sanitizeAnalyticsProfile({
             platform: r.platform as ProfileAnalytics["platform"],
             username: r.username,
             displayName: r.display_name ?? undefined,
@@ -494,8 +491,10 @@ export default function Analytics() {
             recentPosts: (r.recent_posts as unknown as ProfileAnalytics["recentPosts"]) ?? [],
             enrichment: (r.raw_data as unknown as ProfileAnalytics["enrichment"]) ?? undefined,
             fetchedAt: r.fetched_at ?? undefined,
-          } as ProfileAnalytics));
+          } as ProfileAnalytics);
+          byPlatform.set(k, mergeProfileMetrics(byPlatform.get(k), row));
         }
+        const rows = [...byPlatform.values()];
         if (rows.length) {
           setAnalyticsState(rows);
           companyStorage.set(activeCompanyId, "analytics", JSON.stringify(rows));
@@ -575,8 +574,11 @@ export default function Analytics() {
       try {
         const { data: userData } = await supabase.auth.getUser();
         const uid = userData?.user?.id;
-        if (uid && safeResultProfiles.length) {
-          const rows = safeResultProfiles.map((p) => ({
+        const profilesToPersist = safeResultProfiles.filter((p) =>
+          (p.platform !== "facebook" || (p.recentPosts?.length ?? 0) > 0 || hasPositiveNumber(p.avgComments) || hasPositiveNumber(p.avgLikes))
+        );
+        if (uid && profilesToPersist.length) {
+          const rows = profilesToPersist.map((p) => ({
             user_id: uid,
             company_id: activeCompanyId,
             platform: p.platform,
