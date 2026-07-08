@@ -146,6 +146,126 @@ function safeNum(v: A): number {
   return Number.isFinite(parsed) ? Math.round(parsed * multiplier) : 0;
 }
 
+function isObj(v: A): v is Record<string, A> {
+  return Boolean(v && typeof v === "object" && !Array.isArray(v));
+}
+
+function firstValue(obj: A, keys: string[]): A {
+  if (!isObj(obj)) return undefined;
+  for (const key of keys) {
+    const value = obj[key];
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return undefined;
+}
+
+function firstText(obj: A, keys: string[]): string {
+  const value = firstValue(obj, keys);
+  if (typeof value === "string") return decodeHtmlText(value);
+  if (typeof value === "number") return String(value);
+  return "";
+}
+
+function firstNum(obj: A, keys: string[]): number {
+  return safeNum(firstValue(obj, keys));
+}
+
+function nestedNum(obj: A, keys: string[]): number {
+  if (!obj) return 0;
+  const direct = firstNum(obj, keys);
+  if (direct > 0) return direct;
+  for (const bucket of ["stats", "statistics", "metrics", "engagement", "counts", "metadata", "about", "profile", "channel", "authorStats", "userStats"]) {
+    const value = obj?.[bucket];
+    if (isObj(value)) {
+      const found = firstNum(value, keys);
+      if (found > 0) return found;
+    }
+  }
+  return 0;
+}
+
+function collectArraysByKey(raw: A, keys: string[], maxDepth = 5): A[][] {
+  const found: A[][] = [];
+  const seen = new WeakSet<object>();
+
+  const walk = (node: A, depth: number) => {
+    if (!node || depth > maxDepth) return;
+    if (typeof node === "object") {
+      if (seen.has(node)) return;
+      seen.add(node);
+    }
+    if (Array.isArray(node)) {
+      node.forEach((item) => walk(item, depth + 1));
+      return;
+    }
+    if (!isObj(node)) return;
+    for (const [key, value] of Object.entries(node)) {
+      if (Array.isArray(value) && keys.includes(key)) found.push(value);
+      if (isObj(value) || Array.isArray(value)) walk(value, depth + 1);
+    }
+  };
+
+  walk(raw, 0);
+  return found;
+}
+
+function collectObjects(raw: A, predicate: (obj: A) => boolean, maxDepth = 5): A[] {
+  const found: A[] = [];
+  const seen = new WeakSet<object>();
+
+  const walk = (node: A, depth: number) => {
+    if (!node || depth > maxDepth) return;
+    if (typeof node === "object") {
+      if (seen.has(node)) return;
+      seen.add(node);
+    }
+    if (Array.isArray(node)) {
+      node.forEach((item) => walk(item, depth + 1));
+      return;
+    }
+    if (!isObj(node)) return;
+    if (predicate(node)) found.push(node);
+    Object.values(node).forEach((value) => {
+      if (isObj(value) || Array.isArray(value)) walk(value, depth + 1);
+    });
+  };
+
+  walk(raw, 0);
+  return found;
+}
+
+function uniquePosts(posts: A[]): A[] {
+  const seen = new Set<string>();
+  return posts.filter((post) => {
+    if (!isObj(post)) return false;
+    const key = firstText(post, ["url", "postUrl", "videoUrl", "webVideoUrl", "id", "shortCode", "awemeId"]) ||
+      `${firstText(post, ["title", "text", "message", "desc", "caption"]).slice(0, 80)}:${firstText(post, ["date", "timestamp", "publishedAt", "createTime"])}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function hasEngagement(post: A): boolean {
+  return nestedNum(post, [
+    "likes", "likeCount", "likesCount", "diggCount", "reactions", "reactionCount", "reactionsCount",
+    "comments", "commentCount", "commentsCount", "replyCount", "shares", "shareCount", "views", "viewCount", "playCount",
+  ]) > 0;
+}
+
+function parseApifyError(status: number, text: string): string {
+  let body: A = null;
+  try { body = JSON.parse(text); } catch { /* keep raw */ }
+  const type = body?.error?.type || body?.type || "";
+  const message = body?.error?.message || body?.message || text;
+  if (type === "actor-is-not-rented" || /actor-is-not-rented|rent this actor/i.test(message)) {
+    return "Scraper da Apify não está ativo/alugado para esta rede. Ative/alugue o actor na Apify ou troque o scraper configurado.";
+  }
+  if (status === 403) return `Apify 403: sem permissão para executar este scraper. ${String(message).slice(0, 160)}`;
+  if (status === 401) return "Token da Apify inválido ou expirado.";
+  return `Apify ${status}: ${String(message).slice(0, 200)}`;
+}
+
 function arr(v: A): A[] {
   if (Array.isArray(v)) return v;
   if (v && typeof v === "object") {
