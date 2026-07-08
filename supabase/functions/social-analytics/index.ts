@@ -633,15 +633,13 @@ const PLATFORMS: Record<string, ActorConfig> = {
   },
 
   facebook: {
-    actorId: "apify~facebook-pages-scraper",
+    actorId: "scrapeengine~facebook-page-posts-scraper",
     buildInput: (u) => {
       const url = normalizeFacebookUrl(u);
       return {
-        startUrls: [{ url }],
-        scrapeAbout: true,
-        scrapePosts: true,
-        scrapeReviews: false,
-        maxPosts: 12,
+        startUrls: [url],
+        maxPostsPerProfile: 12,
+        proxyConfiguration: { useApifyProxy: true },
       };
     },
     normalize: (raw) => {
@@ -655,6 +653,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
 
       const followers = safeNum(
         p.followers || p.followersCount || p.followerCount || p.followers_count ||
+        p.followers_count_text || p.followersText || p.fans || p.fanCount ||
         profile.followersCount || profile.followers || profile.followerCount || p.likes || p.likeCount || profile.friends || 0
       );
 
@@ -667,9 +666,9 @@ const PLATFORMS: Record<string, ActorConfig> = {
         )),
       ]).filter((x) => looksLikeFacebookPost(x, pageUrl));
       const cnt = posts.length || 1;
-      const totalLikes = posts.reduce((s: number, v: A) => s + nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount"]), 0);
-      const totalComments = posts.reduce((s: number, v: A) => s + nestedNum(v, ["comments", "commentsCount", "commentCount"]), 0);
-      const totalShares = posts.reduce((s: number, v: A) => s + nestedNum(v, ["shares", "sharesCount", "shareCount"]), 0);
+      const totalLikes = posts.reduce((s: number, v: A) => s + nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]), 0);
+      const totalComments = posts.reduce((s: number, v: A) => s + nestedNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]), 0);
+      const totalShares = posts.reduce((s: number, v: A) => s + nestedNum(v, ["shares", "sharesCount", "shareCount", "reshare_count"]), 0);
       const totalViews = posts.reduce((s: number, v: A) => s + nestedNum(v, ["views", "viewCount", "plays", "playsCount"]), 0);
       const avgL = posts.length ? Math.round(totalLikes / cnt) : null;
       const avgC = posts.length ? Math.round(totalComments / cnt) : null;
@@ -682,17 +681,17 @@ const PLATFORMS: Record<string, ActorConfig> = {
         profileImageUrl: firstText(profile, ["profilePicLarge", "profilePicMedium", "profilePic", "imageUrl"]) || firstText(p, ["profileImage", "imageUrl", "logo", "avatar"]),
         followers,
         following: 0,
-        posts: safeNum(p.postsCount || p.postCount || profile.postsCount || posts.length || 0),
+        posts: safeNum(p.postsCollected || p.postsCount || p.postCount || profile.postsCount || posts.length || 0),
         engagementRate: engagementRateFrom(followers, avgL, avgC, avgS),
         avgLikes: avgL,
         avgComments: avgC,
         avgViews: totalViews > 0 ? Math.round(totalViews / cnt) : null,
         recentPosts: posts.slice(0, 6).map((v: A) => ({
-          text: firstText(v, ["text", "message", "postText", "description", "caption"]),
-          likes: nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount"]),
-          comments: nestedNum(v, ["comments", "commentsCount", "commentCount"]),
+          text: firstText(v, ["text", "message", "postText", "description", "caption", "content"]),
+          likes: nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]),
+          comments: nestedNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]),
           views: nestedNum(v, ["views", "viewCount", "plays", "playsCount"]),
-          date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt"]),
+          date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt", "postCreatedAt", "publishedAt"]),
           url: firstText(v, ["postUrl", "url", "permalinkUrl", "link"]),
           mediaUrl: firstText(v, ["imageUrl", "fullPicture", "thumbnailUrl", "thumbnail", "videoUrl"]) || firstText(v.media?.[0], ["url"]),
         })),
