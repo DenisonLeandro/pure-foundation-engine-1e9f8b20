@@ -148,11 +148,31 @@ export function buildAnalyticsAccounts(
   pfmAccounts: { platform: string; username: string }[],
   profileUrls: Record<string, string>
 ): BuildAnalyticsResult {
+  const cleanProfileValue = (value: string, platform: string) => {
+    const raw = (value || "").trim();
+    if (!raw) return "";
+    const withoutQuery = raw.split("?")[0].split("#")[0].replace(/\/+$/, "");
+    if (/^https?:\/\//i.test(withoutQuery) || /^[\w.-]+\.[a-z]{2,}\//i.test(withoutQuery)) {
+      try {
+        const u = new URL(withoutQuery.startsWith("http") ? withoutQuery : `https://${withoutQuery}`);
+        const parts = u.pathname.split("/").filter(Boolean);
+        if (platform === "youtube") return raw;
+        if (platform === "linkedin" || platform === "facebook") return raw;
+        const handlePart = parts.find((p) => p.startsWith("@")) || parts[parts.length - 1] || "";
+        return handlePart.replace(/^@/, "");
+      } catch {
+        // fallback below
+      }
+    }
+    const parts = withoutQuery.split("/").filter(Boolean);
+    return (parts.find((p) => p.startsWith("@")) || parts[parts.length - 1] || withoutQuery).replace(/^@/, "");
+  };
+
   const missingUrl = new Set<string>();
   const accounts = pfmAccounts
     .map((a) => {
       const savedUrl = (profileUrls[a.platform] || "").trim();
-      let username = a.username || "";
+      let username = cleanProfileValue(a.username || "", a.platform);
 
       if (PLATFORMS_REQUIRING_URL.has(a.platform)) {
         if (!savedUrl) {
@@ -165,15 +185,12 @@ export function buildAnalyticsAccounts(
           username = savedUrl;
         } else {
           // tiktok: extrai handle da URL
-          const urlParts = savedUrl.replace(/\/+$/, "").split("/");
-          const lastPart = urlParts[urlParts.length - 1]?.replace("@", "") || "";
-          username = lastPart || savedUrl;
+          username = cleanProfileValue(savedUrl, a.platform) || savedUrl;
         }
       } else if (savedUrl) {
         // Plataformas em que o handle basta, mas se o usuário salvou URL, extraímos.
-        const urlParts = savedUrl.replace(/\/+$/, "").split("/");
-        const lastPart = urlParts[urlParts.length - 1]?.replace("@", "") || "";
-        if (lastPart) username = lastPart;
+        const cleaned = cleanProfileValue(savedUrl, a.platform);
+        if (cleaned) username = cleaned;
       }
 
       if (!username || username === "YouTube" || username === "Canal YouTube") return null;
