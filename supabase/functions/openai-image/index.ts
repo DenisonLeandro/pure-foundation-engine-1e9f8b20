@@ -32,15 +32,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 async function resolveOpenAiKey(headerKey: string | null): Promise<string | null> {
+  // Só usamos OpenAI direto quando o usuário fornecer explicitamente sua
+  // própria chave via header `x-openai-api-key`. Caso contrário roteamos via
+  // Lovable AI Gateway (que suporta `openai/gpt-image-2` com a mesma
+  // qualidade e evita o problema de o modelo não existir na API direta).
   if (headerKey?.trim()) return headerKey.trim();
-  try {
-    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-    const { data, error } = await admin.rpc("get_vault_secret", { secret_name: "OPENAI_API_KEY" });
-    if (!error && typeof data === "string" && data) return data;
-  } catch (e) {
-    console.error("[openai-image] vault lookup failed:", e instanceof Error ? e.message : e);
-  }
-  return Deno.env.get("OPENAI_API_KEY") ?? null;
+  return null;
 }
 
 /** Converte uma data URL (base64) ou http URL numa Blob para upload multipart. */
@@ -120,13 +117,36 @@ Deno.serve(async (req: Request) => {
         );
       }
       try {
-        console.log(`[openai-image] fallback Lovable AI (Gemini) ${isEdit ? "edit" : "generate"} size=${size} n=${n}`);
-        const content = isEdit
-          ? [
-              { type: "text", text: prompt },
-              { type: "image_url", image_url: { url: image } },
-            ]
-          : prompt;
+        // Roteia via Lovable AI Gateway. Para GERAÇÃO usamos openai/gpt-image-2
+        // (mantém a qualidade). Para EDIÇÃO usamos Gemini (aceita imagem de
+        // entrada no shape chat).
+        const useGemini = isEdit;
+        const gwModel = useGemini ? "google/gemini-2.5-flash-image" : "openai/gpt-image-2";
+        console.log(`[openai-image] Lovable AI ${isEdit ? "edit" : "generate"} model=${gwModel} size=${size} n=${n}`);
+
+        const gwBody: Record<string, unknown> = useGemini
+          ? {
+              model: gwModel,
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: prompt },
+                    { type: "image_url", image_url: { url: image } },
+                  ],
+                },
+              ],
+              modalities: ["image", "text"],
+              n,
+            }
+          : {
+              model: gwModel,
+              prompt,
+              size,
+              n,
+              quality: quality || "medium",
+            };
+
         const gwResp = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
           method: "POST",
           headers: {
@@ -134,12 +154,7 @@ Deno.serve(async (req: Request) => {
             "Content-Type": "application/json",
             "X-Lovable-AIG-SDK": "edge-function",
           },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash-image",
-            messages: [{ role: "user", content }],
-            modalities: ["image", "text"],
-            n,
-          }),
+          body: JSON.stringify(gwBody),
         });
 
         if (!gwResp.ok) {
@@ -161,14 +176,14 @@ Deno.serve(async (req: Request) => {
         await logApiUsage({
           companyId,
           userId: auth.user.id,
-          service: "gemini",
+          service: useGemini ? "gemini" : "openai_image",
           operation: isEdit ? "image_edit" : "image",
           units: images.length,
           unitType: "image",
-          metadata: { model: "google/gemini-2.5-flash-image", fallback: true, edit: isEdit },
+          metadata: { model: gwModel, fallback: true, edit: isEdit, via: "lovable-gateway" },
         });
 
-        return new Response(JSON.stringify({ images, model: "google/gemini-2.5-flash-image" }), {
+        return new Response(JSON.stringify({ images, model: gwModel }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
