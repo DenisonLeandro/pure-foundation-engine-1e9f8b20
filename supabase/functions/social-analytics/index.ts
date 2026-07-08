@@ -1157,7 +1157,7 @@ async function runActor(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Apify ${res.status}: ${text.slice(0, 200)}`);
+    throw new Error(parseApifyError(res.status, text));
   }
 
   return res.json();
