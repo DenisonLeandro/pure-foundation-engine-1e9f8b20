@@ -418,12 +418,13 @@ export default function Analytics() {
   const [analytics, setAnalyticsState] = useState<ProfileAnalytics[]>(() => {
     try {
       const saved = companyStorage.get(activeCompanyId, "analytics");
-      return saved ? JSON.parse(saved) : [];
+      return saved ? (JSON.parse(saved) as ProfileAnalytics[]).map(sanitizeAnalyticsProfile) : [];
     } catch { return []; }
   });
   const setAnalytics = (data: ProfileAnalytics[]) => {
-    setAnalyticsState(data);
-    companyStorage.set(activeCompanyId, "analytics", JSON.stringify(data));
+    const safeData = data.map(sanitizeAnalyticsProfile);
+    setAnalyticsState(safeData);
+    companyStorage.set(activeCompanyId, "analytics", JSON.stringify(safeData));
   };
 
   const [isFetching, setIsFetching] = useState(false);
