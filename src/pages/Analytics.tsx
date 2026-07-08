@@ -716,7 +716,7 @@ export default function Analytics() {
 
   const allRecentPosts = useMemo(
       () => analytics
-      .flatMap((a) => (a.recentPosts ?? []).filter(looksLikeRealAnalyticsPost).map((p) => ({ ...p, platform: a.platform, profileName: a.displayName || a.username })))
+      .flatMap((a) => (a.recentPosts ?? []).filter((post) => looksLikeRealAnalyticsPost(post, a.platform)).map((p) => ({ ...p, platform: a.platform, profileName: a.displayName || a.username })))
       .sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
       .slice(0, 15),
     [analytics]
