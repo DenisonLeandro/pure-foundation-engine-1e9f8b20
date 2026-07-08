@@ -133,9 +133,9 @@ function safeNum(v: A): number {
   if (!raw) return 0;
 
   const multiplier =
-    /\b(k|mil)\b/.test(raw) ? 1_000 :
-    /\b(m|mi|milhão|milhões|million|millions)\b/.test(raw) ? 1_000_000 :
-    /\b(b|bi|bilhão|bilhões|billion|billions)\b/.test(raw) ? 1_000_000_000 :
+    /[\d.,]\s*(k|mil)\b/.test(raw) ? 1_000 :
+    /[\d.,]\s*(m|mi|milhão|milhões|million|millions)\b/.test(raw) ? 1_000_000 :
+    /[\d.,]\s*(b|bi|bilhão|bilhões|billion|billions)\b/.test(raw) ? 1_000_000_000 :
     1;
 
   const numeric = raw
@@ -251,6 +251,74 @@ function hasEngagement(post: A): boolean {
     "likes", "likeCount", "likesCount", "diggCount", "reactions", "reactionCount", "reactionsCount",
     "comments", "commentCount", "commentsCount", "replyCount", "shares", "shareCount", "views", "viewCount", "playCount",
   ]) > 0;
+}
+
+function cleanUrl(value: string): string {
+  return stripQueryHash(value || "").replace(/\/$/, "").toLowerCase();
+}
+
+function objectUrl(obj: A): string {
+  return firstText(obj, ["postUrl", "url", "permalinkUrl", "link", "videoUrl", "watchUrl", "webVideoUrl", "shareUrl", "tweetUrl"]);
+}
+
+function hasAnyText(obj: A, keys: string[]): boolean {
+  return Boolean(firstText(obj, keys).trim());
+}
+
+function hasAnyDate(obj: A): boolean {
+  return Boolean(firstText(obj, ["date", "timestamp", "postedAt", "createdAt", "created_at", "publishedAt", "uploadDate", "time", "createTimeISO"]));
+}
+
+function looksLikeFacebookPost(obj: A, pageUrl = ""): boolean {
+  if (!isObj(obj)) return false;
+  const url = objectUrl(obj);
+  const sameAsPage = pageUrl && url && cleanUrl(url) === cleanUrl(pageUrl);
+  const postUrl = /facebook\.com\/.+\/(posts|videos|reel|reels|photos)\b|story_fbid=|fbid=|permalink\.php/i.test(url);
+  const profileOnly = Boolean(
+    obj.pageName || obj.pageUrl || obj.profileUrl || obj.personalProfile || obj.about || obj.pageInfo ||
+    obj.followers || obj.followersCount || obj.followerCount || obj.fans || obj.fanCount
+  ) && !postUrl && !hasAnyDate(obj) && !hasAnyText(obj, ["text", "message", "postText", "description", "caption"]);
+  if (sameAsPage || profileOnly) return false;
+  return Boolean(postUrl || hasAnyText(obj, ["text", "message", "postText", "description", "caption"]) || hasAnyDate(obj));
+}
+
+function looksLikeYouTubeVideo(obj: A): boolean {
+  if (!isObj(obj)) return false;
+  const url = objectUrl(obj);
+  const videoUrl = /youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\//i.test(url);
+  const hasVideoId = Boolean(obj.videoId || obj.id && (videoUrl || hasAnyText(obj, ["title", "name"])));
+  const channelOnly = Boolean(
+    obj.channelName || obj.channelTitle || obj.channelId || obj.subscriberCount || obj.subscribers || obj.channel
+  ) && !videoUrl && !hasVideoId;
+  if (channelOnly) return false;
+  return Boolean((videoUrl || hasVideoId) && hasAnyText(obj, ["title", "name", "text", "description"]));
+}
+
+function looksLikeTikTokVideo(obj: A): boolean {
+  if (!isObj(obj)) return false;
+  const url = objectUrl(obj);
+  const videoUrl = /tiktok\.com\/@[^/]+\/video\/|vm\.tiktok\.com|vt\.tiktok\.com/i.test(url);
+  const hasVideoId = Boolean(obj.awemeId || obj.itemId || obj.videoId || (obj.id && (videoUrl || hasEngagement(obj))));
+  const profileOnly = Boolean(obj.userInfo || obj.user || obj.authorStats || obj.userStats || obj.followerCount || obj.followers) &&
+    !hasVideoId && !videoUrl && !hasAnyText(obj, ["desc", "text", "description", "caption"]);
+  if (profileOnly) return false;
+  return Boolean(videoUrl || hasVideoId || (hasAnyText(obj, ["desc", "text", "description", "caption"]) && (hasEngagement(obj) || hasAnyDate(obj))));
+}
+
+function looksLikeTwitterTweet(obj: A): boolean {
+  if (!isObj(obj)) return false;
+  const url = objectUrl(obj);
+  const statusUrl = /(?:x|twitter)\.com\/[^/]+\/status\//i.test(url);
+  const hasTweetId = Boolean(obj.tweetId || obj.rest_id || obj.conversationId || obj.id_str || obj.id && (statusUrl || hasAnyText(obj, ["text", "full_text", "tweet"]))) ;
+  const userOnly = Boolean(obj.user || obj.profile || obj.followersCount || obj.totalFollowers || obj.statusesCount) &&
+    !hasTweetId && !statusUrl && !hasAnyText(obj, ["text", "full_text", "tweet"]);
+  if (userOnly) return false;
+  return Boolean(statusUrl || hasTweetId || hasAnyText(obj, ["text", "full_text", "tweet"]));
+}
+
+function engagementRateFrom(followers: number, likes: number | null, comments: number | null, shares = 0): number | null {
+  if (followers <= 0 || likes == null) return null;
+  return +(((likes ?? 0) + (comments ?? 0) + shares) / followers * 100).toFixed(2);
 }
 
 function parseApifyError(status: number, text: string): string {
@@ -382,7 +450,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
       storeUserIfNoTweets: true,
     }),
     normalize: (raw) => {
-      const items: A[] = Array.isArray(raw) ? raw : [raw];
+      const items: A[] = arr(raw);
       if (!items.length) {
         return {
           platform: "twitter", username: "", displayName: "", profileImageUrl: "",
@@ -392,29 +460,34 @@ const PLATFORMS: Record<string, ActorConfig> = {
         };
       }
 
-      // Extract user info — web.harvester returns user object with totalFollowers, avatar, etc.
-      const first = items[0];
-      const user = first.user || first;
-      const username = user.username || first.username || "";
-      const displayName = user.userFullName || user.fullname || first.fullname || user.name || "";
-      const profilePic = (user.avatar || user.profileImageUrl || first.profilePicture || "")
-        .replace("_normal.", "_400x400.");
-      const followers = safeNum(user.totalFollowers || user.followersCount || first.followers);
-      const following = safeNum(user.totalFollowing || user.followingCount || first.following);
-      const totalTweets = safeNum(user.totalTweets || user.statusesCount || first.statusesCount);
+      const tweetArrays = collectArraysByKey(raw, ["tweets", "items", "data", "results", "statuses", "timeline"]);
+      const tweets = uniquePosts([
+        ...tweetArrays.flat(),
+        ...items,
+        ...collectObjects(raw, looksLikeTwitterTweet),
+      ]).filter(looksLikeTwitterTweet);
 
-      // Filter to tweet items (have text content)
-      const tweets = items.filter((t: A) => t.text || t.full_text);
+      // Extract user info — actors vary between user/author/profile/includes.users shapes.
+      const first = tweets[0] || items[0] || firstObj(raw);
+      const user = first.user || first.author || first.profile || raw?.user || raw?.profile || raw?.includes?.users?.[0] || first;
+      const username = firstText(user, ["username", "screen_name", "handle"]) || firstText(first, ["username", "screenName", "handle", "authorUsername"]);
+      const displayName = firstText(user, ["userFullName", "fullName", "fullname", "name", "displayName"]) || firstText(first, ["fullname", "authorName", "name"]);
+      const profilePic = (firstText(user, ["avatar", "profileImageUrl", "profile_image_url_https", "profilePicture"]) || firstText(first, ["profilePicture", "avatar"]))
+        .replace("_normal.", "_400x400.");
+
+      const followers = nestedNum(user, ["totalFollowers", "followersCount", "followers", "follower_count"]) || nestedNum(first, ["followers", "followersCount"]);
+      const following = nestedNum(user, ["totalFollowing", "followingCount", "friendsCount", "following"]);
+      const totalTweets = nestedNum(user, ["totalTweets", "statusesCount", "tweetCount", "statuses_count"]) || tweets.length;
       const cnt = tweets.length || 1;
 
       // web.harvester uses: likes, replies, retweets, quotes at top level
-      const totalLikes = tweets.reduce((s: number, t: A) => s + safeNum(t.likes || t.likeCount || t.favorite_count), 0);
-      const totalReplies = tweets.reduce((s: number, t: A) => s + safeNum(t.replies || t.replyCount || t.reply_count), 0);
-      const totalRetweets = tweets.reduce((s: number, t: A) => s + safeNum(t.retweets || t.retweetCount || t.retweet_count), 0);
-      const totalViews = tweets.reduce((s: number, t: A) => s + safeNum(t.viewCount || t.views || t.impressions), 0);
+      const totalLikes = tweets.reduce((s: number, t: A) => s + nestedNum(t, ["likes", "likeCount", "favorite_count", "favoriteCount"]), 0);
+      const totalReplies = tweets.reduce((s: number, t: A) => s + nestedNum(t, ["replies", "replyCount", "reply_count", "comments", "commentCount"]), 0);
+      const totalRetweets = tweets.reduce((s: number, t: A) => s + nestedNum(t, ["retweets", "retweetCount", "retweet_count", "shares", "quoteCount"]), 0);
+      const totalViews = tweets.reduce((s: number, t: A) => s + nestedNum(t, ["viewCount", "views", "impressions", "view_count"]), 0);
 
-      const avgL = Math.round(totalLikes / cnt);
-      const avgC = Math.round(totalReplies / cnt);
+      const avgL = tweets.length ? Math.round(totalLikes / cnt) : null;
+      const avgC = tweets.length ? Math.round(totalReplies / cnt) : null;
       const avgV = totalViews > 0 ? Math.round(totalViews / cnt) : null;
 
       return {
@@ -425,17 +498,17 @@ const PLATFORMS: Record<string, ActorConfig> = {
         followers,
         following,
         posts: totalTweets,
-        engagementRate: followers > 0 ? +((avgL + avgC + Math.round(totalRetweets / cnt)) / followers * 100).toFixed(2) : null,
+        engagementRate: engagementRateFrom(followers, avgL, avgC, tweets.length ? Math.round(totalRetweets / cnt) : 0),
         avgLikes: avgL,
         avgComments: avgC,
         avgViews: avgV,
         recentPosts: tweets.slice(0, 6).map((t: A) => ({
-          text: t.text || t.full_text || "",
-          likes: safeNum(t.likes || t.likeCount),
-          comments: safeNum(t.replies || t.replyCount),
-          views: safeNum(t.viewCount || t.views),
-          date: t.timestamp || t.createdAt || t.created_at || "",
-          url: t.url || (t.id ? `https://x.com/${username}/status/${t.id}` : ""),
+          text: firstText(t, ["text", "full_text", "tweet"]),
+          likes: nestedNum(t, ["likes", "likeCount", "favorite_count", "favoriteCount"]),
+          comments: nestedNum(t, ["replies", "replyCount", "reply_count", "comments", "commentCount"]),
+          views: nestedNum(t, ["viewCount", "views", "impressions", "view_count"]),
+          date: firstText(t, ["timestamp", "createdAt", "created_at", "date"]),
+          url: objectUrl(t) || (firstText(t, ["id", "id_str", "tweetId", "rest_id"]) ? `https://x.com/${username}/status/${firstText(t, ["id", "id_str", "tweetId", "rest_id"])}` : ""),
           mediaUrl: (t.media?.[0]?.url || t.media?.[0]?.media_url_https || ""),
         })),
         fetchedAt: new Date().toISOString(),
@@ -458,15 +531,15 @@ const PLATFORMS: Record<string, ActorConfig> = {
       const userObj = p.user || p.author || p.authorMeta || p.userInfo?.user || p;
       const statsObj = p.stats || p.authorStats || p.userStats || p.userInfo?.stats || userObj.stats || {};
 
-      const videoArrays = collectArraysByKey(raw, ["videos", "latestVideos", "items", "awemeList", "posts", "data"]);
+      const videoArrays = collectArraysByKey(raw, ["videos", "latestVideos", "items", "itemList", "awemeList", "posts", "data", "results"]);
       const videos = uniquePosts([
         ...videoArrays.flat(),
         ...arrItems,
         ...collectObjects(raw, (x) => Boolean(
-          x?.desc || x?.text || x?.webVideoUrl || x?.videoUrl || x?.awemeId || x?.id &&
+          x?.desc || x?.text || x?.webVideoUrl || x?.videoUrl || x?.shareUrl || x?.awemeId || x?.itemId || x?.videoId || x?.id &&
           nestedNum(x, ["playCount", "viewCount", "diggCount", "likes", "commentCount"]) > 0
         )),
-      ]).filter((x) => Boolean(x?.desc || x?.text || x?.webVideoUrl || x?.videoUrl || hasEngagement(x)));
+      ]).filter(looksLikeTikTokVideo);
 
       const cnt = videos.length || 1;
       const totalLikes = videos.reduce((s: number, v: A) => s + nestedNum(v, ["diggCount", "likeCount", "likes", "likesCount"]), 0);
@@ -484,7 +557,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
         followers,
         following: safeNum(statsObj.followingCount || statsObj.following || p.following || p.followingCount || userObj.followingCount),
         posts: safeNum(statsObj.videoCount || statsObj.posts || p.videoCount || userObj.videoCount || videos.length),
-        engagementRate: followers > 0 && (avgL + totalComments) > 0 ? +((avgL + Math.round(totalComments / cnt)) / followers * 100).toFixed(2) : null,
+        engagementRate: videos.length && followers > 0 && (avgL + totalComments) > 0 ? +((avgL + Math.round(totalComments / cnt)) / followers * 100).toFixed(2) : null,
         avgLikes: videos.length ? avgL : null,
         avgComments: videos.length ? Math.round(totalComments / cnt) : null,
         avgViews: videos.length ? Math.round(totalViews / cnt) : null,
@@ -515,14 +588,14 @@ const PLATFORMS: Record<string, ActorConfig> = {
       ));
       const p = channelCandidates[0] || arrItems[0] || {};
       const channel = p.channel || p.channelInfo || p.metadata || p;
-      const videoArrays = collectArraysByKey(raw, ["videos", "latestVideos", "items", "posts", "contents", "data"]);
+      const videoArrays = collectArraysByKey(raw, ["videos", "latestVideos", "items", "posts", "contents", "data", "results", "videoRenderer"]);
       const videos = uniquePosts([
         ...videoArrays.flat(),
         ...arrItems,
         ...collectObjects(raw, (x) => Boolean(
-          (x?.title || x?.name) && (x?.videoUrl || x?.url || x?.watchUrl || nestedNum(x, ["viewCount", "views", "likeCount", "likes"]) > 0)
+          (x?.title || x?.name || x?.videoId) && (x?.videoUrl || x?.url || x?.watchUrl || x?.videoId || nestedNum(x, ["viewCount", "views", "likeCount", "likes"]) > 0)
         )),
-      ]).filter((x) => Boolean(firstText(x, ["title", "name", "text"]) && (firstText(x, ["url", "videoUrl", "watchUrl"]) || hasEngagement(x))));
+      ]).filter(looksLikeYouTubeVideo);
 
       const cnt = videos.length || 1;
       const totalViews = videos.reduce((s: number, v: A) => s + nestedNum(v, ["viewCount", "views", "viewCountText"]), 0);
@@ -538,7 +611,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
         followers: subs,
         following: 0,
         posts: safeNum(channel.videoCount || channel.videosCount || p.videoCount || p.videosCount || p.stats?.videoCount || videos.length),
-        engagementRate: subs > 0 && avgLikes != null ? +(avgLikes / subs * 100).toFixed(2) : null,
+        engagementRate: engagementRateFrom(subs, avgLikes, videos.length ? Math.round(totalComments / cnt) : null),
         avgLikes,
         avgComments: videos.length ? Math.round(totalComments / cnt) : null,
         avgViews: videos.length ? Math.round(totalViews / cnt) : null,
@@ -548,7 +621,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
           comments: nestedNum(v, ["commentsCount", "commentCount", "comments"]),
           views: nestedNum(v, ["viewCount", "views", "viewCountText"]),
           date: firstText(v, ["date", "publishedAt", "uploadDate", "publishedTime", "publishedTimeText"]),
-          url: firstText(v, ["url", "videoUrl", "watchUrl"]),
+          url: firstText(v, ["url", "videoUrl", "watchUrl"]) || (firstText(v, ["videoId", "id"]) ? `https://www.youtube.com/watch?v=${firstText(v, ["videoId", "id"])}` : ""),
           mediaUrl: firstText(v, ["thumbnailUrl", "thumbnail", "thumbnailImage", "imageUrl"]),
         })),
         fetchedAt: new Date().toISOString(),
@@ -575,6 +648,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
       ));
       const p = pageCandidates[0] || arrItems[0] || {};
       const profile = p.personalProfile || p.profile || p.about || p.pageInfo || {};
+      const pageUrl = firstText(p, ["pageUrl", "profileUrl", "url", "link"]);
 
       const followers = safeNum(
         p.followers || p.followersCount || p.followerCount || p.followers_count ||
@@ -586,15 +660,17 @@ const PLATFORMS: Record<string, ActorConfig> = {
         ...postArrays.flat(),
         ...arrItems,
         ...collectObjects(raw, (x) => Boolean(
-          x?.postUrl || x?.message || x?.text || x?.postText || x?.description || x?.url && hasEngagement(x)
+          x?.postUrl || x?.message || x?.text || x?.postText || x?.description || x?.permalinkUrl || x?.url && hasEngagement(x)
         )),
-      ]).filter((x) => Boolean(firstText(x, ["postUrl", "url"]) || firstText(x, ["text", "message", "postText", "description"]) || hasEngagement(x)));
+      ]).filter((x) => looksLikeFacebookPost(x, pageUrl));
       const cnt = posts.length || 1;
       const totalLikes = posts.reduce((s: number, v: A) => s + nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount"]), 0);
       const totalComments = posts.reduce((s: number, v: A) => s + nestedNum(v, ["comments", "commentsCount", "commentCount"]), 0);
       const totalShares = posts.reduce((s: number, v: A) => s + nestedNum(v, ["shares", "sharesCount", "shareCount"]), 0);
       const totalViews = posts.reduce((s: number, v: A) => s + nestedNum(v, ["views", "viewCount", "plays", "playsCount"]), 0);
       const avgL = posts.length ? Math.round(totalLikes / cnt) : null;
+      const avgC = posts.length ? Math.round(totalComments / cnt) : null;
+      const avgS = posts.length ? Math.round(totalShares / cnt) : 0;
 
       return {
         platform: "facebook",
@@ -604,9 +680,9 @@ const PLATFORMS: Record<string, ActorConfig> = {
         followers,
         following: 0,
         posts: safeNum(p.postsCount || p.postCount || profile.postsCount || posts.length || 0),
-        engagementRate: followers > 0 && avgL != null ? +((avgL + Math.round(totalComments / cnt) + Math.round(totalShares / cnt)) / followers * 100).toFixed(2) : null,
+        engagementRate: engagementRateFrom(followers, avgL, avgC, avgS),
         avgLikes: avgL,
-        avgComments: posts.length ? Math.round(totalComments / cnt) : null,
+        avgComments: avgC,
         avgViews: totalViews > 0 ? Math.round(totalViews / cnt) : null,
         recentPosts: posts.slice(0, 6).map((v: A) => ({
           text: firstText(v, ["text", "message", "postText", "description", "caption"]),
@@ -1028,6 +1104,7 @@ async function fetchPublicHtml(url: string): Promise<string> {
 
 function decodeHtmlText(value: string): string {
   return value
+    .replace(/\\u002[fF]/g, "/")
     .replace(/\\u0026/g, "&")
     .replace(/\\u003c/g, "<")
     .replace(/\\u003e/g, ">")
@@ -1036,6 +1113,107 @@ function decodeHtmlText(value: string): string {
     .replace(/&amp;/g, "&")
     .replace(/\\n/g, " ")
     .trim();
+}
+
+function extractYouTubeVideosFromHtml(html: string): ProfileAnalytics["recentPosts"] {
+  const videos: ProfileAnalytics["recentPosts"] = [];
+  const seen = new Set<string>();
+  const chunks = html.split('"videoId":"').slice(1);
+  for (const chunk of chunks) {
+    const id = chunk.split('"')[0];
+    if (!id || seen.has(id)) continue;
+    const block = chunk.slice(0, 5000);
+    const title = textFromMatch(block, [
+      /"title":\{"runs":\[\{"text":"([^"]+)"/i,
+      /"title":\{"simpleText":"([^"]+)"/i,
+      /"headline":\{"simpleText":"([^"]+)"/i,
+    ]);
+    if (!title || /YouTube|Google/i.test(title)) continue;
+    const viewText = textFromMatch(block, [
+      /"viewCountText":\{"simpleText":"([^"]+)"/i,
+      /"viewCountText":\{"runs":\[\{"text":"([^"]+)"/i,
+      /"shortViewCountText":\{"simpleText":"([^"]+)"/i,
+    ]);
+    const date = textFromMatch(block, [
+      /"publishedTimeText":\{"simpleText":"([^"]+)"/i,
+      /"dateText":\{"simpleText":"([^"]+)"/i,
+    ]);
+    const thumbnail = decodeHtmlText(textFromMatch(block, [
+      /"thumbnail":\{"thumbnails":\[\{"url":"([^"]+)"/i,
+      /"thumbnails":\[\{"url":"([^"]+)"/i,
+    ]));
+    seen.add(id);
+    videos.push({
+      text: title,
+      likes: 0,
+      comments: 0,
+      views: safeNum(viewText),
+      date,
+      url: `https://www.youtube.com/watch?v=${id}`,
+      mediaUrl: thumbnail,
+    });
+    if (videos.length >= 6) break;
+  }
+  return videos;
+}
+
+async function extractYouTubeVideosFromRss(channelId: string): Promise<ProfileAnalytics["recentPosts"]> {
+  if (!channelId) return [];
+  const rss = await fetchPublicHtml(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`);
+  const entries = [...rss.matchAll(/<entry>([\s\S]*?)<\/entry>/gi)].slice(0, 6);
+  const videos = await Promise.all(entries.map(async (entry) => {
+    const xml = entry[1];
+    const id = decodeHtmlText(xml.match(/<yt:videoId>([^<]+)<\/yt:videoId>/i)?.[1] || "");
+    const title = decodeHtmlText(xml.match(/<title>([^<]+)<\/title>/i)?.[1] || "");
+    const published = decodeHtmlText(xml.match(/<published>([^<]+)<\/published>/i)?.[1] || "");
+    const media = decodeHtmlText(xml.match(/<media:thumbnail[^>]+url="([^"]+)"/i)?.[1] || "");
+    let views = 0;
+    if (id) {
+      try {
+        const watch = await fetchPublicHtml(`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`);
+        views = safeNum(textFromMatch(watch, [
+          /"viewCount":"?(\d+)"?/i,
+          /([\d.,]+\s*(?:views|visualizações))/i,
+        ]));
+      } catch {
+        views = 0;
+      }
+    }
+    return {
+      text: title,
+      likes: 0,
+      comments: 0,
+      views,
+      date: published,
+      url: id ? `https://www.youtube.com/watch?v=${id}` : "",
+      mediaUrl: media,
+    };
+  }));
+  return videos.filter(looksLikeRealFallbackPost);
+}
+
+function extractTikTokVideosFromHtml(html: string, handle: string): ProfileAnalytics["recentPosts"] {
+  const sigi = html.match(/<script[^>]+id="SIGI_STATE"[^>]*>([\s\S]*?)<\/script>/i)?.[1];
+  if (!sigi) return [];
+  try {
+    const parsed = JSON.parse(decodeHtmlText(sigi));
+    const itemModule = parsed?.ItemModule || {};
+    return Object.values(itemModule).slice(0, 6).map((item: A) => ({
+      text: firstText(item, ["desc", "text"]),
+      likes: nestedNum(item?.stats || item, ["diggCount", "likes", "likeCount"]),
+      comments: nestedNum(item?.stats || item, ["commentCount", "comments"]),
+      views: nestedNum(item?.stats || item, ["playCount", "views", "viewCount"]),
+      date: item?.createTime ? new Date(safeNum(String(item.createTime)) * 1000).toISOString() : "",
+      url: `https://www.tiktok.com/@${handle}/video/${item?.id || ""}`,
+      mediaUrl: firstText(item?.video || item, ["cover", "originCover", "dynamicCover"]),
+    })).filter(looksLikeRealFallbackPost);
+  } catch {
+    return [];
+  }
+}
+
+function looksLikeRealFallbackPost(post: ProfileAnalytics["recentPosts"][number]): boolean {
+  return Boolean(post?.url && (post.text || post.views || post.likes || post.comments));
 }
 
 function textFromMatch(html: string, patterns: RegExp[]): string {
@@ -1049,6 +1227,21 @@ function textFromMatch(html: string, patterns: RegExp[]): string {
 async function fallbackYouTubeProfile(input: string): Promise<ProfileAnalytics | null> {
   const url = normalizeYouTubeUrl(input);
   const html = await fetchPublicHtml(url);
+  let videos: ProfileAnalytics["recentPosts"] = [];
+  const channelId = textFromMatch(html, [
+    /"channelId":"([^"]+)"/i,
+    /<meta itemprop="channelId" content="([^"]+)"/i,
+    /youtube\.com\/channel\/([A-Za-z0-9_-]+)/i,
+  ]);
+  if (channelId) {
+    try { videos = await extractYouTubeVideosFromRss(channelId); } catch { videos = []; }
+  }
+  try {
+    const videosUrl = `${url.replace(/\/$/, "")}/videos`;
+    if (!videos.length) videos = extractYouTubeVideosFromHtml(await fetchPublicHtml(videosUrl));
+  } catch {
+    if (!videos.length) videos = extractYouTubeVideosFromHtml(html);
+  }
   const title = textFromMatch(html, [
     /<meta property="og:title" content="([^"]+)"/i,
     /"title":\{"simpleText":"([^"]+)"/i,
@@ -1069,7 +1262,8 @@ async function fallbackYouTubeProfile(input: string): Promise<ProfileAnalytics |
     /([\d.,]+\s*(?:vídeos|videos))/i,
   ]);
   const followers = safeNum(subscriberText);
-  const posts = safeNum(videoText);
+  const posts = safeNum(videoText) || videos.length;
+  const totalViews = videos.reduce((sum, video) => sum + (video.views || 0), 0);
   if (!title && followers === 0 && posts === 0) return null;
   return {
     platform: "youtube",
@@ -1082,8 +1276,8 @@ async function fallbackYouTubeProfile(input: string): Promise<ProfileAnalytics |
     engagementRate: null,
     avgLikes: null,
     avgComments: null,
-    avgViews: null,
-    recentPosts: [],
+    avgViews: videos.length && totalViews > 0 ? Math.round(totalViews / videos.length) : null,
+    recentPosts: videos,
     fetchedAt: new Date().toISOString(),
   };
 }
@@ -1110,7 +1304,11 @@ async function fallbackTikTokProfile(input: string): Promise<ProfileAnalytics | 
   const followingText = textFromMatch(html, [/"followingCount":(\d+)/i]);
   const videoText = textFromMatch(html, [/"videoCount":(\d+)/i]);
   const followers = safeNum(followerText);
-  const posts = safeNum(videoText);
+  const videos = extractTikTokVideosFromHtml(html, handle);
+  const posts = safeNum(videoText) || videos.length;
+  const totalLikes = videos.reduce((sum, video) => sum + (video.likes || 0), 0);
+  const totalComments = videos.reduce((sum, video) => sum + (video.comments || 0), 0);
+  const totalViews = videos.reduce((sum, video) => sum + (video.views || 0), 0);
   if (!displayName && followers === 0 && posts === 0) return null;
   return {
     platform: "tiktok",
@@ -1120,11 +1318,11 @@ async function fallbackTikTokProfile(input: string): Promise<ProfileAnalytics | 
     followers,
     following: safeNum(followingText),
     posts,
-    engagementRate: null,
-    avgLikes: null,
-    avgComments: null,
-    avgViews: null,
-    recentPosts: [],
+    engagementRate: videos.length && followers > 0 ? +(((totalLikes + totalComments) / videos.length) / followers * 100).toFixed(2) : null,
+    avgLikes: videos.length ? Math.round(totalLikes / videos.length) : null,
+    avgComments: videos.length ? Math.round(totalComments / videos.length) : null,
+    avgViews: videos.length && totalViews > 0 ? Math.round(totalViews / videos.length) : null,
+    recentPosts: videos,
     fetchedAt: new Date().toISOString(),
   };
 }
@@ -1268,6 +1466,23 @@ Deno.serve(async (req: Request) => {
           const data = await runActor(apifyToken, config.actorId, input);
           const normalized = config.normalize(data);
           if (!normalized.username) normalized.username = username;
+
+          if ((platform === "youtube" || platform === "tiktok") && !(normalized.recentPosts?.length)) {
+            const fallback = await fallbackProfile(platform, username);
+            if (fallback && (fallback.recentPosts?.length || fallback.followers > 0 || fallback.posts > 0)) {
+              normalized.recentPosts = fallback.recentPosts?.length ? fallback.recentPosts : normalized.recentPosts;
+              normalized.avgLikes = fallback.avgLikes ?? normalized.avgLikes;
+              normalized.avgComments = fallback.avgComments ?? normalized.avgComments;
+              normalized.avgViews = fallback.avgViews ?? normalized.avgViews;
+              normalized.engagementRate = fallback.engagementRate ?? normalized.engagementRate;
+              normalized.followers = normalized.followers || fallback.followers;
+              normalized.posts = normalized.posts || fallback.posts;
+              normalized.displayName = normalized.displayName || fallback.displayName;
+              normalized.username = normalized.username || fallback.username;
+              normalized.profileImageUrl = normalized.profileImageUrl || fallback.profileImageUrl;
+            }
+          }
+
           if (!isMeaningfulProfile(normalized)) {
             const fallback = await fallbackProfile(platform, username);
             if (fallback && isMeaningfulProfile(fallback)) {
