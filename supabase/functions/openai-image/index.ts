@@ -32,15 +32,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 async function resolveOpenAiKey(headerKey: string | null): Promise<string | null> {
+  // Só usamos OpenAI direto quando o usuário fornecer explicitamente sua
+  // própria chave via header `x-openai-api-key`. Caso contrário roteamos via
+  // Lovable AI Gateway (que suporta `openai/gpt-image-2` com a mesma
+  // qualidade e evita o problema de o modelo não existir na API direta).
   if (headerKey?.trim()) return headerKey.trim();
-  try {
-    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-    const { data, error } = await admin.rpc("get_vault_secret", { secret_name: "OPENAI_API_KEY" });
-    if (!error && typeof data === "string" && data) return data;
-  } catch (e) {
-    console.error("[openai-image] vault lookup failed:", e instanceof Error ? e.message : e);
-  }
-  return Deno.env.get("OPENAI_API_KEY") ?? null;
+  return null;
 }
 
 /** Converte uma data URL (base64) ou http URL numa Blob para upload multipart. */
