@@ -107,6 +107,64 @@ function engagementLevel(rate: number | null): { label: string; color: string; e
   return { label: "Baixo", color: "text-red-500", emoji: "💪" };
 }
 
+function hasPositiveNumber(value: number | null | undefined): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function mergeProfileMetrics(previous: ProfileAnalytics | undefined, fresh: ProfileAnalytics): ProfileAnalytics {
+  if (!previous) return fresh;
+
+  const keepFreshNumber = (freshValue: number | null | undefined, previousValue: number | null | undefined) => {
+    if (hasPositiveNumber(freshValue)) return freshValue ?? null;
+    if (hasPositiveNumber(previousValue)) return previousValue ?? null;
+    return freshValue ?? previousValue ?? null;
+  };
+
+  return {
+    ...previous,
+    ...fresh,
+    displayName: fresh.displayName || previous.displayName,
+    profileImageUrl: fresh.profileImageUrl || previous.profileImageUrl,
+    followers: keepFreshNumber(fresh.followers, previous.followers) ?? 0,
+    following: keepFreshNumber(fresh.following, previous.following) ?? 0,
+    posts: keepFreshNumber(fresh.posts, previous.posts) ?? 0,
+    engagementRate: keepFreshNumber(fresh.engagementRate, previous.engagementRate),
+    avgLikes: keepFreshNumber(fresh.avgLikes, previous.avgLikes),
+    avgComments: keepFreshNumber(fresh.avgComments, previous.avgComments),
+    avgViews: keepFreshNumber(fresh.avgViews, previous.avgViews),
+    recentPosts: fresh.recentPosts?.length ? fresh.recentPosts : (previous.recentPosts ?? []),
+    enrichment: fresh.enrichment && Object.keys(fresh.enrichment).length ? fresh.enrichment : previous.enrichment,
+    fetchedAt: fresh.fetchedAt || previous.fetchedAt,
+  };
+}
+
+function friendlyAnalyticsError(error: string): string {
+  const raw = error || "Erro desconhecido";
+  let parsedMessage = raw;
+  try {
+    const jsonStart = raw.indexOf("{");
+    if (jsonStart >= 0) {
+      const parsed = JSON.parse(raw.slice(jsonStart));
+      parsedMessage = parsed?.error?.message || parsed?.message || parsedMessage;
+      const type = parsed?.error?.type || parsed?.type;
+      if (type === "actor-is-not-rented") {
+        return "scraper da Apify não está ativo/alugado para essa rede";
+      }
+    }
+  } catch { /* mantém mensagem original */ }
+
+  if (/actor-is-not-rented|rent this actor|não está ativo\/alugado/i.test(parsedMessage)) {
+    return "scraper da Apify não está ativo/alugado para essa rede";
+  }
+  if (/Apify 403|sem permissão/i.test(parsedMessage)) {
+    return "sem permissão na Apify para executar esse scraper";
+  }
+  if (/Coleta sem dados públicos suficientes/i.test(parsedMessage)) {
+    return "perfil público sem dados suficientes; confira a URL pública";
+  }
+  return parsedMessage.replace(/\s+/g, " ").slice(0, 180);
+}
+
 // ─── Gamification System ──────────────────────────────────────────
 
 interface AchievementBadge {
