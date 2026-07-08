@@ -56,15 +56,54 @@ Fluxo em telas (assistente):
 
 **Parser:** IA lê texto livre e devolve linhas estruturadas `{ data, tema, categoria? }`. Robusto a formatos bagunçados (copiado de ChatGPT/Excel/Word).
 
+**Tela 2 — tabela EDITÁVEL.** A pessoa pode corrigir tema, editar/ajustar data, **apagar** linhas e **adicionar** dias ali mesmo, antes de seguir. Objetivo: eliminar o risco de "postar o mês inteiro errado" por uma má interpretação da IA.
+
+### 2. Configuração inicial (o que o assistente coleta)
+
+Filosofia: **coletar SEMPRE tudo que o Autopilot precisa pra rodar 100% sozinho.** Nada de "assumir padrão silencioso" — se precisa da marca, a pessoa escolhe a marca; se precisa de contas, a pessoa escolhe as contas. Assistente linear e explícito.
+
+Pré-requisitos coletados no assistente (ordem a refinar):
+- **Marca** (`brand_profiles`) — define tom/cores/estilo da arte e da legenda. **Obrigatório.**
+- **Plataformas + contas conectadas** (Post for Me) — onde publicar. **Obrigatório.**
+- **Plano de conteúdo** (telas 1–2 acima).
+- **Horário de publicação** — vem do Apify (🔍 a definir na fila).
+
+**Multi-plataforma:** o **mesmo post vai igual pra todas as plataformas** selecionadas (mesma arte, mesma legenda). Sem adaptação por rede na v2.
+
+### 3. Horário de publicação ("melhor horário")
+
+**Realidade técnica:** o Apify **não** devolve um "melhor horário" pronto. A função `social-analytics` traz, por perfil: seguidores, engagement rate e uma lista de **~6–12 posts recentes** com `date` + engajamento (likes/comments/views). O "melhor horário" precisa ser **inferido** por nós a partir desse histórico.
+
+**Limitações conhecidas (por isso o fallback é obrigatório):**
+- Amostra pequena (6–12 posts) → sinal fraco; 1 post viral distorce.
+- Conta nova = zero histórico (justamente o público-alvo da promessa de simplicidade).
+- Threads, LinkedIn pessoal e Pinterest voltam sem posts recentes → sem sinal.
+- Facebook/LinkedIn/YouTube/TikTok exigem URL do perfil salva pra o scrape rodar.
+
+**Decisão — lógica em CAMADAS (sempre tem resposta):**
+```
+1. Histórico suficiente (≥ N posts com engajamento)?
+   → calcula melhor hora/dia a partir da performance real da conta
+     (agrupa recentPosts por hora-do-dia × dia-da-semana × engajamento)
+2. Não tem histórico?
+   → horários-padrão inteligentes por plataforma (heurística de mercado)
+3. Sempre respeitando timezone e o DIA vindo do plano de conteúdo
+   (o plano define o DIA; a camada de horário só preenche a HORA)
+```
+Conforme o Autopilot publica, o histórico cresce e a camada 1 fica mais precisa.
+
+**Controle — automático com override opcional:** o Autopilot escolhe o horário sozinho, mas a pessoa **pode fixar** horários se quiser (sem obrigar).
+
+🔍 A refinar depois: valor de N (mínimo de posts), tabela de horários-padrão por plataforma, janela de dias considerada no histórico.
+
 ## Pontos a detalhar (fila) — 🔍 a definir
 
-1. **Melhor horário via Apify** — como determinar (dados disponíveis por conta? fallback de horários padrão?).
-3. **Arte** — estilo/consistência de marca, single vs carrossel, quanto a IA decide.
-4. **Legenda** — tom, CTA, hashtags, adaptação por plataforma.
-5. **Aprovação** — 100% automático vs revisão/preview (especialmente no 1º mês).
-6. **Fim do mês/recorrência** — o que acontece quando o plano acaba (pede o próximo? reusa? avisa?).
-7. **Multi-plataforma** — mesma arte/legenda em todas ou adaptada por rede.
-8. **Edição/preview** — calendário editável antes de publicar, mesmo no modo automático.
-9. **Timezone & horário do "de manhã"** — quando gera vs quando publica.
+1. **Arte** — estilo/consistência de marca, single vs carrossel, quanto a IA decide.
+2. **Legenda** — tom, CTA, hashtags.
+3. **Aprovação** — 100% automático vs revisão/preview (especialmente no 1º mês).
+4. **Fim do mês/recorrência** — o que acontece quando o plano acaba (pede o próximo? reusa? avisa?).
+5. **Edição/preview** — calendário editável antes de publicar, mesmo no modo automático.
+6. **Timezone & horário do "de manhã"** — quando gera vs quando publica.
+7. **Motor/estado** — tabelas, máquina de estados, fila de jobs (detalhar após as regras de produto).
 
 _(Itens serão movidos para seções detalhadas conforme decididos.)_
