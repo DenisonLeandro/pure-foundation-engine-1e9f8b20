@@ -249,7 +249,8 @@ function uniquePosts(posts: A[]): A[] {
 function hasEngagement(post: A): boolean {
   return nestedNum(post, [
     "likes", "likeCount", "likesCount", "diggCount", "reactions", "reactionCount", "reactionsCount",
-    "comments", "commentCount", "commentsCount", "replyCount", "shares", "shareCount", "views", "viewCount", "playCount",
+    "reactions_count", "comments", "commentCount", "commentsCount", "comments_count", "replyCount",
+    "shares", "shareCount", "sharesCount", "reshare_count", "views", "viewCount", "playCount",
   ]) > 0;
 }
 
@@ -271,15 +272,17 @@ function hasAnyDate(obj: A): boolean {
 
 function looksLikeFacebookPost(obj: A, pageUrl = ""): boolean {
   if (!isObj(obj)) return false;
+  if (obj.recordType === "page_summary") return false;
   const url = objectUrl(obj);
   const sameAsPage = pageUrl && url && cleanUrl(url) === cleanUrl(pageUrl);
   const postUrl = /facebook\.com\/.+\/(posts|videos|reel|reels|photos)\b|story_fbid=|fbid=|permalink\.php/i.test(url);
+  const hasPostId = Boolean(firstText(obj, ["post_id", "postId", "postID", "id"])) && (obj.recordType === "post" || hasEngagement(obj));
   const profileOnly = Boolean(
     obj.pageName || obj.pageUrl || obj.profileUrl || obj.personalProfile || obj.about || obj.pageInfo ||
     obj.followers || obj.followersCount || obj.followerCount || obj.fans || obj.fanCount
   ) && !postUrl && !hasAnyDate(obj) && !hasAnyText(obj, ["text", "message", "postText", "description", "caption"]);
   if (sameAsPage || profileOnly) return false;
-  return Boolean(postUrl || hasAnyText(obj, ["text", "message", "postText", "description", "caption"]) || hasAnyDate(obj));
+  return Boolean(postUrl || hasPostId || hasAnyText(obj, ["text", "message", "postText", "description", "caption", "content"]) || hasAnyDate(obj));
 }
 
 function looksLikeYouTubeVideo(obj: A): boolean {
