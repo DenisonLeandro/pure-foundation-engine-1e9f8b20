@@ -244,7 +244,7 @@ function uniquePosts(posts: A[]): A[] {
       firstText(post, ["url", "postUrl", "videoUrl", "webVideoUrl", "shortCode", "awemeId"]),
       firstText(post, ["id", "post_id", "postId"]),
       textKey ? `${textKey}:${dateKey}` : "",
-      textKey && !dateKey ? `text:${textKey}` : "",
+      textKey ? `text:${textKey}` : "",
     ].filter(Boolean);
     if (!keys.length || keys.some((key) => seen.has(key))) return false;
     keys.forEach((key) => seen.add(key));
