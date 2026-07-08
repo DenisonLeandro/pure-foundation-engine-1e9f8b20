@@ -640,11 +640,10 @@ const PLATFORMS: Record<string, ActorConfig> = {
     buildInput: (u) => {
       const url = normalizeFacebookUrl(u);
       return {
-        startUrls: [url],
+        startUrls: [{ url }],
         maxPosts: 12,
         includeComments: true,
         maxComments: 20,
-        replyDepth: 1,
         proxyConfiguration: { useApifyProxy: true },
       };
     },
