@@ -673,9 +673,9 @@ const PLATFORMS: Record<string, ActorConfig> = {
       const url = normalizeFacebookUrl(u);
       return {
         startUrls: [{ url }],
-        maxPosts: 12,
+        maxPosts: 8,
         includeComments: true,
-        maxComments: 20,
+        maxComments: 5,
         proxyConfiguration: { useApifyProxy: true },
       };
     },
