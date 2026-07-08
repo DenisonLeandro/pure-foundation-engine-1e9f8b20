@@ -96,20 +96,39 @@ Conforme o Autopilot publica, o histórico cresce e a camada 1 fica mais precisa
 
 🔍 A refinar depois: valor de N (mínimo de posts), tabela de horários-padrão por plataforma, janela de dias considerada no histórico.
 
-### 4. Arte (imagem de cada post)
+### 4. Arte (imagem de cada post) — REUSO FIEL do Studio "A IA cria tudo"
 
-**Decisões:**
-- **100% gerada por IA** (`openai-image` / gpt-image-2). Sem template de canvas na v2.
-- **Texto DENTRO da imagem** (A2) — a IA carimba a chamada do tema na arte.
-- **Consistência forte** — todo post com a mesma "cara" de marca (identidade reconhecível no feed).
-- **Direção de arte automática da marca** — puxada de `brand_profiles` (paleta/estilo/tom), montada pelo sistema. Sem a pessoa precisar configurar (evoluível depois).
+**Decisão-chave (confirmada pelo usuário):** o Autopilot deve gerar a arte **exatamente como o Studio → "A IA cria tudo"** (`AiArtStudio.tsx`). As artes de lá já saem no nível desejado (marca, logo, tudo). O Autopilot **precisa reusar esse mesmo pipeline**, não uma versão simplificada.
 
-**Consequências técnicas (registradas):**
-- Pra minimizar erro de grafia no A2: (a) enviar o texto **exato** ao modelo com ênfase na ortografia; (b) manter o texto da arte **curto** (só headline/chamada, nunca parágrafos); (c) **futuro:** verificação por OCR comparando imagem gerada × texto pretendido.
-- **A2 eleva a importância da revisão antes de publicar** → ver seção Aprovação.
-- Direção de arte = um "brand art directive" fixo por marca, derivado de `brand_profiles`, injetado em toda geração pra garantir consistência.
+**Pipeline exato do "A IA cria tudo" (a replicar):**
+```
+1. buildArtPrompt(texto, brand): texto + PALETA de cores da marca
+   + dica "canto superior esquerdo livre p/ a logo"
+   + "arte final completa, texto embutido (A2), pt-BR, tipografia legível, profissional"
+2. generateOpenAiImage: gpt-image-2, size 1024x1280 (4:5), quality HIGH, n=1  → arte "limpa"
+3. generateContent (legenda): tom da marca via brandTextProfile, pt-BR
+4. ⭐ composeImageWithLogo: carimba a LOGO REAL por cima via canvas
+   (arte 1:1 + logo nítida no canto sup. esq., ~11% da largura, margem ~4%).
+   A IA NUNCA desenha a logo — ela é sobreposta nítida.
+5. Persistir com logoBaked:true, canvas.source:"finalImage"
+```
+O que faz a qualidade: **prompt certo + logo real carimbada** (passo 4). Pular o passo 4 (como o Autopilot atual faz, chamando `openai-image` direto) é o que deixa a arte pior.
 
-🔍 A refinar depois: formato/proporção da imagem (1024x1280 hoje), quantas variações gerar por post (1 vs escolher entre N).
+**⚠️ Consequência técnica principal — composição da logo migra p/ o backend:**
+- No Studio, o passo 4 (`composeImageWithLogo`) roda **no navegador** (canvas 2D: `document.createElement("canvas")`, `Image`, `drawImage`).
+- No Autopilot a geração é **em lote no backend** (worker Deno) → **não há navegador/canvas**.
+- **Solução:** replicar a composição no servidor com uma lib de imagem do Deno (ex.: ImageScript / deno-canvas / skia), espelhando a geometria exata do `composeImageWithLogo` (posição/tamanho da logo, arte 1:1 sem reescala). **É o principal pedaço novo de engenharia** pra igualar a qualidade do Studio.
+
+**Insumos:** paleta e `logo_url` vêm de `brand_profiles` (já temos `brand_id` no plano).
+
+**Consequências do A2 (texto na imagem):**
+- Reduzir erro de grafia: texto **exato** + **curto** no prompt; **futuro:** verificação OCR.
+- Eleva a importância da revisão → seção Aprovação.
+
+🔍 A refinar depois:
+- **Expandir o tema em briefing de arte:** no Studio a pessoa escreve uma descrição rica ("post sobre X, tom sério…"); no Autopilot a entrada é um **tema curto** ("Hérnia de Disco…"). Talvez um passo de IA que transforme `tema → descrição de arte + headline` antes do `buildArtPrompt`, pra a arte não sair rasa. (Provável necessidade.)
+- Reuso possível do `editOpenAiImage` (edição conversacional do Studio) pra o "regenerar arte" da tela de revisão aceitar instruções ("deixe o fundo mais escuro").
+- Formato/proporção (1024x1280) e nº de variações por post.
 
 ### 5. Legenda
 
@@ -172,6 +191,114 @@ Após a APROVAÇÃO do lote:
 **Timezone:** padrão **IANA** (ex.: `America/Sao_Paulo`), **auto-detectado do navegador** no setup e confirmado pela pessoa. Cálculo correto (sem o mapa fixo de offsets do v1). O plano dá o **dia**; o melhor horário dá a **hora**; o fuso converte pra o instante UTC enviado ao PFM.
 
 ## Regras de produto: COMPLETAS ✅
-Todas as decisões de produto estão fechadas. Próxima etapa: **arquitetura técnica** (schema, máquina de estados, fila de jobs) — em detalhamento.
+Todas as decisões de produto estão fechadas.
 
-_(Itens serão movidos para seções detalhadas conforme decididos.)_
+---
+
+# Arquitetura técnica (proposta — a validar)
+
+## Tabelas novas (escopo por empresa, RLS via `company_members`)
+
+### `autopilot_plans`
+Um plano = um período colado. Funde "config" + "calendar" do v1 (cada plano é um ciclo finito).
+```
+id uuid pk
+company_id uuid            -- escopo/RLS
+brand_id uuid             -- marca (direção de arte + tom da legenda)
+created_by uuid           -- quem criou
+name text                 -- ex.: "Julho 2026"
+platforms text[]
+social_account_ids text[]
+timezone text             -- IANA (ex.: America/Sao_Paulo)
+requires_approval bool default true
+status text               -- draft|generating|review|approved|active|completed|failed
+period_start date
+period_end date
+raw_plan_text text        -- texto original colado (referência)
+created_at, updated_at timestamptz
+```
+
+### `autopilot_posts`
+Um post por dia do plano.
+```
+id uuid pk
+plan_id uuid
+company_id uuid
+post_date date            -- do plano
+theme text                -- obrigatório
+category text             -- opcional
+caption text              -- legenda (IA)
+hashtags text[]
+image_url text            -- arte gerada (A2)
+image_prompt text         -- prompt usado (pra regenerar)
+scheduled_at timestamptz  -- post_date + melhor hora, em UTC
+time_locked bool          -- override manual de horário
+status text               -- draft|generating|ready|approved|scheduled|published|failed|removed
+pfm_post_id text
+published_url text
+engagement jsonb
+error text
+created_at, updated_at timestamptz
+```
+
+### `autopilot_jobs` (o motor — fila)
+```
+id uuid pk
+company_id uuid
+plan_id uuid
+post_id uuid null
+kind text                 -- gen_image|gen_caption|schedule_post|confirm_post
+status text               -- queued|running|done|failed
+attempts int default 0
+max_attempts int default 3
+next_attempt_at timestamptz
+last_error text
+payload jsonb
+locked_at timestamptz
+created_at, updated_at timestamptz
+```
+
+## Máquina de estados
+
+**Post (fonte da verdade):**
+```
+draft → generating → ready → approved → scheduled → published
+                       ↘ (falha) → failed
+                       ↘ (removido na revisão) → removed
+```
+**Plano (derivado dos posts):** draft → generating → review → approved → active → completed (+ failed).
+
+## Motor (fila de jobs)
+- **Worker** `autopilot-worker`: claim atômico (`FOR UPDATE SKIP LOCKED`), processa 1 job por vez.
+  - Sucesso → job=done + avança estado do post.
+  - Falha → attempts++, se < max: requeue com backoff (`next_attempt_at = now + backoff`); senão job=failed + post=failed + erro visível na UI.
+- **Tick** `autopilot-tick` (substitui `autopilot-cron`): enfileira `confirm_post` de posts agendados cuja hora passou + invoca o worker. Sem regra de negócio no cron.
+- **Tipos de job:** `gen_image`, `gen_caption`, `schedule_post`, `confirm_post`. (Parse do plano é **síncrono** na UI.)
+
+## Orquestração
+```
+1. Config + grade confirmada → cria plan + posts(draft)
+   → enfileira gen_image + gen_caption por post → plan=generating
+2. Worker gera → posts=ready → todos prontos → plan=review → avisa (app + e-mail)
+   (requires_approval=false → auto-aprova)
+3. Humano aprova (lote) → posts=approved → enfileira schedule_post → plan=approved
+4. Worker agenda no PFM (data + hora) → posts=scheduled → plan=active
+5. Tick enfileira confirm_post após a hora → worker confirma → posts=published
+6. Tudo publicado / passou period_end → plan=completed
+   7 dias antes de period_end → avisa "cole o próximo"
+```
+
+## Reuso e funções novas
+- **Reusa:** `openai-image` (gpt-image-2), `generate-content` (legenda), `postforme-proxy` (agendar/confirmar), `social-analytics` (melhor horário), padrão de e-mail do `company-invite` (avisos).
+- **Novas:** `autopilot-parse` (cola→grade), `autopilot-worker` (motor), `autopilot-tick` (substitui `autopilot-cron`).
+
+### Job `gen_image` — replica o Studio "A IA cria tudo" no backend
+Passos dentro do worker (Deno), espelhando `AiArtStudio.tsx`:
+1. (se necessário) `tema → briefing de arte + headline` via IA.
+2. `buildArtPrompt(brief, brand)` — **portar `buildArtPrompt` p/ `_shared`** (hoje vive no componente React).
+3. Chamar `openai-image` (1024x1280, quality high) → arte limpa.
+4. **Compor logo no servidor** (lib de imagem Deno) — **portar a geometria de `composeImageWithLogo`**. Este é o item de engenharia central pra igualar a qualidade do Studio.
+5. Upload ao storage `media` → `posts.image_url`; guardar `image_prompt` p/ regeneração.
+- **Refatoração de suporte:** extrair `buildArtPrompt` e a geometria de composição da logo para um módulo compartilhável (hoje acoplados ao React), consumível tanto pelo Studio quanto pelo worker — fonte única, sem divergência.
+
+🔍 A refinar: valores de backoff, cadência do tick, se `compute_best_times` é job próprio ou inline no `schedule_post`, política de e-mail (evitar spam), limpeza de jobs antigos.
