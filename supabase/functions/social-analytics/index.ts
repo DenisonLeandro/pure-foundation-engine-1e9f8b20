@@ -1157,6 +1157,41 @@ function extractYouTubeVideosFromHtml(html: string): ProfileAnalytics["recentPos
   return videos;
 }
 
+async function extractYouTubeVideosFromRss(channelId: string): Promise<ProfileAnalytics["recentPosts"]> {
+  if (!channelId) return [];
+  const rss = await fetchPublicHtml(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`);
+  const entries = [...rss.matchAll(/<entry>([\s\S]*?)<\/entry>/gi)].slice(0, 6);
+  const videos = await Promise.all(entries.map(async (entry) => {
+    const xml = entry[1];
+    const id = decodeHtmlText(xml.match(/<yt:videoId>([^<]+)<\/yt:videoId>/i)?.[1] || "");
+    const title = decodeHtmlText(xml.match(/<title>([^<]+)<\/title>/i)?.[1] || "");
+    const published = decodeHtmlText(xml.match(/<published>([^<]+)<\/published>/i)?.[1] || "");
+    const media = decodeHtmlText(xml.match(/<media:thumbnail[^>]+url="([^"]+)"/i)?.[1] || "");
+    let views = 0;
+    if (id) {
+      try {
+        const watch = await fetchPublicHtml(`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`);
+        views = safeNum(textFromMatch(watch, [
+          /"viewCount":"?(\d+)"?/i,
+          /([\d.,]+\s*(?:views|visualizações))/i,
+        ]));
+      } catch {
+        views = 0;
+      }
+    }
+    return {
+      text: title,
+      likes: 0,
+      comments: 0,
+      views,
+      date: published,
+      url: id ? `https://www.youtube.com/watch?v=${id}` : "",
+      mediaUrl: media,
+    };
+  }));
+  return videos.filter(looksLikeRealFallbackPost);
+}
+
 function extractTikTokVideosFromHtml(html: string, handle: string): ProfileAnalytics["recentPosts"] {
   const sigi = html.match(/<script[^>]+id="SIGI_STATE"[^>]*>([\s\S]*?)<\/script>/i)?.[1];
   if (!sigi) return [];
@@ -1193,11 +1228,19 @@ async function fallbackYouTubeProfile(input: string): Promise<ProfileAnalytics |
   const url = normalizeYouTubeUrl(input);
   const html = await fetchPublicHtml(url);
   let videos: ProfileAnalytics["recentPosts"] = [];
+  const channelId = textFromMatch(html, [
+    /"channelId":"([^"]+)"/i,
+    /<meta itemprop="channelId" content="([^"]+)"/i,
+    /youtube\.com\/channel\/([A-Za-z0-9_-]+)/i,
+  ]);
+  if (channelId) {
+    try { videos = await extractYouTubeVideosFromRss(channelId); } catch { videos = []; }
+  }
   try {
     const videosUrl = `${url.replace(/\/$/, "")}/videos`;
-    videos = extractYouTubeVideosFromHtml(await fetchPublicHtml(videosUrl));
+    if (!videos.length) videos = extractYouTubeVideosFromHtml(await fetchPublicHtml(videosUrl));
   } catch {
-    videos = extractYouTubeVideosFromHtml(html);
+    if (!videos.length) videos = extractYouTubeVideosFromHtml(html);
   }
   const title = textFromMatch(html, [
     /<meta property="og:title" content="([^"]+)"/i,
