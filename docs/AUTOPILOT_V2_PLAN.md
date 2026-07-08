@@ -157,8 +157,21 @@ Cola plano → confirma a grade → IA gera TODOS os posts do ciclo (arte + lege
 - **7 dias antes** do fim, o Autopilot **avisa (app + e-mail)**: "seu plano está acabando, cole o próximo pra não parar de postar."
 - Sem geração automática de próximo plano na v2 (a pessoa cola o próximo). "IA sugere o próximo" fica como possível evolução futura.
 
-## Pontos a detalhar (fila) — 🔍 a definir
-3. **Timezone & agendamento** — quando gera vs quando publica.
-4. **Motor/estado** — tabelas, máquina de estados, fila de jobs (detalhar após as regras de produto).
+### 9. Timezone & agendamento
+
+**Modelo de publicação — delegado ao Post for Me:**
+```
+Após a APROVAÇÃO do lote:
+  → o Autopilot agenda TODOS os posts no Post for Me de uma vez,
+    cada um com data (do plano) + hora (melhor horário calculado)
+  → o PFM publica cada post no momento certo, sozinho
+  → o Autopilot confere depois que publicou de verdade (confirm)
+```
+- **Vantagem:** não depende de o cron disparar na hora exata. O worker só precisa (a) gerar após config e (b) agendar tudo após aprovação. Muito mais robusto que "acordar de manhã".
+
+**Timezone:** padrão **IANA** (ex.: `America/Sao_Paulo`), **auto-detectado do navegador** no setup e confirmado pela pessoa. Cálculo correto (sem o mapa fixo de offsets do v1). O plano dá o **dia**; o melhor horário dá a **hora**; o fuso converte pra o instante UTC enviado ao PFM.
+
+## Regras de produto: COMPLETAS ✅
+Todas as decisões de produto estão fechadas. Próxima etapa: **arquitetura técnica** (schema, máquina de estados, fila de jobs) — em detalhamento.
 
 _(Itens serão movidos para seções detalhadas conforme decididos.)_
