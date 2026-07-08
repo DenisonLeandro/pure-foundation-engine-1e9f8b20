@@ -698,7 +698,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
           comments: nestedNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]),
           views: nestedNum(v, ["views", "viewCount", "plays", "playsCount"]),
           date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt", "postCreatedAt", "publishedAt"]) || firstText(v.publishedAt, ["iso", "date", "text"]),
-          url: firstText(v, ["postUrl", "url", "permalinkUrl", "link"]),
+          url: objectUrl(v),
           mediaUrl: firstText(v, ["imageUrl", "fullPicture", "thumbnailUrl", "thumbnail", "videoUrl"]) || firstText(v.media?.[0], ["url"]) || firstText(v.media, ["url", "thumbnailUrl"]),
         })),
         fetchedAt: new Date().toISOString(),
