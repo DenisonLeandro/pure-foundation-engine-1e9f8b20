@@ -636,12 +636,15 @@ const PLATFORMS: Record<string, ActorConfig> = {
   },
 
   facebook: {
-    actorId: "scrapeengine~facebook-page-posts-scraper",
+    actorId: "calm_builder~facebook-posts-scraper",
     buildInput: (u) => {
       const url = normalizeFacebookUrl(u);
       return {
         startUrls: [url],
-        maxPostsPerProfile: 12,
+        maxPosts: 12,
+        includeComments: true,
+        maxComments: 20,
+        replyDepth: 1,
         proxyConfiguration: { useApifyProxy: true },
       };
     },
@@ -690,13 +693,13 @@ const PLATFORMS: Record<string, ActorConfig> = {
         avgComments: avgC,
         avgViews: totalViews > 0 ? Math.round(totalViews / cnt) : null,
         recentPosts: posts.slice(0, 6).map((v: A) => ({
-          text: firstText(v, ["text", "message", "postText", "description", "caption", "content"]),
+          text: firstText(v, ["text", "message", "postText", "description", "caption", "content"]) || firstText(v.content, ["text", "message", "caption", "description"]),
           likes: nestedNum(v, ["likes", "likesCount", "likeCount", "reactions", "reactionCount", "reactionsCount", "reactions_count"]),
           comments: nestedNum(v, ["comments", "commentsCount", "commentCount", "comments_count"]),
           views: nestedNum(v, ["views", "viewCount", "plays", "playsCount"]),
-          date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt", "postCreatedAt", "publishedAt"]),
+          date: firstText(v, ["time", "timestamp", "postedAt", "date", "createdAt", "postCreatedAt", "publishedAt"]) || firstText(v.publishedAt, ["iso", "date", "text"]),
           url: firstText(v, ["postUrl", "url", "permalinkUrl", "link"]),
-          mediaUrl: firstText(v, ["imageUrl", "fullPicture", "thumbnailUrl", "thumbnail", "videoUrl"]) || firstText(v.media?.[0], ["url"]),
+          mediaUrl: firstText(v, ["imageUrl", "fullPicture", "thumbnailUrl", "thumbnail", "videoUrl"]) || firstText(v.media?.[0], ["url"]) || firstText(v.media, ["url", "thumbnailUrl"]),
         })),
         fetchedAt: new Date().toISOString(),
       };
