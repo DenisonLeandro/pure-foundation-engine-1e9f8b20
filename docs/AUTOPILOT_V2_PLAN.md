@@ -94,7 +94,21 @@ Conforme o Autopilot publica, o histórico cresce e a camada 1 fica mais precisa
 
 **Controle — automático com override opcional:** o Autopilot escolhe o horário sozinho, mas a pessoa **pode fixar** horários se quiser (sem obrigar).
 
-🔍 A refinar depois: valor de N (mínimo de posts), tabela de horários-padrão por plataforma, janela de dias considerada no histórico.
+**Parâmetros (definidos):**
+- **N = 5** — mínimo de posts recentes com engajamento pra confiar no histórico; abaixo disso, usa o fallback.
+- **Tabela de horários-padrão (fallback, Brasil, dias úteis):**
+
+| Plataforma | Horários-padrão |
+|---|---|
+| Instagram | 12h, 19h |
+| Facebook | 13h, 20h |
+| LinkedIn | 8h, 12h |
+| TikTok | 12h, 21h |
+| Twitter/X | 9h, 18h |
+| YouTube | 17h, 20h |
+
+- Fim de semana pode deslocar pra mais tarde de manhã; ajustável conforme o histórico real que o próprio Autopilot coletar.
+🔍 A refinar depois: janela de dias considerada no histórico; refinamento fim de semana × dia útil.
 
 ### 4. Arte (imagem de cada post) — REUSO FIEL do Studio "A IA cria tudo"
 
@@ -314,4 +328,15 @@ Passos dentro do worker (Deno), espelhando `AiArtStudio.tsx`:
 - **Confirmação com a quantidade** antes de disparar a geração em lote: "isso vai gerar N posts" → pessoa confirma. **Sem trava rígida**; só transparência.
 - 🔍 Futuro: estimativa de custo (exige tabela de preços).
 
-🔍 A refinar: valores de backoff, cadência do tick, se `compute_best_times` é job próprio ou inline no `schedule_post`, política de e-mail (evitar spam), limpeza de jobs antigos.
+## Notificações por e-mail
+- **Só 2 marcos, agrupados por plano** (nunca por post):
+  1. **"Lote pronto pra revisar"** — quando todos os posts do plano ficam `ready`.
+  2. **"Plano acabando (7 dias)"** — antes de `period_end`.
+- Reusa o padrão de envio do `company-invite`. Sem e-mails no meio do ciclo.
+
+## Motor — parâmetros definidos (decisão técnica)
+- **Backoff:** `next_attempt_at = now + min(60s * 2^attempts, 15min)`; **max_attempts = 4**. Esgotou → `failed` visível na UI (post mostra o erro e botão de "tentar de novo").
+- **Cadência do tick:** a cada **1 min** (pg_cron). Além disso, o worker é **invocado imediatamente** nos eventos de enfileiramento (plano criado, plano aprovado) — o tick é rede de segurança + `confirm_post`.
+- **`compute_best_times`:** inline no `schedule_post` (calcula por conta/plataforma no momento de agendar). Não vira job próprio.
+- **Limpeza:** jobs `done` com mais de **7 dias** são podados; `failed` são mantidos pra auditoria.
+- **Idempotência:** `schedule_post` só agenda se `pfm_post_id` for nulo (evita duplicar no PFM em retries).
