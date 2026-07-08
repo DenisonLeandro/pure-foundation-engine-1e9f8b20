@@ -125,7 +125,89 @@ interface ProfileAnalytics {
 // deno-lint-ignore no-explicit-any
 type A = any;
 
-function safeNum(v: A): number { return typeof v === "number" ? v : 0; }
+function safeNum(v: A): number {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v !== "string") return 0;
+
+  const raw = v.trim().toLowerCase();
+  if (!raw) return 0;
+
+  const multiplier =
+    /\b(k|mil)\b/.test(raw) ? 1_000 :
+    /\b(m|mi|milhão|milhões|million|millions)\b/.test(raw) ? 1_000_000 :
+    /\b(b|bi|bilhão|bilhões|billion|billions)\b/.test(raw) ? 1_000_000_000 :
+    1;
+
+  const numeric = raw
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\.(?=\d{3}(\D|$))/g, "")
+    .replace(",", ".");
+  const parsed = Number.parseFloat(numeric);
+  return Number.isFinite(parsed) ? Math.round(parsed * multiplier) : 0;
+}
+
+function arr(v: A): A[] {
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === "object") {
+    for (const key of ["items", "data", "results", "result", "records"]) {
+      if (Array.isArray(v[key])) return v[key];
+    }
+  }
+  return v ? [v] : [];
+}
+
+function firstObj(raw: A): A {
+  const items = arr(raw);
+  return items.find((x) => x && typeof x === "object") || {};
+}
+
+function stripQueryHash(value: string): string {
+  try {
+    const u = new URL(value.startsWith("http") ? value : `https://${value}`);
+    u.search = "";
+    u.hash = "";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return value.split("?")[0].split("#")[0].replace(/\/+$/, "");
+  }
+}
+
+function normalizeYouTubeUrl(input: string): string {
+  const raw = stripQueryHash((input || "").trim());
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const handle = raw.replace(/^@/, "").replace(/^\/+/, "");
+  return `https://www.youtube.com/@${handle}`;
+}
+
+function extractTikTokHandle(input: string): string {
+  const raw = stripQueryHash((input || "").trim());
+  if (!raw) return "";
+  if (/tiktok\.com/i.test(raw)) {
+    try {
+      const u = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+      const seg = u.pathname.split("/").filter(Boolean).find((p) => p.startsWith("@"));
+      return (seg || "").replace(/^@/, "");
+    } catch {
+      const seg = raw.split("/").filter(Boolean).find((p) => p.startsWith("@"));
+      return (seg || "").replace(/^@/, "");
+    }
+  }
+  return raw.replace(/^@/, "");
+}
+
+function normalizeFacebookUrl(input: string): string {
+  const raw = stripQueryHash((input || "").trim());
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/facebook\.com/i.test(raw)) return `https://${raw.replace(/^\/+/, "")}`;
+  return `https://www.facebook.com/${raw.replace(/^@/, "").replace(/^\/+/, "")}`;
+}
+
+function isMeaningfulProfile(profile: ProfileAnalytics): boolean {
+  return Boolean(
+    (profile.displayName || profile.username) &&
+    ((profile.followers ?? 0) > 0 || (profile.posts ?? 0) > 0 || (profile.recentPosts?.length ?? 0) > 0)
+  );
+}
 
 // ─── Profile Actor Configs ──────────────────────────────────────
 
