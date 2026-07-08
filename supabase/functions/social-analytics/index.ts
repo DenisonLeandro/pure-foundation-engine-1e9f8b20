@@ -259,7 +259,8 @@ function cleanUrl(value: string): string {
 }
 
 function objectUrl(obj: A): string {
-  return firstText(obj, ["postUrl", "url", "permalinkUrl", "link", "videoUrl", "watchUrl", "webVideoUrl", "shareUrl", "tweetUrl"]);
+  return firstText(obj, ["postUrl", "url", "permalinkUrl", "link", "videoUrl", "watchUrl", "webVideoUrl", "shareUrl", "tweetUrl"]) ||
+    firstText(obj?.post, ["url", "postUrl", "permalinkUrl", "link"]);
 }
 
 function hasAnyText(obj: A, keys: string[]): boolean {
@@ -276,13 +277,15 @@ function looksLikeFacebookPost(obj: A, pageUrl = ""): boolean {
   const url = objectUrl(obj);
   const sameAsPage = pageUrl && url && cleanUrl(url) === cleanUrl(pageUrl);
   const postUrl = /facebook\.com\/.+\/(posts|videos|reel|reels|photos)\b|story_fbid=|fbid=|permalink\.php/i.test(url);
-  const hasPostId = Boolean(firstText(obj, ["post_id", "postId", "postID", "id"])) && (obj.recordType === "post" || hasEngagement(obj));
+  const hasNestedContent = hasAnyText(obj?.content, ["text", "message", "caption", "description"]);
+  const hasPostId = Boolean(firstText(obj, ["post_id", "postId", "postID", "id"]) || firstText(obj?.post, ["id"])) &&
+    (obj.recordType === "post" || obj.recordType === "facebook_post" || hasEngagement(obj));
   const profileOnly = Boolean(
     obj.pageName || obj.pageUrl || obj.profileUrl || obj.personalProfile || obj.about || obj.pageInfo ||
     obj.followers || obj.followersCount || obj.followerCount || obj.fans || obj.fanCount
   ) && !postUrl && !hasAnyDate(obj) && !hasAnyText(obj, ["text", "message", "postText", "description", "caption"]);
   if (sameAsPage || profileOnly) return false;
-  return Boolean(postUrl || hasPostId || hasAnyText(obj, ["text", "message", "postText", "description", "caption", "content"]) || hasAnyDate(obj));
+  return Boolean(postUrl || hasPostId || hasAnyText(obj, ["text", "message", "postText", "description", "caption", "content"]) || hasNestedContent || hasAnyDate(obj));
 }
 
 function looksLikeYouTubeVideo(obj: A): boolean {
