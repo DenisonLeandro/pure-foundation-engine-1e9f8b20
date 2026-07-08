@@ -150,9 +150,14 @@ Cola plano → confirma a grade → IA gera TODOS os posts do ciclo (arte + lege
 
 **Aviso de lote pronto (geração é assíncrona):** **app + e-mail.** Badge/estado no app quando a pessoa volta **e** e-mail com link direto pra tela de revisão ("seus posts estão prontos"). Infra de e-mail já existe (função `company-invite`).
 
-## Pontos a detalhar (fila) — 🔍 a definir
+### 8. Fim do ciclo
 
-1. **Fim do ciclo/recorrência** — o que acontece quando o plano acaba (pede o próximo? reusa? avisa?).
+- Cada plano é um **período fechado** (as datas coladas). Roda do primeiro ao último dia e termina.
+- **Recorrência semanal/quinzenal/mensal do v1 é ELIMINADA** (simplificação grande). Não há "ciclos automáticos"; há planos finitos que a pessoa alimenta.
+- **7 dias antes** do fim, o Autopilot **avisa (app + e-mail)**: "seu plano está acabando, cole o próximo pra não parar de postar."
+- Sem geração automática de próximo plano na v2 (a pessoa cola o próximo). "IA sugere o próximo" fica como possível evolução futura.
+
+## Pontos a detalhar (fila) — 🔍 a definir
 3. **Timezone & agendamento** — quando gera vs quando publica.
 4. **Motor/estado** — tabelas, máquina de estados, fila de jobs (detalhar após as regras de produto).
 
