@@ -96,10 +96,24 @@ Conforme o Autopilot publica, o histórico cresce e a camada 1 fica mais precisa
 
 🔍 A refinar depois: valor de N (mínimo de posts), tabela de horários-padrão por plataforma, janela de dias considerada no histórico.
 
+### 4. Arte (imagem de cada post)
+
+**Decisões:**
+- **100% gerada por IA** (`openai-image` / gpt-image-2). Sem template de canvas na v2.
+- **Texto DENTRO da imagem** (A2) — a IA carimba a chamada do tema na arte.
+- **Consistência forte** — todo post com a mesma "cara" de marca (identidade reconhecível no feed).
+- **Direção de arte automática da marca** — puxada de `brand_profiles` (paleta/estilo/tom), montada pelo sistema. Sem a pessoa precisar configurar (evoluível depois).
+
+**Consequências técnicas (registradas):**
+- Pra minimizar erro de grafia no A2: (a) enviar o texto **exato** ao modelo com ênfase na ortografia; (b) manter o texto da arte **curto** (só headline/chamada, nunca parágrafos); (c) **futuro:** verificação por OCR comparando imagem gerada × texto pretendido.
+- **A2 eleva a importância da revisão antes de publicar** → ver seção Aprovação.
+- Direção de arte = um "brand art directive" fixo por marca, derivado de `brand_profiles`, injetado em toda geração pra garantir consistência.
+
+🔍 A refinar depois: formato/proporção da imagem (1024x1280 hoje), quantas variações gerar por post (1 vs escolher entre N).
+
 ## Pontos a detalhar (fila) — 🔍 a definir
 
-1. **Arte** — estilo/consistência de marca, single vs carrossel, quanto a IA decide.
-2. **Legenda** — tom, CTA, hashtags.
+1. **Legenda** — tom, CTA, hashtags.
 3. **Aprovação** — 100% automático vs revisão/preview (especialmente no 1º mês).
 4. **Fim do mês/recorrência** — o que acontece quando o plano acaba (pede o próximo? reusa? avisa?).
 5. **Edição/preview** — calendário editável antes de publicar, mesmo no modo automático.
