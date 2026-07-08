@@ -303,4 +303,15 @@ Passos dentro do worker (Deno), espelhando `AiArtStudio.tsx`:
 5. Upload ao storage `media` → `posts.image_url`; guardar `image_prompt` p/ regeneração.
 - **Refatoração de suporte:** extrair `buildArtPrompt` e a geometria de composição da logo para um módulo compartilhável (hoje acoplados ao React), consumível tanto pelo Studio quanto pelo worker — fonte única, sem divergência.
 
+## Permissões (por empresa)
+- **Criar/editar/gerar planos:** owner, admin e editor.
+- **Aprovar (gatilho de publicação):** **os três papéis** (owner, admin, editor). Mais ágil; sem separação hierárquica de aprovação na v2.
+- **Pausar/cancelar plano:** owner, admin, editor (a refinar se editor pode cancelar plano de outro).
+- RLS das 3 tabelas: escopo por `company_members` (qualquer membro ativo da empresa opera dentro do escopo dela).
+
+## Custos
+- Gerar um ciclo = ~N imagens (gpt-image-2 *high*) + N legendas + N expansões de briefing, na chave da própria empresa (custo real dela).
+- **Confirmação com a quantidade** antes de disparar a geração em lote: "isso vai gerar N posts" → pessoa confirma. **Sem trava rígida**; só transparência.
+- 🔍 Futuro: estimativa de custo (exige tabela de preços).
+
 🔍 A refinar: valores de backoff, cadência do tick, se `compute_best_times` é job próprio ou inline no `schedule_post`, política de e-mail (evitar spam), limpeza de jobs antigos.
