@@ -125,7 +125,89 @@ interface ProfileAnalytics {
 // deno-lint-ignore no-explicit-any
 type A = any;
 
-function safeNum(v: A): number { return typeof v === "number" ? v : 0; }
+function safeNum(v: A): number {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v !== "string") return 0;
+
+  const raw = v.trim().toLowerCase();
+  if (!raw) return 0;
+
+  const multiplier =
+    /\b(k|mil)\b/.test(raw) ? 1_000 :
+    /\b(m|mi|milhão|milhões|million|millions)\b/.test(raw) ? 1_000_000 :
+    /\b(b|bi|bilhão|bilhões|billion|billions)\b/.test(raw) ? 1_000_000_000 :
+    1;
+
+  const numeric = raw
+    .replace(/[^\d,.-]/g, "")
+    .replace(/\.(?=\d{3}(\D|$))/g, "")
+    .replace(",", ".");
+  const parsed = Number.parseFloat(numeric);
+  return Number.isFinite(parsed) ? Math.round(parsed * multiplier) : 0;
+}
+
+function arr(v: A): A[] {
+  if (Array.isArray(v)) return v;
+  if (v && typeof v === "object") {
+    for (const key of ["items", "data", "results", "result", "records"]) {
+      if (Array.isArray(v[key])) return v[key];
+    }
+  }
+  return v ? [v] : [];
+}
+
+function firstObj(raw: A): A {
+  const items = arr(raw);
+  return items.find((x) => x && typeof x === "object") || {};
+}
+
+function stripQueryHash(value: string): string {
+  try {
+    const u = new URL(value.startsWith("http") ? value : `https://${value}`);
+    u.search = "";
+    u.hash = "";
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return value.split("?")[0].split("#")[0].replace(/\/+$/, "");
+  }
+}
+
+function normalizeYouTubeUrl(input: string): string {
+  const raw = stripQueryHash((input || "").trim());
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const handle = raw.replace(/^@/, "").replace(/^\/+/, "");
+  return `https://www.youtube.com/@${handle}`;
+}
+
+function extractTikTokHandle(input: string): string {
+  const raw = stripQueryHash((input || "").trim());
+  if (!raw) return "";
+  if (/tiktok\.com/i.test(raw)) {
+    try {
+      const u = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+      const seg = u.pathname.split("/").filter(Boolean).find((p) => p.startsWith("@"));
+      return (seg || "").replace(/^@/, "");
+    } catch {
+      const seg = raw.split("/").filter(Boolean).find((p) => p.startsWith("@"));
+      return (seg || "").replace(/^@/, "");
+    }
+  }
+  return raw.replace(/^@/, "");
+}
+
+function normalizeFacebookUrl(input: string): string {
+  const raw = stripQueryHash((input || "").trim());
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/facebook\.com/i.test(raw)) return `https://${raw.replace(/^\/+/, "")}`;
+  return `https://www.facebook.com/${raw.replace(/^@/, "").replace(/^\/+/, "")}`;
+}
+
+function isMeaningfulProfile(profile: ProfileAnalytics): boolean {
+  return Boolean(
+    (profile.displayName || profile.username) &&
+    ((profile.followers ?? 0) > 0 || (profile.posts ?? 0) > 0 || (profile.recentPosts?.length ?? 0) > 0)
+  );
+}
 
 // ─── Profile Actor Configs ──────────────────────────────────────
 
@@ -245,31 +327,22 @@ const PLATFORMS: Record<string, ActorConfig> = {
     // UPGRADED: apidojo~tiktok-profile-scraper (4.4★, 2.4K users)
     // 98% success rate, 425 posts/sec, 40+ data fields per profile
     actorId: "apidojo~tiktok-profile-scraper",
-    buildInput: (u) => {
-      // Extrair handle de URL ou usar direto
-      let handle = u.replace(/^@/, "");
-      if (handle.includes("tiktok.com")) {
-        const parts = handle.replace(/\/+$/, "").split("/");
-        handle = (parts[parts.length - 1] || "").replace(/^@/, "");
-      }
-      console.log(`[social-analytics] TikTok handle: "${handle}" (from input: "${u}")`);
-      return { usernames: [handle], maxItems: 12 };
-    },
+    buildInput: (u) => ({ usernames: [extractTikTokHandle(u)], maxItems: 12 }),
     normalize: (raw) => {
-      const arr: A[] = Array.isArray(raw) ? raw : [raw];
+      const arrItems: A[] = arr(raw);
       // apidojo returns flat items: first may be profile, rest are videos
       // Or profile object with nested videos
-      const first = arr[0] || {};
-      const stats = first.stats || first.authorStats || {};
+      const first = arrItems.find((x: A) => x?.user || x?.author || x?.stats || x?.authorStats || x?.uniqueId) || arrItems[0] || {};
+      const stats = first.stats || first.authorStats || first.userStats || first.author?.stats || {};
 
       // Check if items are videos or profile+videos mixed
-      const isProfile = !!(first.uniqueId || first.user || stats.followerCount);
+      const isProfile = !!(first.uniqueId || first.user || first.author || stats.followerCount || stats.fans);
       const p = isProfile ? first : {};
-      const userObj = p.user || p;
+      const userObj = p.user || p.author || p.authorMeta || p;
       const userStats = p.stats || userObj.stats || stats;
 
       const videos: A[] = p.latestVideos || p.videos || p.items ||
-        arr.filter((x: A) => x.desc || x.text || x.videoUrl || x.webVideoUrl);
+        arrItems.filter((x: A) => x.desc || x.text || x.videoUrl || x.webVideoUrl || x.playCount || x.stats?.playCount);
       const cnt = videos.length || 1;
 
       const totalLikes = videos.reduce((s: number, v: A) => s + safeNum(v.diggCount || v.stats?.diggCount || v.likes || v.likesCount), 0);
@@ -281,12 +354,12 @@ const PLATFORMS: Record<string, ActorConfig> = {
 
       return {
         platform: "tiktok",
-        username: userObj.uniqueId || p.uniqueId || p.name || "",
-        displayName: userObj.nickname || p.nickname || p.nickName || "",
-        profileImageUrl: userObj.avatarLarger || p.avatarLarger || p.avatar || userObj.avatarMedium || "",
+        username: userObj.uniqueId || userObj.username || p.uniqueId || p.name || "",
+        displayName: userObj.nickname || userObj.name || p.nickname || p.nickName || "",
+        profileImageUrl: userObj.avatarLarger || p.avatarLarger || p.avatar || userObj.avatarMedium || userObj.avatarThumb || "",
         followers,
         following: safeNum(userStats.followingCount || p.following || p.followingCount || userObj.followingCount),
-        posts: safeNum(userStats.videoCount || p.videoCount || userObj.videoCount),
+        posts: safeNum(userStats.videoCount || p.videoCount || userObj.videoCount || videos.length),
         engagementRate: followers > 0 ? +(avgL / followers * 100).toFixed(2) : null,
         avgLikes: avgL,
         avgComments: Math.round(totalComments / cnt),
@@ -308,26 +381,26 @@ const PLATFORMS: Record<string, ActorConfig> = {
   youtube: {
     actorId: "streamers~youtube-channel-scraper",
     buildInput: (u) => ({
-      startUrls: [{ url: u.startsWith("http") ? u : `https://www.youtube.com/@${u}` }],
-      maxVideos: 3,
+      startUrls: [{ url: normalizeYouTubeUrl(u) }],
+      maxVideos: 12,
     }),
     normalize: (raw) => {
-      const arr: A[] = Array.isArray(raw) ? raw : [raw];
-      const p = arr[0] || {};
-      const videos: A[] = p.videos || p.latestVideos || [];
+      const arrItems: A[] = arr(raw);
+      const p = arrItems.find((x: A) => x?.channelName || x?.subscriberCount || x?.subscribers || x?.channelId || x?.url) || arrItems[0] || {};
+      const videos: A[] = p.videos || p.latestVideos || p.items || arrItems.filter((x: A) => x?.title && (x?.viewCount || x?.views || x?.videoUrl || x?.url));
       const cnt = videos.length || 1;
       const totalViews = videos.reduce((s: number, v: A) => s + safeNum(v.viewCount || v.views), 0);
       const totalLikes = videos.reduce((s: number, v: A) => s + safeNum(v.likes || v.likeCount), 0);
       const totalComments = videos.reduce((s: number, v: A) => s + safeNum(v.commentsCount || v.commentCount), 0);
-      const subs = safeNum(p.subscriberCount || p.subscribers || p.subscribersCount);
+      const subs = safeNum(p.subscriberCount || p.subscribers || p.subscribersCount || p.channel?.subscriberCount || p.stats?.subscribers);
       return {
         platform: "youtube",
-        username: p.channelName || p.title || "",
-        displayName: p.channelName || p.title || "",
-        profileImageUrl: p.avatar || p.thumbnailUrl || p.channelImage || "",
+        username: p.channelName || p.handle || p.title || p.channelId || "",
+        displayName: p.channelName || p.title || p.name || "",
+        profileImageUrl: p.avatar || p.thumbnailUrl || p.channelImage || p.channel?.thumbnail || "",
         followers: subs,
         following: 0,
-        posts: safeNum(p.videoCount || p.videosCount),
+        posts: safeNum(p.videoCount || p.videosCount || p.stats?.videoCount || videos.length),
         engagementRate: subs > 0 ? +(Math.round(totalLikes / cnt) / subs * 100).toFixed(2) : null,
         avgLikes: Math.round(totalLikes / cnt),
         avgComments: Math.round(totalComments / cnt),
@@ -349,16 +422,7 @@ const PLATFORMS: Record<string, ActorConfig> = {
   facebook: {
     actorId: "apify~facebook-pages-scraper",
     buildInput: (u) => {
-      // Aceita URL completa, URL sem protocolo, ou slug puro.
-      const raw = (u || "").trim();
-      let url: string;
-      if (/^https?:\/\//i.test(raw)) {
-        url = raw;
-      } else if (/facebook\.com/i.test(raw)) {
-        url = `https://${raw.replace(/^\/+/, "")}`;
-      } else {
-        url = `https://www.facebook.com/${raw.replace(/^@/, "").replace(/^\/+/, "")}/`;
-      }
+      const url = normalizeFacebookUrl(u);
       return {
         startUrls: [{ url }],
         scrapeAbout: true,
@@ -368,18 +432,18 @@ const PLATFORMS: Record<string, ActorConfig> = {
       };
     },
     normalize: (raw) => {
-      const arr: A[] = Array.isArray(raw) ? raw : [raw];
-      const p = arr[0] || {};
-      const profile = p.personalProfile || {};
+      const arrItems: A[] = arr(raw);
+      const p = arrItems.find((x: A) => x?.pageName || x?.followers || x?.followersCount || x?.likes || x?.title || x?.name) || arrItems[0] || {};
+      const profile = p.personalProfile || p.profile || p.about || {};
 
       // O actor retorna campos variados dependendo do tipo de página
       const followers = safeNum(
         p.likes || p.followers || p.followersCount ||
-        p.likeCount || p.followerCount ||
-        profile.friends || profile.followersCount || 0
+        p.likeCount || p.followerCount || p.followers_count ||
+        profile.friends || profile.followersCount || profile.followers || 0
       );
 
-      const posts: A[] = p.posts || p.latestPosts || [];
+      const posts: A[] = p.posts || p.latestPosts || p.timelinePosts || p.items || arrItems.filter((x: A) => x?.postUrl || x?.message || x?.text || x?.postText);
       const cnt = posts.length || 1;
       const totalLikes = posts.reduce((s: number, v: A) => s + safeNum(v.likes || v.likesCount || v.reactions || 0), 0);
       const totalComments = posts.reduce((s: number, v: A) => s + safeNum(v.comments || v.commentsCount || 0), 0);
@@ -389,8 +453,8 @@ const PLATFORMS: Record<string, ActorConfig> = {
       return {
         platform: "facebook",
         username: p.pageName || p.pageUrl || p.name || "",
-        displayName: p.title || p.name || profile.name || "",
-        profileImageUrl: profile.profilePicLarge || profile.profilePicMedium || p.profileImage || p.imageUrl || "",
+        displayName: p.title || p.name || p.pageName || profile.name || "",
+        profileImageUrl: profile.profilePicLarge || profile.profilePicMedium || p.profileImage || p.imageUrl || p.logo || "",
         followers,
         following: 0,
         posts: safeNum(p.postsCount || posts.length || 0),
@@ -803,6 +867,132 @@ async function reHostImage(url: string, name: string): Promise<string> {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=200&background=7c3aed&color=fff`;
 }
 
+// ─── Public-page fallbacks ───────────────────────────────────────
+
+async function fetchPublicHtml(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.7",
+    },
+  });
+  if (!res.ok) throw new Error(`Página pública HTTP ${res.status}`);
+  return res.text();
+}
+
+function decodeHtmlText(value: string): string {
+  return value
+    .replace(/\\u0026/g, "&")
+    .replace(/\\u003c/g, "<")
+    .replace(/\\u003e/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\\n/g, " ")
+    .trim();
+}
+
+function textFromMatch(html: string, patterns: RegExp[]): string {
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) return decodeHtmlText(match[1]);
+  }
+  return "";
+}
+
+async function fallbackYouTubeProfile(input: string): Promise<ProfileAnalytics | null> {
+  const url = normalizeYouTubeUrl(input);
+  const html = await fetchPublicHtml(url);
+  const title = textFromMatch(html, [
+    /<meta property="og:title" content="([^"]+)"/i,
+    /"title":\{"simpleText":"([^"]+)"/i,
+    /"channelMetadataRenderer":\{"title":"([^"]+)"/i,
+  ]).replace(/ - YouTube$/i, "");
+  const avatar = textFromMatch(html, [
+    /<meta property="og:image" content="([^"]+)"/i,
+    /"avatar"[^\[]*\[\{"url":"([^"]+)"/i,
+  ]);
+  const subscriberText = textFromMatch(html, [
+    /"subscriberCountText":\{"simpleText":"([^"]+)"/i,
+    /"subscriberCountText":\{"runs":\[\{"text":"([^"]+)"/i,
+    /([\d.,]+\s*(?:mil|mi|k|m)?\s*(?:inscritos|subscribers))/i,
+  ]);
+  const videoText = textFromMatch(html, [
+    /"videosCountText":\{"runs":\[\{"text":"([^"]+)"/i,
+    /"videoCountText":\{"runs":\[\{"text":"([^"]+)"/i,
+    /([\d.,]+\s*(?:vídeos|videos))/i,
+  ]);
+  const followers = safeNum(subscriberText);
+  const posts = safeNum(videoText);
+  if (!title && followers === 0 && posts === 0) return null;
+  return {
+    platform: "youtube",
+    username: title || input,
+    displayName: title || input,
+    profileImageUrl: avatar,
+    followers,
+    following: 0,
+    posts,
+    engagementRate: null,
+    avgLikes: null,
+    avgComments: null,
+    avgViews: null,
+    recentPosts: [],
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+async function fallbackTikTokProfile(input: string): Promise<ProfileAnalytics | null> {
+  const handle = extractTikTokHandle(input);
+  if (!handle) return null;
+  const url = `https://www.tiktok.com/@${handle}`;
+  const html = await fetchPublicHtml(url);
+  const displayName = textFromMatch(html, [
+    /<meta property="og:title" content="([^"]+)"/i,
+    /"nickname":"([^"]+)"/i,
+  ]).replace(/^@[^\s]+\s*-\s*/, "").replace(/ on TikTok$/i, "");
+  const avatar = textFromMatch(html, [
+    /<meta property="og:image" content="([^"]+)"/i,
+    /"avatarLarger":"([^"]+)"/i,
+    /"avatarMedium":"([^"]+)"/i,
+  ]);
+  const followerText = textFromMatch(html, [
+    /"followerCount":(\d+)/i,
+    /"followers":(\d+)/i,
+    /([\d.,]+\s*(?:mil|mi|k|m)?\s*(?:seguidores|followers))/i,
+  ]);
+  const followingText = textFromMatch(html, [/"followingCount":(\d+)/i]);
+  const videoText = textFromMatch(html, [/"videoCount":(\d+)/i]);
+  const followers = safeNum(followerText);
+  const posts = safeNum(videoText);
+  if (!displayName && followers === 0 && posts === 0) return null;
+  return {
+    platform: "tiktok",
+    username: handle,
+    displayName: displayName || handle,
+    profileImageUrl: avatar,
+    followers,
+    following: safeNum(followingText),
+    posts,
+    engagementRate: null,
+    avgLikes: null,
+    avgComments: null,
+    avgViews: null,
+    recentPosts: [],
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+async function fallbackProfile(platform: string, username: string): Promise<ProfileAnalytics | null> {
+  try {
+    if (platform === "youtube") return await fallbackYouTubeProfile(username);
+    if (platform === "tiktok") return await fallbackTikTokProfile(username);
+  } catch (err) {
+    console.warn(`[social-analytics] fallback failed for ${platform}/${username}:`, err);
+  }
+  return null;
+}
+
 // ─── Apify Runner ───────────────────────────────────────────────
 
 async function runActor(
@@ -932,12 +1122,38 @@ Deno.serve(async (req: Request) => {
           const data = await runActor(apifyToken, config.actorId, input);
           const normalized = config.normalize(data);
           if (!normalized.username) normalized.username = username;
+          if (!isMeaningfulProfile(normalized)) {
+            const fallback = await fallbackProfile(platform, username);
+            if (fallback && isMeaningfulProfile(fallback)) {
+              fallback.profileImageUrl = await reHostImage(
+                fallback.profileImageUrl,
+                fallback.displayName || fallback.username
+              );
+              results.push(fallback);
+              return;
+            }
+            errors.push({
+              platform,
+              username,
+              error: "Coleta sem dados públicos suficientes. Confira se a URL do perfil está correta e pública.",
+            });
+            return;
+          }
           normalized.profileImageUrl = await reHostImage(
             normalized.profileImageUrl,
             normalized.displayName || normalized.username
           );
           results.push(normalized);
         } catch (err) {
+          const fallback = await fallbackProfile(platform, username);
+          if (fallback && isMeaningfulProfile(fallback)) {
+            fallback.profileImageUrl = await reHostImage(
+              fallback.profileImageUrl,
+              fallback.displayName || fallback.username
+            );
+            results.push(fallback);
+            return;
+          }
           errors.push({
             platform,
             username,
