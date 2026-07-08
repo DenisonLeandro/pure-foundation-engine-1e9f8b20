@@ -317,6 +317,26 @@ Passos dentro do worker (Deno), espelhando `AiArtStudio.tsx`:
 5. Upload ao storage `media` → `posts.image_url`; guardar `image_prompt` p/ regeneração.
 - **Refatoração de suporte:** extrair `buildArtPrompt` e a geometria de composição da logo para um módulo compartilhável (hoje acoplados ao React), consumível tanto pelo Studio quanto pelo worker — fonte única, sem divergência.
 
+## UI / Telas
+Princípio: **simplicidade radical** (usável por quem nunca abriu o app).
+
+**1. Entrada (vazio):** hero "Configure seu Autopilot" + 1 botão.
+
+**2. Assistente de novo plano:**
+```
+① Colar o plano      — textarea grande
+② Confirmar a grade  — tabela EDITÁVEL (corrige/remove/adiciona linhas)
+③ Marca + contas     — escolhe marca e plataformas/contas
+④ Revisar + gerar    — "isso vai gerar N posts" → confirma (transparência de custo)
+⑤ Gerando…           — progresso X/N; pode sair e voltar (é assíncrono)
+```
+
+**3. Tela de revisão (lote):** **grade de cards** (com **toggle pra calendário**). Cada card = arte + legenda + data/hora + status + ações (aprovar / editar legenda / regenerar arte / regenerar legenda / remover / ajustar horário) + **"Aprovar tudo"**.
+
+**4. Dashboard do plano (rodando):** estado do plano + barra de progresso (gerados → aprovados → agendados → publicados) + **calendário do mês** + lista/histórico de planos + botão "novo plano".
+
+**Mockup visual (Artifact):** https://claude.ai/code/artifact/4147d89c-2cd2-4d50-99ba-05d2a8982c89 — telas: entrada, assistente (colar→grade→marca→gerar), gerando, revisão em cards, dashboard. Identidade herdada do app (violeta/fúcsia, dark mode). Aguardando validação/ajustes do usuário.
+
 ## Permissões (por empresa)
 - **Criar/editar/gerar planos:** owner, admin e editor.
 - **Aprovar (gatilho de publicação):** **os três papéis** (owner, admin, editor). Mais ágil; sem separação hierárquica de aprovação na v2.
