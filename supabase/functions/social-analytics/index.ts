@@ -996,6 +996,14 @@ Deno.serve(async (req: Request) => {
           const data = await runActor(apifyToken, config.actorId, input);
           const normalized = config.normalize(data);
           if (!normalized.username) normalized.username = username;
+          if (!isMeaningfulProfile(normalized)) {
+            errors.push({
+              platform,
+              username,
+              error: "Coleta sem dados públicos suficientes. Confira se a URL do perfil está correta e pública.",
+            });
+            return;
+          }
           normalized.profileImageUrl = await reHostImage(
             normalized.profileImageUrl,
             normalized.displayName || normalized.username
