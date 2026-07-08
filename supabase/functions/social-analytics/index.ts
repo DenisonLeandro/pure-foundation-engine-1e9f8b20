@@ -867,6 +867,132 @@ async function reHostImage(url: string, name: string): Promise<string> {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=200&background=7c3aed&color=fff`;
 }
 
+// ─── Public-page fallbacks ───────────────────────────────────────
+
+async function fetchPublicHtml(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.7",
+    },
+  });
+  if (!res.ok) throw new Error(`Página pública HTTP ${res.status}`);
+  return res.text();
+}
+
+function decodeHtmlText(value: string): string {
+  return value
+    .replace(/\\u0026/g, "&")
+    .replace(/\\u003c/g, "<")
+    .replace(/\\u003e/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\\n/g, " ")
+    .trim();
+}
+
+function textFromMatch(html: string, patterns: RegExp[]): string {
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) return decodeHtmlText(match[1]);
+  }
+  return "";
+}
+
+async function fallbackYouTubeProfile(input: string): Promise<ProfileAnalytics | null> {
+  const url = normalizeYouTubeUrl(input);
+  const html = await fetchPublicHtml(url);
+  const title = textFromMatch(html, [
+    /<meta property="og:title" content="([^"]+)"/i,
+    /"title":\{"simpleText":"([^"]+)"/i,
+    /"channelMetadataRenderer":\{"title":"([^"]+)"/i,
+  ]).replace(/ - YouTube$/i, "");
+  const avatar = textFromMatch(html, [
+    /<meta property="og:image" content="([^"]+)"/i,
+    /"avatar"[^\[]*\[\{"url":"([^"]+)"/i,
+  ]);
+  const subscriberText = textFromMatch(html, [
+    /"subscriberCountText":\{"simpleText":"([^"]+)"/i,
+    /"subscriberCountText":\{"runs":\[\{"text":"([^"]+)"/i,
+    /([\d.,]+\s*(?:mil|mi|k|m)?\s*(?:inscritos|subscribers))/i,
+  ]);
+  const videoText = textFromMatch(html, [
+    /"videosCountText":\{"runs":\[\{"text":"([^"]+)"/i,
+    /"videoCountText":\{"runs":\[\{"text":"([^"]+)"/i,
+    /([\d.,]+\s*(?:vídeos|videos))/i,
+  ]);
+  const followers = safeNum(subscriberText);
+  const posts = safeNum(videoText);
+  if (!title && followers === 0 && posts === 0) return null;
+  return {
+    platform: "youtube",
+    username: title || input,
+    displayName: title || input,
+    profileImageUrl: avatar,
+    followers,
+    following: 0,
+    posts,
+    engagementRate: null,
+    avgLikes: null,
+    avgComments: null,
+    avgViews: null,
+    recentPosts: [],
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+async function fallbackTikTokProfile(input: string): Promise<ProfileAnalytics | null> {
+  const handle = extractTikTokHandle(input);
+  if (!handle) return null;
+  const url = `https://www.tiktok.com/@${handle}`;
+  const html = await fetchPublicHtml(url);
+  const displayName = textFromMatch(html, [
+    /<meta property="og:title" content="([^"]+)"/i,
+    /"nickname":"([^"]+)"/i,
+  ]).replace(/^@[^\s]+\s*-\s*/, "").replace(/ on TikTok$/i, "");
+  const avatar = textFromMatch(html, [
+    /<meta property="og:image" content="([^"]+)"/i,
+    /"avatarLarger":"([^"]+)"/i,
+    /"avatarMedium":"([^"]+)"/i,
+  ]);
+  const followerText = textFromMatch(html, [
+    /"followerCount":(\d+)/i,
+    /"followers":(\d+)/i,
+    /([\d.,]+\s*(?:mil|mi|k|m)?\s*(?:seguidores|followers))/i,
+  ]);
+  const followingText = textFromMatch(html, [/"followingCount":(\d+)/i]);
+  const videoText = textFromMatch(html, [/"videoCount":(\d+)/i]);
+  const followers = safeNum(followerText);
+  const posts = safeNum(videoText);
+  if (!displayName && followers === 0 && posts === 0) return null;
+  return {
+    platform: "tiktok",
+    username: handle,
+    displayName: displayName || handle,
+    profileImageUrl: avatar,
+    followers,
+    following: safeNum(followingText),
+    posts,
+    engagementRate: null,
+    avgLikes: null,
+    avgComments: null,
+    avgViews: null,
+    recentPosts: [],
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+async function fallbackProfile(platform: string, username: string): Promise<ProfileAnalytics | null> {
+  try {
+    if (platform === "youtube") return await fallbackYouTubeProfile(username);
+    if (platform === "tiktok") return await fallbackTikTokProfile(username);
+  } catch (err) {
+    console.warn(`[social-analytics] fallback failed for ${platform}/${username}:`, err);
+  }
+  return null;
+}
+
 // ─── Apify Runner ───────────────────────────────────────────────
 
 async function runActor(
