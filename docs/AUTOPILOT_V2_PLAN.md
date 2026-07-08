@@ -125,8 +125,9 @@ O que faz a qualidade: **prompt certo + logo real carimbada** (passo 4). Pular o
 - Reduzir erro de grafia: texto **exato** + **curto** no prompt; **futuro:** verificação OCR.
 - Eleva a importância da revisão → seção Aprovação.
 
+**Expansão do tema em briefing (CONFIRMADO):** no Studio a pessoa escreve uma descrição rica; no Autopilot a entrada é um **tema curto**. Então um **passo de IA expande** `tema (+categoria) → briefing de arte + headline` antes do `buildArtPrompt`, recriando a riqueza que a pessoa daria no Studio (evita arte "rasa"). O briefing gerado é **guardado no post** (`art_brief`) pra permitir regenerar sem re-expandir.
+
 🔍 A refinar depois:
-- **Expandir o tema em briefing de arte:** no Studio a pessoa escreve uma descrição rica ("post sobre X, tom sério…"); no Autopilot a entrada é um **tema curto** ("Hérnia de Disco…"). Talvez um passo de IA que transforme `tema → descrição de arte + headline` antes do `buildArtPrompt`, pra a arte não sair rasa. (Provável necessidade.)
 - Reuso possível do `editOpenAiImage` (edição conversacional do Studio) pra o "regenerar arte" da tela de revisão aceitar instruções ("deixe o fundo mais escuro").
 - Formato/proporção (1024x1280) e nº de variações por post.
 
@@ -229,8 +230,9 @@ theme text                -- obrigatório
 category text             -- opcional
 caption text              -- legenda (IA)
 hashtags text[]
-image_url text            -- arte gerada (A2)
-image_prompt text         -- prompt usado (pra regenerar)
+art_brief text            -- briefing rico expandido do tema (pra regenerar sem re-expandir)
+image_url text            -- arte gerada (A2, com logo carimbada)
+image_prompt text         -- prompt final usado (buildArtPrompt)
 scheduled_at timestamptz  -- post_date + melhor hora, em UTC
 time_locked bool          -- override manual de horário
 status text               -- draft|generating|ready|approved|scheduled|published|failed|removed
@@ -294,7 +296,7 @@ draft → generating → ready → approved → scheduled → published
 
 ### Job `gen_image` — replica o Studio "A IA cria tudo" no backend
 Passos dentro do worker (Deno), espelhando `AiArtStudio.tsx`:
-1. (se necessário) `tema → briefing de arte + headline` via IA.
+1. `tema (+categoria) → briefing de arte + headline` via IA (CONFIRMADO) → guarda em `posts.art_brief`.
 2. `buildArtPrompt(brief, brand)` — **portar `buildArtPrompt` p/ `_shared`** (hoje vive no componente React).
 3. Chamar `openai-image` (1024x1280, quality high) → arte limpa.
 4. **Compor logo no servidor** (lib de imagem Deno) — **portar a geometria de `composeImageWithLogo`**. Este é o item de engenharia central pra igualar a qualidade do Studio.
