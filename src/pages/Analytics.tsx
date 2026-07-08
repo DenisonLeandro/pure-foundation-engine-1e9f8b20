@@ -111,8 +111,35 @@ function hasPositiveNumber(value: number | null | undefined): boolean {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+function looksLikeRealAnalyticsPost(post: ProfileAnalytics["recentPosts"][number] | undefined): boolean {
+  if (!post) return false;
+  const url = (post.url || "").toLowerCase();
+  const hasPostUrl = /instagram\.com\/p\/|instagram\.com\/reel\/|facebook\.com\/.+\/(posts|videos|reel|reels|photos)|story_fbid=|youtube\.com\/(watch\?v=|shorts\/)|youtu\.be\/|tiktok\.com\/@[^/]+\/video\/|(?:x|twitter)\.com\/[^/]+\/status\/|linkedin\.com\/feed\/update/i.test(url);
+  const hasContent = Boolean((post.text || "").trim());
+  const hasDate = Boolean(post.date && !Number.isNaN(new Date(post.date).getTime()));
+  const hasMetric = hasPositiveNumber(post.likes) || hasPositiveNumber(post.comments) || hasPositiveNumber(post.views);
+  return Boolean(hasPostUrl || (hasContent && (hasDate || hasMetric)) || (hasDate && hasMetric));
+}
+
+function sanitizeAnalyticsProfile(profile: ProfileAnalytics): ProfileAnalytics {
+  const recentPosts = (profile.recentPosts ?? []).filter(looksLikeRealAnalyticsPost);
+  const hadPosts = (profile.recentPosts ?? []).length > 0;
+  const lostAllPosts = hadPosts && recentPosts.length === 0;
+
+  return {
+    ...profile,
+    recentPosts,
+    avgLikes: lostAllPosts ? null : profile.avgLikes,
+    avgComments: lostAllPosts ? null : profile.avgComments,
+    avgViews: lostAllPosts ? null : profile.avgViews,
+    engagementRate: lostAllPosts ? null : profile.engagementRate,
+  };
+}
+
 function mergeProfileMetrics(previous: ProfileAnalytics | undefined, fresh: ProfileAnalytics): ProfileAnalytics {
-  if (!previous) return fresh;
+  const safeFresh = sanitizeAnalyticsProfile(fresh);
+  if (!previous) return safeFresh;
+  const safePrevious = sanitizeAnalyticsProfile(previous);
 
   const keepFreshNumber = (freshValue: number | null | undefined, previousValue: number | null | undefined) => {
     if (hasPositiveNumber(freshValue)) return freshValue ?? null;
@@ -121,20 +148,20 @@ function mergeProfileMetrics(previous: ProfileAnalytics | undefined, fresh: Prof
   };
 
   return {
-    ...previous,
-    ...fresh,
-    displayName: fresh.displayName || previous.displayName,
-    profileImageUrl: fresh.profileImageUrl || previous.profileImageUrl,
-    followers: keepFreshNumber(fresh.followers, previous.followers) ?? 0,
-    following: keepFreshNumber(fresh.following, previous.following) ?? 0,
-    posts: keepFreshNumber(fresh.posts, previous.posts) ?? 0,
-    engagementRate: keepFreshNumber(fresh.engagementRate, previous.engagementRate),
-    avgLikes: keepFreshNumber(fresh.avgLikes, previous.avgLikes),
-    avgComments: keepFreshNumber(fresh.avgComments, previous.avgComments),
-    avgViews: keepFreshNumber(fresh.avgViews, previous.avgViews),
-    recentPosts: fresh.recentPosts?.length ? fresh.recentPosts : (previous.recentPosts ?? []),
-    enrichment: fresh.enrichment && Object.keys(fresh.enrichment).length ? fresh.enrichment : previous.enrichment,
-    fetchedAt: fresh.fetchedAt || previous.fetchedAt,
+    ...safePrevious,
+    ...safeFresh,
+    displayName: safeFresh.displayName || safePrevious.displayName,
+    profileImageUrl: safeFresh.profileImageUrl || safePrevious.profileImageUrl,
+    followers: keepFreshNumber(safeFresh.followers, safePrevious.followers) ?? 0,
+    following: keepFreshNumber(safeFresh.following, safePrevious.following) ?? 0,
+    posts: keepFreshNumber(safeFresh.posts, safePrevious.posts) ?? 0,
+    engagementRate: keepFreshNumber(safeFresh.engagementRate, safePrevious.engagementRate),
+    avgLikes: keepFreshNumber(safeFresh.avgLikes, safePrevious.avgLikes),
+    avgComments: keepFreshNumber(safeFresh.avgComments, safePrevious.avgComments),
+    avgViews: keepFreshNumber(safeFresh.avgViews, safePrevious.avgViews),
+    recentPosts: safeFresh.recentPosts?.length ? safeFresh.recentPosts : (safePrevious.recentPosts ?? []),
+    enrichment: safeFresh.enrichment && Object.keys(safeFresh.enrichment).length ? safeFresh.enrichment : safePrevious.enrichment,
+    fetchedAt: safeFresh.fetchedAt || safePrevious.fetchedAt,
   };
 }
 
@@ -451,7 +478,7 @@ export default function Analytics() {
           const k = `${r.platform}:${r.username}`;
           if (seen.has(k)) continue;
           seen.add(k);
-          rows.push({
+          rows.push(sanitizeAnalyticsProfile({
             platform: r.platform as ProfileAnalytics["platform"],
             username: r.username,
             displayName: r.display_name ?? undefined,
@@ -466,7 +493,7 @@ export default function Analytics() {
             recentPosts: (r.recent_posts as unknown as ProfileAnalytics["recentPosts"]) ?? [],
             enrichment: (r.raw_data as unknown as ProfileAnalytics["enrichment"]) ?? undefined,
             fetchedAt: r.fetched_at ?? undefined,
-          } as ProfileAnalytics);
+          } as ProfileAnalytics));
         }
         if (rows.length) {
           setAnalyticsState(rows);
@@ -535,9 +562,10 @@ export default function Analytics() {
       }
 
       const result = await api.fetchAnalytics(accountsList, enrichEnabled);
+      const safeResultProfiles = result.results.map(sanitizeAnalyticsProfile);
       const mergedResults = mergeAnalyticsResults(
         analytics,
-        result.results,
+        safeResultProfiles,
         accountsList.map((a) => a.platform)
       );
       setAnalytics(mergedResults);
@@ -546,8 +574,8 @@ export default function Analytics() {
       try {
         const { data: userData } = await supabase.auth.getUser();
         const uid = userData?.user?.id;
-        if (uid && result.results.length) {
-          const rows = result.results.map((p) => ({
+        if (uid && safeResultProfiles.length) {
+          const rows = safeResultProfiles.map((p) => ({
             user_id: uid,
             company_id: activeCompanyId,
             platform: p.platform,
@@ -683,8 +711,8 @@ export default function Analytics() {
   );
 
   const allRecentPosts = useMemo(
-    () => analytics
-      .flatMap((a) => (a.recentPosts ?? []).map((p) => ({ ...p, platform: a.platform, profileName: a.displayName || a.username })))
+      () => analytics
+      .flatMap((a) => (a.recentPosts ?? []).filter(looksLikeRealAnalyticsPost).map((p) => ({ ...p, platform: a.platform, profileName: a.displayName || a.username })))
       .sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0))
       .slice(0, 15),
     [analytics]
