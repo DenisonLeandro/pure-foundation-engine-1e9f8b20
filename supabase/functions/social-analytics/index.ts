@@ -1123,6 +1123,15 @@ Deno.serve(async (req: Request) => {
           const normalized = config.normalize(data);
           if (!normalized.username) normalized.username = username;
           if (!isMeaningfulProfile(normalized)) {
+            const fallback = await fallbackProfile(platform, username);
+            if (fallback && isMeaningfulProfile(fallback)) {
+              fallback.profileImageUrl = await reHostImage(
+                fallback.profileImageUrl,
+                fallback.displayName || fallback.username
+              );
+              results.push(fallback);
+              return;
+            }
             errors.push({
               platform,
               username,
@@ -1136,6 +1145,15 @@ Deno.serve(async (req: Request) => {
           );
           results.push(normalized);
         } catch (err) {
+          const fallback = await fallbackProfile(platform, username);
+          if (fallback && isMeaningfulProfile(fallback)) {
+            fallback.profileImageUrl = await reHostImage(
+              fallback.profileImageUrl,
+              fallback.displayName || fallback.username
+            );
+            results.push(fallback);
+            return;
+          }
           errors.push({
             platform,
             username,
