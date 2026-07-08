@@ -421,6 +421,25 @@ export default function Analytics() {
 
   // ── Fetch analytics ──────────────────────────────────────────
 
+  const mergeAnalyticsResults = (
+    previous: ProfileAnalytics[],
+    fresh: ProfileAnalytics[],
+    requestedPlatforms: string[]
+  ) => {
+    const requested = new Set(requestedPlatforms);
+    const byPlatform = new Map<string, ProfileAnalytics>();
+
+    previous
+      .filter((p) => requested.has(p.platform))
+      .forEach((p) => byPlatform.set(p.platform, p));
+
+    fresh.forEach((p) => byPlatform.set(p.platform, p));
+
+    return [...byPlatform.values()].sort(
+      (a, b) => requestedPlatforms.indexOf(a.platform) - requestedPlatforms.indexOf(b.platform)
+    );
+  };
+
   const handleFetchAnalytics = async () => {
     const pfmAccounts = pfmAccountsQuery.data;
     if (!pfmAccounts?.length) {
@@ -458,7 +477,12 @@ export default function Analytics() {
       }
 
       const result = await api.fetchAnalytics(accountsList, enrichEnabled);
-      setAnalytics(result.results);
+      const mergedResults = mergeAnalyticsResults(
+        analytics,
+        result.results,
+        accountsList.map((a) => a.platform)
+      );
+      setAnalytics(mergedResults);
 
       // Persist each profile snapshot so Insights IA can read aggregated data.
       try {
@@ -492,7 +516,14 @@ export default function Analytics() {
       }
 
       if (result.errors?.length > 0) {
-        toast({ title: `${result.results.length} perfil(is) carregados, ${result.errors.length} com erro` });
+        const errorDetails = result.errors
+          .slice(0, 3)
+          .map((e) => `${platformName(e.platform)}: ${e.error}`)
+          .join(" • ");
+        toast({
+          title: `${result.results.length} perfil(is) carregados, ${result.errors.length} com erro`,
+          description: errorDetails || "Algumas redes não retornaram dados públicos.",
+        });
       } else {
         toast({ title: "Analytics atualizados!", description: `${result.results.length} plataforma(s)` });
       }
