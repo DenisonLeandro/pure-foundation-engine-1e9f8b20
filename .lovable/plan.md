@@ -1,24 +1,27 @@
-## Objetivo
-Colocar o Autopilot v2 em produção: aplicar as migrations pendentes em `supabase/migrations` (schema + engine) e publicar as edge functions do fluxo v2.
+## Plano
 
-## Passos
+1. **Conferir o estado real do backend**
+   - Verificar quais migrations do Autopilot v2 já foram aplicadas.
+   - Confirmar se existe ou não a migration `20260709140000_autopilot_v2_cron_vault.sql` no projeto; hoje encontrei `20260709120000`, `20260709130000` e uma migration combinada `20260709134945...` que ainda usa o parâmetro quebrado `supabase.service_role_key`.
 
-1. **Aplicar migrations pendentes** (`supabase/migrations`)
-   - Rodar todas as migrations ainda não aplicadas relativas ao Autopilot v2: tabelas `autopilot_plans`, `autopilot_posts`, `autopilot_jobs`, RPCs (`autopilot_claim_jobs`, `autopilot_requeue_stuck_jobs`), GRANTs e políticas RLS.
-   - Verificar que o schema v1 antigo (`autopilot_configs`, `autopilot_calendars`) foi tratado conforme já definido nas migrations existentes (não vou reescrever migrations — apenas aplicar as que já estão no repositório).
-   - Confirmar agendamento do `pg_cron` para chamar `autopilot-tick` a cada minuto (se essa parte já estiver em uma migration existente, ela roda junto).
+2. **Aplicar as migrations pendentes do Autopilot v2**
+   - Aplicar `20260709120000_autopilot_v2_schema.sql` e `20260709130000_autopilot_v2_engine.sql` se ainda estiverem pendentes.
+   - Se a migration `20260709140000_autopilot_v2_cron_vault.sql` realmente estiver ausente, criar/aplicar uma migration corretiva equivalente, trocando o cron para ler a chave segura `autopilot_service_key` no Vault em vez de `current_setting('supabase.service_role_key')`.
 
-2. **Deploy das edge functions**
-   - `autopilot-parse` — cola → grade estruturada.
-   - `autopilot-plan` — painel de ações (create/approve/regen/pause/resume/cancel).
-   - `autopilot-worker` — drena a fila de jobs.
-   - `autopilot-tick` — batida periódica; reenfileira jobs presos, confirma posts, avança planos, invoca worker.
+3. **Criar/atualizar o segredo `autopilot_service_key` sem expor a chave**
+   - Criar o segredo no Vault usando a service role key já armazenada no backend, sem imprimir nem revelar o valor.
+   - Evitar pedir a chave manualmente ao usuário.
 
-3. **Verificação pós-deploy**
-   - Checar logs de boot de cada função (sem erros de import / lockfile).
-   - Chamar `autopilot-tick` com a service key para confirmar que responde `{ ok: true, ... }`.
-   - Se algum deploy falhar por `deno.lock` incompatível, remover/renomear o lockfile e re-deployar.
+4. **Reagendar e validar o cron `autopilot-tick`**
+   - Desagendar qualquer versão antiga do cron que ainda use `supabase.service_role_key`.
+   - Recriar o job `autopilot-tick` apontando para a função correta e usando `autopilot_service_key`.
+   - Conferir `cron.job_run_details` para garantir que o erro `unrecognized configuration parameter` parou.
 
-## Fora de escopo
-- Nenhuma mudança de código nas functions ou no frontend.
-- Nenhuma reescrita de migrations existentes; apenas execução das que já estão versionadas.
+5. **Confirmar funções e secrets necessários**
+   - Confirmar deploy das funções `autopilot-parse`, `autopilot-plan`, `autopilot-worker` e `autopilot-tick`.
+   - Conferir se `LOVABLE_API_KEY` existe.
+   - Verificar como `openai-image` está resolvendo imagem: ela usa `LOVABLE_API_KEY` via Lovable AI Gateway e só usa `OPENAI_API_KEY` como fallback; validarei se há falta real de secret ou se o gateway já cobre a geração sem baixar qualidade.
+
+6. **Teste final**
+   - Executar/acionar o tick depois da correção.
+   - Verificar logs das funções e jobs para confirmar que a fila sai de `queued` e começa a processar `gen_image`/`gen_caption`.

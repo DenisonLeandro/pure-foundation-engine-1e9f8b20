@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   serviceClient,
-  isServiceCall,
+  isAutopilotTickCall,
   json,
   corsHeaders,
 } from "../_shared/autopilot-engine.ts";
@@ -27,7 +27,7 @@ import {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  if (!isServiceCall(req)) return json({ error: "Unauthorized" }, 401);
+  if (!(await isAutopilotTickCall(req))) return json({ error: "Unauthorized" }, 401);
 
   const out: Record<string, unknown> = {};
   try {
