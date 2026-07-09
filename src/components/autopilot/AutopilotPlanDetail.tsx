@@ -261,9 +261,11 @@ function PlanDashboard({ plan, posts, onDeleted }: { plan: AutopilotPlan; posts:
     }
   }
 
-  const canPause = plan.status === "active" || plan.status === "approved";
+  const canPause = ["active", "approved", "generating"].includes(plan.status);
   const canResume = plan.status === "paused";
   const canCancel = !["completed", "canceled"].includes(plan.status);
+  const canDelete = ["draft", "review", "completed", "canceled", "failed"].includes(plan.status);
+  const pauseLabel = plan.status === "generating" ? "Parar geração" : "Pausar";
 
   return (
     <div className="space-y-4">
@@ -274,14 +276,26 @@ function PlanDashboard({ plan, posts, onDeleted }: { plan: AutopilotPlan; posts:
             {statusBadge.label}
           </Badge>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {canPause && (
-            <Button variant="outline" size="sm" disabled={pause.isPending} onClick={() => run(() => pause.mutateAsync(plan.id), "Plano pausado")}>
-              <Pause className="mr-1 h-4 w-4" /> Pausar
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pause.isPending}
+              onClick={() => run(() => pause.mutateAsync(plan.id), "Plano pausado")}
+              title="Suspende publicações agendadas. Nada é perdido — dá para retomar depois."
+            >
+              <Pause className="mr-1 h-4 w-4" /> {pauseLabel}
             </Button>
           )}
           {canResume && (
-            <Button variant="outline" size="sm" disabled={resume.isPending} onClick={() => run(() => resume.mutateAsync(plan.id), "Plano retomado")}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={resume.isPending}
+              onClick={() => run(() => resume.mutateAsync(plan.id), "Plano retomado")}
+              title="Reagenda os posts aprovados que ainda não publicaram."
+            >
               <Play className="mr-1 h-4 w-4" /> Retomar
             </Button>
           )}
@@ -296,8 +310,8 @@ function PlanDashboard({ plan, posts, onDeleted }: { plan: AutopilotPlan; posts:
                 <AlertDialogHeader>
                   <AlertDialogTitle>Cancelar este plano?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Os posts ainda não publicados são desagendados. O que já publicou é preservado. Não dá pra
-                    retomar depois.
+                    Interrompe o plano de vez. Posts não publicados são desagendados e jobs em fila
+                    são cancelados. O que já publicou é preservado. Não dá para retomar depois.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -312,8 +326,47 @@ function PlanDashboard({ plan, posts, onDeleted }: { plan: AutopilotPlan; posts:
               </AlertDialogContent>
             </AlertDialog>
           )}
+          {canDelete && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                  <Trash2 className="mr-1 h-4 w-4" /> Excluir
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Excluir este plano permanentemente?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Remove o plano e todos os posts dele do histórico. Ação irreversível.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Voltar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={async () => {
+                      try {
+                        await del.mutateAsync(plan.id);
+                        toast({ title: "Plano excluído" });
+                        onDeleted?.();
+                      } catch (e) {
+                        toast({
+                          title: "Não foi possível excluir",
+                          description: e instanceof Error ? e.message : "",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Excluir plano
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </div>
+
 
       {/* Stat tiles */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
