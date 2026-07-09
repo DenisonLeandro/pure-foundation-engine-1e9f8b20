@@ -197,30 +197,51 @@ async function genCaption(sb: SB, job: Job): Promise<void> {
   const { post, plan, brand } = await loadContext(sb, job.post_id);
   const platform = (Array.isArray(plan?.platforms) && plan.platforms[0]) || "instagram";
 
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/generate-content`, {
+  if (!LOVABLE_KEY) throw new Error("LOVABLE_API_KEY ausente");
+
+  const aiProfile = brandToAIProfile(brand);
+  const sys = `Você é um copywriter especialista em redes sociais no Brasil. Escreva EXCLUSIVAMENTE em português brasileiro (pt-BR).
+Gere uma legenda para ${platform}, com o tom "${brand?.tone || "profissional e amigável"}".
+Responda APENAS JSON válido no formato: {"caption":"...","hashtags":["tag1","tag2"]}
+- caption: 2 a 5 parágrafos curtos, emojis moderados, chamada para ação no final.
+- hashtags: 6 a 10 hashtags relevantes, sem "#".`;
+  const user = `TEMA: ${post.theme}\nCATEGORIA: ${post.category || "-"}\nMARCA: ${JSON.stringify(aiProfile)}`;
+
+  const r = await fetch(`${LOVABLE_GW}/chat/completions`, {
     method: "POST",
-    headers: internalHeaders(),
+    headers: {
+      Authorization: `Bearer ${LOVABLE_KEY}`,
+      "Content-Type": "application/json",
+      "X-Lovable-AIG-SDK": "edge-function",
+    },
     body: JSON.stringify({
-      prompt: post.theme,
-      platforms: [platform],
-      tone: brand?.tone,
-      language: "português brasileiro",
-      brandProfile: brandToAIProfile(brand),
-      companyId: post.company_id,
-      userId: plan?.created_by,
+      model: "google/gemini-2.5-flash",
+      messages: [{ role: "system", content: sys }, { role: "user", content: user }],
+      temperature: 0.8,
+      max_tokens: 900,
     }),
   });
   if (!r.ok) {
     const t = await r.text().catch(() => "");
-    throw new Error(`generate-content ${r.status}: ${t.slice(0, 200)}`);
+    throw new Error(`lovable-ai chat ${r.status}: ${t.slice(0, 200)}`);
   }
   const d = await r.json();
-  const text = d.posts?.[platform] || Object.values(d.posts || {})[0] || "";
-  if (!text || !String(text).trim()) throw new Error("generate-content devolveu legenda vazia");
-  const hashtags = Array.isArray(d.hashtags) ? d.hashtags : [];
+  const raw = (d.choices?.[0]?.message?.content || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  let caption = "";
+  let hashtags: string[] = [];
+  try {
+    const parsed = JSON.parse(raw);
+    caption = String(parsed.caption || "").trim();
+    if (Array.isArray(parsed.hashtags)) {
+      hashtags = parsed.hashtags.map((h: unknown) => String(h).replace(/^#/, "").trim()).filter(Boolean);
+    }
+  } catch {
+    caption = raw;
+  }
+  if (!caption) throw new Error("IA devolveu legenda vazia");
 
   await sb.from("autopilot_posts").update({
-    caption: String(text),
+    caption,
     hashtags,
     updated_at: new Date().toISOString(),
   }).eq("id", post.id);
