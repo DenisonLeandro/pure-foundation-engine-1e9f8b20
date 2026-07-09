@@ -49,6 +49,27 @@ export function isServiceCall(req: Request): boolean {
   return !!key && auth === `Bearer ${key}`;
 }
 
+/**
+ * Autoriza o tick do pg_cron. O cron não consegue ler env vars de Edge Function,
+ * então ele envia o token `autopilot_service_key` guardado no Vault. Chamadas
+ * internas antigas com service role continuam válidas.
+ */
+export async function isAutopilotTickCall(req: Request): Promise<boolean> {
+  if (isServiceCall(req)) return true;
+
+  const auth = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ")) return false;
+
+  try {
+    const sb = serviceClient();
+    const { data, error } = await sb.rpc("get_vault_secret", { secret_name: "autopilot_service_key" });
+    const cronKey = typeof data === "string" ? data : "";
+    return !error && !!cronKey && auth === `Bearer ${cronKey}`;
+  } catch {
+    return false;
+  }
+}
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",

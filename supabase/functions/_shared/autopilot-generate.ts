@@ -13,21 +13,20 @@
  * como chamadas internas (isInternalServiceCall).
  */
 
-import { Image } from "npm:imagescript@1.3.1";
+import { Image } from "https://deno.land/x/imagescript@1.2.15/mod.ts";
 import { buildArtPrompt, logoPlacement, IMG_SIZE, IMG_QUALITY, type ArtBrandLike } from "./studio-art.ts";
 import { brandToAIProfile } from "./brand.ts";
 import type { Job, SB, HandlerMap } from "./autopilot-engine.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
 
 /** Headers de chamada interna (service role) para reusar openai-image/generate-content. */
 function internalHeaders(): Record<string, string> {
   return {
     "Content-Type": "application/json",
-    apikey: ANON,
+    apikey: SERVICE_KEY,
     Authorization: `Bearer ${SERVICE_KEY}`,
   };
 }
