@@ -5,6 +5,7 @@ import {
   json,
   corsHeaders,
 } from "../_shared/autopilot-engine.ts";
+import { confirmDuePosts, finalizePlans } from "../_shared/autopilot-schedule.ts";
 
 /**
  * Autopilot Tick — batida periódica do motor (substitui autopilot-cron).
@@ -35,7 +36,21 @@ Deno.serve(async (req: Request) => {
     if (reapErr) console.error("[autopilot-tick] reaper error:", reapErr.message);
     out.stuck_requeued = requeued ?? 0;
 
-    // 2–3. [Fase 4] confirmação / conclusão / aviso de fim de ciclo. TODO.
+    // 2. Confirma publicação real dos posts agendados cuja hora já passou.
+    try {
+      out.confirmed = await confirmDuePosts(sb);
+    } catch (e) {
+      console.error("[autopilot-tick] confirm error:", e instanceof Error ? e.message : e);
+    }
+
+    // 3. Marca planos concluídos (todos os posts terminais ou período encerrado).
+    try {
+      out.plans_completed = await finalizePlans(sb);
+    } catch (e) {
+      console.error("[autopilot-tick] finalize error:", e instanceof Error ? e.message : e);
+    }
+
+    // Aviso "7 dias antes do fim" (e-mail) → Fase 5 (junto das notificações/UI).
 
     // 4. Invoca o worker para processar a fila (chamada interna com a service key).
     const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/autopilot-worker`;

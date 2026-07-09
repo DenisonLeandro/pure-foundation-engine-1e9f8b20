@@ -8,6 +8,7 @@ import {
   type HandlerMap,
 } from "../_shared/autopilot-engine.ts";
 import { generationHandlers } from "../_shared/autopilot-generate.ts";
+import { scheduleHandlers } from "../_shared/autopilot-schedule.ts";
 
 /**
  * Autopilot Worker — processa a fila de jobs em 2º plano.
@@ -22,7 +23,7 @@ import { generationHandlers } from "../_shared/autopilot-generate.ts";
  */
 const handlers: HandlerMap = {
   ...generationHandlers, // gen_image, gen_caption (Fase 3)
-  // schedule_post, confirm_post → Fase 4
+  ...scheduleHandlers,   // schedule_post (Fase 4). confirm é feito pelo tick.
 };
 
 Deno.serve(async (req: Request) => {
