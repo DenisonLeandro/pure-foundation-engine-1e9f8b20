@@ -2,3 +2,21 @@ project_id = "pgimbjfdxwefahxmpdpc"
 
 [functions.cost-dashboard]
 verify_jwt = false
+
+# Autopilot v2 — funções fazem a própria autenticação:
+#  - parse/plan: chamadas do navegador, validam o usuário via requireUser().
+#  - worker/tick: chamadas internas (pg_cron / service role), validam via
+#    isServiceCall().
+# Precisam de verify_jwt = false para o gateway não barrar o preflight/CORS
+# (senão o navegador recebe "Failed to fetch").
+[functions.autopilot-parse]
+verify_jwt = false
+
+[functions.autopilot-plan]
+verify_jwt = false
+
+[functions.autopilot-worker]
+verify_jwt = false
+
+[functions.autopilot-tick]
+verify_jwt = false
