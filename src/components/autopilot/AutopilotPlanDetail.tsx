@@ -11,6 +11,10 @@ import {
   LayoutGrid,
   Calendar as CalendarIcon,
   ImageOff,
+  Pause,
+  Play,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +31,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   useAutopilotPlan,
   useAutopilotPosts,
   postProgress,
@@ -35,9 +50,12 @@ import {
   useRegenPost,
   useUpdatePost,
   useRemovePost,
+  usePausePlan,
+  useResumePlan,
+  useCancelPlan,
 } from "@/hooks/use-autopilot";
 import { useToast } from "@/hooks/use-toast";
-import type { AutopilotPost, AutopilotPostStatus } from "@/types";
+import type { AutopilotPlan, AutopilotPost, AutopilotPostStatus } from "@/types";
 
 const POST_STATUS: Record<AutopilotPostStatus, { label: string; className: string }> = {
   draft: { label: "Rascunho", className: "bg-muted text-muted-foreground" },
@@ -174,15 +192,162 @@ export function AutopilotPlanDetail({ planId, onBack }: { planId: string; onBack
   return (
     <div className="space-y-6">
       {header}
-      <ReviewSection
-        planName={plan.name}
-        posts={posts}
-        readyCount={posts.filter((p) => p.status === "ready").length}
-        approvedCount={approvedCount}
-        showApproveAll={isReviewPhase}
-        approving={approvePlan.isPending}
-        onApproveAll={handleApproveAll}
-      />
+      {isReviewPhase ? (
+        <ReviewSection
+          planName={plan.name}
+          posts={posts}
+          readyCount={posts.filter((p) => p.status === "ready").length}
+          approvedCount={approvedCount}
+          showApproveAll
+          approving={approvePlan.isPending}
+          onApproveAll={handleApproveAll}
+        />
+      ) : (
+        <PlanDashboard plan={plan} posts={posts} />
+      )}
+    </div>
+  );
+}
+
+// ─── Dashboard (⑥ rodando sozinho) ──────────────────────────────
+
+function daysUntil(dateStr?: string | null): number | null {
+  if (!dateStr) return null;
+  const end = new Date(`${dateStr}T23:59:59`);
+  const now = new Date();
+  return Math.ceil((end.getTime() - now.getTime()) / 86400000);
+}
+
+function PlanDashboard({ plan, posts }: { plan: AutopilotPlan; posts: AutopilotPost[] }) {
+  const { toast } = useToast();
+  const pause = usePausePlan();
+  const resume = useResumePlan();
+  const cancel = useCancelPlan();
+
+  const count = (s: AutopilotPostStatus) => posts.filter((p) => p.status === s).length;
+  const tiles = [
+    { label: "Aprovados", value: count("approved"), dot: "bg-violet-500" },
+    { label: "Agendados", value: count("scheduled"), dot: "bg-sky-500" },
+    { label: "Publicados", value: count("published"), dot: "bg-emerald-500" },
+    { label: "Com erro", value: count("failed"), dot: "bg-red-500" },
+  ];
+
+  const remaining = daysUntil(plan.period_end);
+  const showEnding =
+    (plan.status === "active" || plan.status === "approved") &&
+    remaining !== null &&
+    remaining >= 0 &&
+    remaining <= 7;
+
+  const statusBadge =
+    plan.status === "active"
+      ? { label: "Ativo", className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300" }
+      : plan.status === "paused"
+        ? { label: "Pausado", className: "bg-amber-500/15 text-amber-600 dark:text-amber-300" }
+        : plan.status === "completed"
+          ? { label: "Concluído", className: "bg-muted text-muted-foreground" }
+          : plan.status === "canceled"
+            ? { label: "Cancelado", className: "bg-muted text-muted-foreground" }
+            : { label: "Aprovado", className: "bg-violet-500/15 text-violet-600 dark:text-violet-300" };
+
+  async function run(fn: () => Promise<unknown>, ok: string) {
+    try {
+      await fn();
+      toast({ title: ok });
+    } catch (e) {
+      toast({ title: "Ação falhou", description: e instanceof Error ? e.message : "", variant: "destructive" });
+    }
+  }
+
+  const canPause = plan.status === "active" || plan.status === "approved";
+  const canResume = plan.status === "paused";
+  const canCancel = !["completed", "canceled"].includes(plan.status);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {plan.platforms.length > 0 && <span>{plan.platforms.join(", ")}</span>}
+          <Badge variant="secondary" className={statusBadge.className}>
+            {statusBadge.label}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          {canPause && (
+            <Button variant="outline" size="sm" disabled={pause.isPending} onClick={() => run(() => pause.mutateAsync(plan.id), "Plano pausado")}>
+              <Pause className="mr-1 h-4 w-4" /> Pausar
+            </Button>
+          )}
+          {canResume && (
+            <Button variant="outline" size="sm" disabled={resume.isPending} onClick={() => run(() => resume.mutateAsync(plan.id), "Plano retomado")}>
+              <Play className="mr-1 h-4 w-4" /> Retomar
+            </Button>
+          )}
+          {canCancel && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-red-500">
+                  <XCircle className="mr-1 h-4 w-4" /> Cancelar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancelar este plano?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Os posts ainda não publicados são desagendados. O que já publicou é preservado. Não dá pra
+                    retomar depois.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Voltar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => run(() => cancel.mutateAsync(plan.id), "Plano cancelado")}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Cancelar plano
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+      </div>
+
+      {/* Stat tiles */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {tiles.map((t) => (
+          <Card key={t.label}>
+            <CardContent className="p-4">
+              <p className="text-3xl font-bold">{t.value}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                <span className={`h-2 w-2 rounded-full ${t.dot}`} /> {t.label}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Calendário do mês */}
+      <Card>
+        <CardContent className="p-4">
+          <MiniCalendar posts={posts} />
+        </CardContent>
+      </Card>
+
+      {/* Aviso de 7 dias */}
+      {showEnding && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+          <div className="text-sm">
+            <p className="font-semibold text-amber-600 dark:text-amber-300">
+              Seu plano termina em {remaining} dia{remaining === 1 ? "" : "s"} ({plan.period_end}).
+            </p>
+            <p className="text-muted-foreground">
+              Cole o próximo plano pra não parar de postar. Avisamos também por e-mail.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

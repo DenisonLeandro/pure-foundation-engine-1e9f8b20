@@ -5,7 +5,12 @@ import {
   json,
   corsHeaders,
 } from "../_shared/autopilot-engine.ts";
-import { confirmDuePosts, finalizePlans } from "../_shared/autopilot-schedule.ts";
+import {
+  confirmDuePosts,
+  finalizePlans,
+  advancePlans,
+  sendEndingNotices,
+} from "../_shared/autopilot-schedule.ts";
 
 /**
  * Autopilot Tick — batida periódica do motor (substitui autopilot-cron).
@@ -43,16 +48,28 @@ Deno.serve(async (req: Request) => {
       console.error("[autopilot-tick] confirm error:", e instanceof Error ? e.message : e);
     }
 
-    // 3. Marca planos concluídos (todos os posts terminais ou período encerrado).
+    // 3. Avança planos: generating→review/auto-aprova, approved→active.
+    try {
+      out.advanced = await advancePlans(sb);
+    } catch (e) {
+      console.error("[autopilot-tick] advance error:", e instanceof Error ? e.message : e);
+    }
+
+    // 4. Marca planos concluídos (todos os posts terminais ou período encerrado).
     try {
       out.plans_completed = await finalizePlans(sb);
     } catch (e) {
       console.error("[autopilot-tick] finalize error:", e instanceof Error ? e.message : e);
     }
 
-    // Aviso "7 dias antes do fim" (e-mail) → Fase 5 (junto das notificações/UI).
+    // 5. Aviso "plano acabando (7 dias)" — 1x por plano (app + e-mail best-effort).
+    try {
+      out.ending_notices = await sendEndingNotices(sb);
+    } catch (e) {
+      console.error("[autopilot-tick] ending notice error:", e instanceof Error ? e.message : e);
+    }
 
-    // 4. Invoca o worker para processar a fila (chamada interna com a service key).
+    // 6. Invoca o worker para processar a fila (chamada interna com a service key).
     const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/autopilot-worker`;
     try {
       const r = await fetch(url, {

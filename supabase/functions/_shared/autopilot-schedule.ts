@@ -225,3 +225,154 @@ export async function finalizePlans(sb: SB): Promise<number> {
   }
   return done;
 }
+
+// ─── E-mail best-effort (mesmo padrão do company-invite) ────────────
+async function sendEmailBestEffort(to: string, subject: string, html: string): Promise<void> {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/send-transactional-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+      body: JSON.stringify({ to, subject, html }),
+    });
+  } catch {
+    // A função de e-mail transacional é opcional; o aviso no app é o canal confiável.
+  }
+}
+
+async function userEmail(sb: SB, userId?: string | null): Promise<string | null> {
+  if (!userId) return null;
+  try {
+    const { data } = await sb.auth.admin.getUserById(userId);
+    return data?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Tally de status dos posts de um plano. */
+async function tallyPosts(sb: SB, planId: string): Promise<Record<string, number>> {
+  const { data } = await sb.from("autopilot_posts").select("status").eq("plan_id", planId);
+  const t: Record<string, number> = {};
+  for (const r of (data ?? []) as Array<{ status: string }>) t[r.status] = (t[r.status] ?? 0) + 1;
+  return t;
+}
+
+// ─── Tick: avança planos (generating→review/approved, approved→active) ─
+// Preenche as transições que o motor de geração/agendamento não faz sozinho:
+//   - generating → review (requires_approval) OU auto-aprova (requires_approval=false)
+//   - approved   → active (quando o agendamento no PFM já começou)
+export async function advancePlans(sb: SB): Promise<{ review: number; approved: number; active: number }> {
+  const res = { review: 0, approved: 0, active: 0 };
+  const { data: plans } = await sb
+    .from("autopilot_plans")
+    .select("id, company_id, created_by, name, requires_approval, status")
+    .in("status", ["generating", "approved"])
+    .limit(100);
+  if (!plans?.length) return res;
+
+  for (const plan of plans) {
+    const t = await tallyPosts(sb, plan.id);
+    const total = Object.values(t).reduce((a, b) => a + b, 0);
+    if (total === 0) continue;
+
+    if (plan.status === "generating") {
+      const pendingGen = (t.draft ?? 0) + (t.generating ?? 0);
+      if (pendingGen > 0) continue; // ainda gerando
+
+      if (plan.requires_approval) {
+        await sb.from("autopilot_plans")
+          .update({ status: "review", updated_at: new Date().toISOString() })
+          .eq("id", plan.id)
+          .eq("status", "generating");
+        res.review++;
+        const to = await userEmail(sb, plan.created_by);
+        if (to) {
+          await sendEmailBestEffort(
+            to,
+            `Seus posts de "${plan.name}" estão prontos pra revisar`,
+            `<p>O Autopilot terminou de gerar os posts de <strong>${plan.name}</strong>.</p><p>Abra o Autopilot pra revisar e aprovar o lote.</p>`,
+          );
+        }
+      } else {
+        // Auto-aprova: ready → approved + enfileira schedule_post.
+        await sb.from("autopilot_posts")
+          .update({ status: "approved", updated_at: new Date().toISOString() })
+          .eq("plan_id", plan.id)
+          .eq("status", "ready");
+        const { data: approved } = await sb
+          .from("autopilot_posts")
+          .select("id, company_id, plan_id")
+          .eq("plan_id", plan.id)
+          .eq("status", "approved")
+          .is("pfm_post_id", null);
+        const list = (approved ?? []) as Array<{ id: string; company_id: string; plan_id: string }>;
+        if (list.length > 0) {
+          await sb.from("autopilot_jobs").insert(
+            list.map((p) => ({
+              company_id: p.company_id,
+              plan_id: p.plan_id,
+              post_id: p.id,
+              kind: "schedule_post",
+              status: "queued",
+            })),
+          );
+        }
+        await sb.from("autopilot_plans")
+          .update({ status: "approved", updated_at: new Date().toISOString() })
+          .eq("id", plan.id)
+          .eq("status", "generating");
+        res.approved++;
+      }
+    } else if (plan.status === "approved") {
+      const pendingApproval = t.approved ?? 0;
+      const live = (t.scheduled ?? 0) + (t.published ?? 0);
+      if (pendingApproval === 0 && live > 0) {
+        await sb.from("autopilot_plans")
+          .update({ status: "active", updated_at: new Date().toISOString() })
+          .eq("id", plan.id)
+          .eq("status", "approved");
+        res.active++;
+      }
+    }
+  }
+  return res;
+}
+
+// ─── Tick: aviso "plano acabando (7 dias)" — 1x por plano ───────────
+export async function sendEndingNotices(sb: SB): Promise<number> {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const in7 = new Date(today.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+
+  const { data: plans } = await sb
+    .from("autopilot_plans")
+    .select("id, name, created_by, period_end")
+    .in("status", ["active", "approved"])
+    .is("ending_notice_sent_at", null)
+    .not("period_end", "is", null)
+    .lte("period_end", in7)
+    .gte("period_end", todayStr)
+    .limit(50);
+  if (!plans?.length) return 0;
+
+  let sent = 0;
+  for (const plan of plans) {
+    // Marca antes de enviar pra não reenviar em ticks seguintes (o app mostra o
+    // banner de forma independente, pela data — o e-mail é best-effort).
+    await sb.from("autopilot_plans")
+      .update({ ending_notice_sent_at: new Date().toISOString() })
+      .eq("id", plan.id)
+      .is("ending_notice_sent_at", null);
+
+    const to = await userEmail(sb, plan.created_by);
+    if (to) {
+      await sendEmailBestEffort(
+        to,
+        `Seu plano "${plan.name}" está acabando`,
+        `<p>O plano <strong>${plan.name}</strong> termina em ${plan.period_end}.</p><p>Cole o plano do próximo período pra não parar de postar.</p>`,
+      );
+    }
+    sent++;
+  }
+  return sent;
+}
