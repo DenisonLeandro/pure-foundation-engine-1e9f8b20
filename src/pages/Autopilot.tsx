@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { Bot, Plus, Loader2, CalendarRange } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAutopilotPlans } from "@/hooks/use-autopilot";
-import { useToast } from "@/hooks/use-toast";
+import { AutopilotWizard } from "@/components/autopilot/AutopilotWizard";
 import type { AutopilotPlan, AutopilotPlanStatus } from "@/types";
 
 // Rótulo + cor por status do plano (identidade violeta/fúcsia, theme-aware).
@@ -30,17 +31,23 @@ function formatPeriod(plan: AutopilotPlan): string {
 }
 
 export default function Autopilot() {
-  const { toast } = useToast();
   const plansQuery = useAutopilotPlans();
   const plans = plansQuery.data || [];
+  const [creating, setCreating] = useState(false);
 
-  // O assistente de novo plano chega na sub-entrega 5b.
-  const startWizard = () => {
-    toast({
-      title: "Assistente em construção",
-      description: "A criação de plano (colar → grade → marca → gerar) chega na próxima etapa.",
-    });
-  };
+  const startWizard = () => setCreating(true);
+
+  if (creating) {
+    return (
+      <AutopilotWizard
+        onClose={() => setCreating(false)}
+        onCreated={() => {
+          setCreating(false);
+          plansQuery.refetch();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
