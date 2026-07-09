@@ -399,11 +399,13 @@ Deno.serve(async (req: Request) => {
       case "regen":
         return await actionRegen(sbUser, sbSvc, String(body.post_id || ""), String(body.kind || ""));
       case "pause":
-        return await actionPause(sbUser, String(body.plan_id || ""));
+        return await actionPause(sbUser, sbSvc, String(body.plan_id || ""));
       case "resume":
         return await actionResume(sbUser, sbSvc, String(body.plan_id || ""));
       case "cancel":
-        return await actionCancel(sbUser, String(body.plan_id || ""));
+        return await actionCancel(sbUser, sbSvc, String(body.plan_id || ""));
+      case "delete":
+        return await actionDelete(sbUser, sbSvc, String(body.plan_id || ""));
       default:
         return json({ error: `Ação desconhecida: ${action}` }, 400);
     }
