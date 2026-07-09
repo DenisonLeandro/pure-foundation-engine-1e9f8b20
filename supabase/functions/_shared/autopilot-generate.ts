@@ -177,7 +177,7 @@ async function genImage(sb: SB, job: Job): Promise<void> {
 
   const artBrand: ArtBrandLike = { colors: brand?.colors, logo_url: brand?.logo_url };
   const prompt = buildArtPrompt(userText, artBrand);
-  const img = await generateArtImage(prompt, plan?.created_by, post.company_id);
+  const img = await generateArtImage(prompt);
   const composed = await composeWithLogo(await srcToBytes(img), brand?.logo_url || null);
   const url = await uploadArt(sb, post.company_id, composed);
 
