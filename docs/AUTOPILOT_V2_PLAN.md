@@ -118,7 +118,9 @@ Conforme o Autopilot publica, o histórico cresce e a camada 1 fica mais precisa
 
 ### 4. Arte (imagem de cada post) — REUSO FIEL do Studio "A IA cria tudo"
 
-**Decisão-chave (confirmada pelo usuário):** o Autopilot deve gerar a arte **exatamente como o Studio → "A IA cria tudo"** (`AiArtStudio.tsx`). As artes de lá já saem no nível desejado (marca, logo, tudo). O Autopilot **precisa reusar esse mesmo pipeline**, não uma versão simplificada.
+**Decisão-chave (reforçada pelo usuário):** o Autopilot deve gerar a arte **exatamente como o Studio → "A IA cria tudo"** (`AiArtStudio.tsx`). As artes de lá já saem no nível desejado (marca, logo, tudo). O Autopilot **precisa reusar esse mesmo pipeline**, **não** uma versão simplificada. Requisito firme.
+
+> **Nuance de "idêntico":** mesmo **pipeline** (mesma qualidade, marca, logo, acabamento). Não é pixel-por-pixel de uma geração específica — gpt-image-2 é não-determinístico (como clicar "Gerar outra" no Studio, sai imagem diferente). A **composição da logo** é fiel pixel a pixel (geometria idêntica).
 
 **Pipeline exato do "A IA cria tudo" (a replicar):**
 ```
@@ -291,6 +293,25 @@ draft → generating → ready → approved → scheduled → published
 **Plano (derivado dos posts):** draft → generating → review → approved → active → completed. Ramos laterais: `paused` (retomável), `canceled` (encerrado), `failed`.
 
 **Falha não bloqueia o ciclo:** um post `failed` não trava os demais (jobs são por post). Ele aparece na UI com o erro e um botão "tentar de novo"; o resto do plano segue publicando.
+
+## Execução em segundo plano (REQUISITO CRÍTICO)
+> O produto **precisa** rodar em 2º plano. Gerar as artes pode levar dezenas de minutos; a pessoa **tem que poder fechar a aba/sair** e o trabalho continuar.
+
+**Por que o app atual falha:** no Studio, a orquestração (loop, await da imagem, composição da logo) roda **no navegador**. Fechou a aba → morre e perde o resultado. Pra 30 posts, exigiria manter a aba aberta o tempo todo.
+
+**Como o v2 resolve (por design):**
+```
+Navegador  →  só DISPARA o trabalho e consulta o progresso (polling do estado no banco)
+Servidor   →  faz TODO o trabalho pesado (worker), sozinho, e persiste cada post na hora
+```
+- Geração roda no **worker (servidor)**, acionado pelo **tick** (pg_cron) + invocação imediata. Cada post gerado é salvo no banco imediatamente (estado sobrevive a fechar a aba).
+- Pessoa fecha a aba / volta depois → vê os posts prontos + recebe e-mail quando o lote fica `ready`.
+- **Limite de tempo da edge function:** uma execução não roda 40 min. Por isso **fila + tick**: cada passagem do worker processa **alguns** jobs e retorna; o tick reinvoca (1/min) até esvaziar. 40 min de trabalho = muitas execuções curtas.
+- **Amarração com a arte:** é por causa deste requisito que a composição da logo é portada pro backend — não dá pra rodar em 2º plano E usar a composição client-side do navegador.
+
+## Qualidade em lote (30+ posts de uma vez)
+- **Não prejudica a qualidade por post.** Cada post é uma geração **independente** (própria chamada gpt-image-2, próprio briefing) — sai igual ao que sairia sozinho no Studio.
+- O volume é questão **operacional**, não estética: a fila dá **ritmo** (evita rate limit da OpenAI) e faz **retry**. A **tela de revisão** é a rede de segurança pra regenerar qualquer post fraco antes de aprovar.
 
 ## Motor (fila de jobs)
 - **Worker** `autopilot-worker`: claim atômico (`FOR UPDATE SKIP LOCKED`), processa 1 job por vez.
