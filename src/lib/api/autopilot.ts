@@ -52,6 +52,7 @@ export type PlanActionSimple =
   | { action: "pause"; plan_id: string }
   | { action: "resume"; plan_id: string }
   | { action: "cancel"; plan_id: string }
+  | { action: "delete"; plan_id: string }
   | { action: "regen"; post_id: string; kind: "image" | "caption" };
 
 export type PlanAction = PlanActionCreate | PlanActionSimple;
