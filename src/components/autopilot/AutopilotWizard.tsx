@@ -61,7 +61,7 @@ export function AutopilotWizard({
   onCreated,
 }: {
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (planId?: string) => void;
 }) {
   const { toast } = useToast();
   const { activeCompanyId } = useCompany();
@@ -136,7 +136,7 @@ export function AutopilotWizard({
   async function handleGenerate() {
     if (!activeCompanyId) return;
     try {
-      await create.mutateAsync({
+      const res = await create.mutateAsync({
         brand_id: brandId,
         name: undefined,
         platforms: selectedPlatforms,
@@ -145,11 +145,12 @@ export function AutopilotWizard({
         requires_approval: requiresApproval,
         rows: validRows.map((r) => ({ date: r.date, theme: r.theme.trim(), category: r.category.trim() || null })),
       });
+      const planId = (res as { plan?: { id?: string } })?.plan?.id;
       toast({
         title: "Geração iniciada 🎨",
         description: `O Autopilot vai criar ${validRows.length} posts em segundo plano. Você pode fechar — avisamos quando terminar.`,
       });
-      onCreated();
+      onCreated(planId);
     } catch (e) {
       toast({
         title: "Não foi possível iniciar a geração",
