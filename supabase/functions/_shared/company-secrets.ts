@@ -194,6 +194,40 @@ export async function getCompanyOwnerConfig(
 }
 
 /**
+ * Resolve as chaves do DONO da empresa SEM validar um requester — para uso por
+ * chamadas internas de serviço confiáveis (worker/tick do Autopilot, autenticadas
+ * pela service role key). NUNCA exponha o resultado no body de uma resposta.
+ * Retorna null se a empresa não existir ou não tiver dono ativo.
+ */
+export async function getCompanyOwnerConfigInternal(
+  companyId: string | undefined | null,
+): Promise<{ config: CompanyConfigRow; ownerUserId: string } | null> {
+  if (!companyId) return null;
+  const admin = adminClient();
+  if (admin instanceof Response) return null;
+
+  const { data: ownerRow } = await admin
+    .from("company_members")
+    .select("user_id")
+    .eq("company_id", companyId)
+    .eq("role", "owner")
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!ownerRow?.user_id) return null;
+
+  const { data } = await admin
+    .from("user_configs")
+    .select("postforme_api_key, blotato_api_key, pexels_api_key, firecrawl_api_key, higgsfield_api_id, higgsfield_api_secret, apify_api_token")
+    .eq("user_id", ownerRow.user_id as string)
+    .maybeSingle();
+
+  const config = (data ?? {}) as CompanyConfigRow;
+  return { config, ownerUserId: ownerRow.user_id as string };
+}
+
+/**
  * Valida membership e retorna a linha de company_configs para uso INTERNO da edge.
  * NUNCA devolva este objeto (ou subcampos sensíveis) no body da resposta da função.
  *

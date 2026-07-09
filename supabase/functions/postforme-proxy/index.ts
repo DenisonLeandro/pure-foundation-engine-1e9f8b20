@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { requireUser } from "../_shared/auth.ts";
-import { getCompanyOwnerConfig } from "../_shared/company-secrets.ts";
+import { requireUser, isInternalServiceCall } from "../_shared/auth.ts";
+import { getCompanyOwnerConfig, getCompanyOwnerConfigInternal } from "../_shared/company-secrets.ts";
 import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
@@ -255,9 +255,15 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const auth = await requireUser(req, corsHeaders);
-  if (auth instanceof Response) return auth;
-
+  // Chamada interna do Autopilot (worker/tick) reusa esta função sem JWT de
+  // usuário — a chave PFM é resolvida do dono da empresa (companyId do body).
+  const internal = isInternalServiceCall(req);
+  let requesterUserId: string | undefined;
+  if (!internal) {
+    const auth = await requireUser(req, corsHeaders);
+    if (auth instanceof Response) return auth;
+    requesterUserId = auth.user.id;
+  }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -272,8 +278,10 @@ Deno.serve(async (req: Request) => {
       args?: Args;
       companyId?: string;
       validateKey?: boolean;
+      userId?: string; // só em chamadas internas (worker) — para o log de uso
     };
     const { tool, args = {}, companyId, validateKey } = body;
+    if (internal && body.userId) requesterUserId = body.userId;
 
     if (!tool) {
       return new Response(
@@ -305,8 +313,17 @@ Deno.serve(async (req: Request) => {
         );
       }
       apiKey = headerKey;
+    } else if (internal) {
+      const cfg = await getCompanyOwnerConfigInternal(companyId);
+      apiKey = cfg?.config?.postforme_api_key ?? null;
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ error: "Post for Me não configurado para esta empresa." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     } else {
-      const cfgResult = await getCompanyOwnerConfig(companyId, auth.user.id, corsHeaders);
+      const cfgResult = await getCompanyOwnerConfig(companyId, requesterUserId as string, corsHeaders);
       if (cfgResult instanceof Response) return cfgResult;
       apiKey = cfgResult.config.postforme_api_key;
       if (!apiKey) {
@@ -369,7 +386,7 @@ Deno.serve(async (req: Request) => {
 
     if (tool === "pfm_create_post") {
       await logApiUsage({
-        companyId, userId: auth.user.id, service: "postforme",
+        companyId, userId: requesterUserId, service: "postforme",
         operation: "default", units: 1, unitType: "post",
         metadata: { tool },
       });
