@@ -119,66 +119,100 @@ export interface PostDraft {
   platformSpecific: Record<Platform, Record<string, unknown>>;
 }
 
-// ─── Autopilot ──────────────────────────────────────────────────
+// ─── Autopilot v2 ───────────────────────────────────────────────
+// Modelo novo (schema v2): um PLANO = um período de conteúdo colado (ciclo
+// finito) → POSTS (um por dia) → JOBS (fila do motor em 2º plano).
+// Tipos escritos à mão porque os tipos gerados do Supabase ainda descrevem o
+// schema v1 (autopilot_configs/calendars) que foi removido. Ver docs/AUTOPILOT_V2_PLAN.md.
 
-export type AutopilotVisualFormat = "auto" | "carousel" | "single" | "infographic" | "video" | "none";
-export type AutopilotRecurrence = "weekly" | "biweekly" | "monthly";
-export type AutopilotCalendarStatus = "draft" | "approved" | "scheduling" | "active" | "completed" | "failed";
-export type AutopilotPostStatus = "draft" | "approved" | "generating_visual" | "visual_ready" | "scheduled" | "published" | "failed";
+/** Estado do plano (derivado dos posts). */
+export type AutopilotPlanStatus =
+  | "draft"
+  | "generating"
+  | "review"
+  | "approved"
+  | "active"
+  | "completed"
+  | "failed"
+  | "paused"
+  | "canceled";
 
-export interface AutopilotConfig {
+/** Estado do post (fonte da verdade da máquina de estados). */
+export type AutopilotPostStatus =
+  | "draft"
+  | "generating"
+  | "ready"
+  | "approved"
+  | "scheduled"
+  | "published"
+  | "failed"
+  | "removed";
+
+/** Tipos de trabalho da fila. */
+export type AutopilotJobKind = "gen_image" | "gen_caption" | "schedule_post" | "confirm_post";
+export type AutopilotJobStatus = "queued" | "running" | "done" | "failed";
+
+export interface AutopilotPlan {
   id: string;
-  user_id: string;
+  company_id: string;
   brand_id?: string | null;
-  research_topics: string[];
-  research_urls: string[];
+  created_by: string;
+  name: string;
   platforms: string[];
   social_account_ids: string[];
-  posts_per_cycle: number;
-  visual_format: AutopilotVisualFormat;
-  image_provider?: string;
-  video_model?: string | null;
-  content_types: string[];
-  recurrence: AutopilotRecurrence;
-  preferred_days: number[];
-  preferred_times: string[];
-  timezone: string;
-  is_active: boolean;
+  timezone: string; // IANA (ex.: America/Sao_Paulo)
   requires_approval: boolean;
-  next_run_at?: string | null;
-  last_run_at?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AutopilotCalendar {
-  id: string;
-  user_id: string;
-  config_id: string;
-  cycle_start: string;
-  cycle_end: string;
-  status: AutopilotCalendarStatus;
-  research_results: { url: string; title: string; summary: string }[];
+  status: AutopilotPlanStatus;
+  period_start?: string | null; // YYYY-MM-DD
+  period_end?: string | null; // YYYY-MM-DD
+  raw_plan_text?: string | null;
+  ending_notice_sent_at?: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface AutopilotPost {
   id: string;
-  user_id: string;
-  calendar_id: string;
-  platform: string;
-  text_content: string;
+  plan_id: string;
+  company_id: string;
+  post_date: string; // YYYY-MM-DD (vem do plano)
+  theme: string;
+  category?: string | null;
+  art_brief?: string | null;
+  caption?: string | null;
   hashtags: string[];
-  carousel_data?: { title: string; slides: { heading: string; body: string }[] } | null;
-  media_urls: string[];
-  visual_creation_id?: string | null;
-  scheduled_at?: string | null;
-  pfm_post_id?: string | null;
+  image_url?: string | null;
+  image_prompt?: string | null;
+  visual_provider: string;
+  scheduled_at?: string | null; // UTC
+  time_locked: boolean;
   status: AutopilotPostStatus;
-  error_message?: string | null;
-  source_topic?: string | null;
-  source_url?: string | null;
+  pfm_post_id?: string | null;
+  published_url?: string | null;
+  engagement?: Record<string, unknown> | null;
+  error?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AutopilotJob {
+  id: string;
+  company_id: string;
+  plan_id: string;
+  post_id?: string | null;
+  kind: AutopilotJobKind;
+  status: AutopilotJobStatus;
+  attempts: number;
+  max_attempts: number;
+  next_attempt_at: string;
+  last_error?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Linha estruturada devolvida pelo autopilot-parse (a grade que a pessoa confirma). */
+export interface AutopilotPlanRow {
+  date: string | null; // YYYY-MM-DD ou null (a pessoa preenche antes de gerar)
+  theme: string;
+  category: string | null;
 }
