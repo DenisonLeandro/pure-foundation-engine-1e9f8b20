@@ -204,7 +204,7 @@ export function AutopilotPlanDetail({ planId, onBack }: { planId: string; onBack
           onApproveAll={handleApproveAll}
         />
       ) : (
-        <PlanDashboard plan={plan} posts={posts} />
+        <PlanDashboard plan={plan} posts={posts} onDeleted={onBack} />
       )}
     </div>
   );
