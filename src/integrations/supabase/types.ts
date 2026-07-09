@@ -216,146 +216,144 @@ export type Database = {
           },
         ]
       }
-      autopilot_calendars: {
+      autopilot_jobs: {
         Row: {
-          company_id: string | null
-          config_id: string
+          attempts: number
+          company_id: string
           created_at: string
-          cycle_end: string
-          cycle_start: string
           id: string
-          research_results: Json | null
+          kind: string
+          last_error: string | null
+          locked_at: string | null
+          max_attempts: number
+          next_attempt_at: string
+          payload: Json
+          plan_id: string
+          post_id: string | null
           status: string
           updated_at: string
-          user_id: string
         }
         Insert: {
-          company_id?: string | null
-          config_id: string
+          attempts?: number
+          company_id: string
           created_at?: string
-          cycle_end: string
-          cycle_start: string
           id?: string
-          research_results?: Json | null
+          kind: string
+          last_error?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          payload?: Json
+          plan_id: string
+          post_id?: string | null
           status?: string
           updated_at?: string
-          user_id: string
         }
         Update: {
-          company_id?: string | null
-          config_id?: string
+          attempts?: number
+          company_id?: string
           created_at?: string
-          cycle_end?: string
-          cycle_start?: string
           id?: string
-          research_results?: Json | null
+          kind?: string
+          last_error?: string | null
+          locked_at?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          payload?: Json
+          plan_id?: string
+          post_id?: string | null
           status?: string
           updated_at?: string
-          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "autopilot_calendars_company_id_fkey"
+            foreignKeyName: "autopilot_jobs_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "autopilot_calendars_config_id_fkey"
-            columns: ["config_id"]
+            foreignKeyName: "autopilot_jobs_plan_id_fkey"
+            columns: ["plan_id"]
             isOneToOne: false
-            referencedRelation: "autopilot_configs"
+            referencedRelation: "autopilot_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autopilot_jobs_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "autopilot_posts"
             referencedColumns: ["id"]
           },
         ]
       }
-      autopilot_configs: {
+      autopilot_plans: {
         Row: {
           brand_id: string | null
-          company_id: string | null
-          content_types: string[] | null
+          company_id: string
           created_at: string
+          created_by: string
+          ending_notice_sent_at: string | null
           id: string
-          image_provider: string
-          is_active: boolean
-          last_run_at: string | null
-          next_run_at: string | null
+          name: string
+          period_end: string | null
+          period_start: string | null
           platforms: string[]
-          posts_per_cycle: number
-          preferred_days: number[] | null
-          preferred_times: string[] | null
-          recurrence: string
+          raw_plan_text: string | null
           requires_approval: boolean
-          research_topics: string[]
-          research_urls: string[] | null
           social_account_ids: string[]
+          status: string
           timezone: string
           updated_at: string
-          user_id: string
-          video_model: string | null
-          visual_format: string
         }
         Insert: {
           brand_id?: string | null
-          company_id?: string | null
-          content_types?: string[] | null
+          company_id: string
           created_at?: string
+          created_by: string
+          ending_notice_sent_at?: string | null
           id?: string
-          image_provider?: string
-          is_active?: boolean
-          last_run_at?: string | null
-          next_run_at?: string | null
+          name: string
+          period_end?: string | null
+          period_start?: string | null
           platforms?: string[]
-          posts_per_cycle?: number
-          preferred_days?: number[] | null
-          preferred_times?: string[] | null
-          recurrence?: string
+          raw_plan_text?: string | null
           requires_approval?: boolean
-          research_topics?: string[]
-          research_urls?: string[] | null
           social_account_ids?: string[]
+          status?: string
           timezone?: string
           updated_at?: string
-          user_id: string
-          video_model?: string | null
-          visual_format?: string
         }
         Update: {
           brand_id?: string | null
-          company_id?: string | null
-          content_types?: string[] | null
+          company_id?: string
           created_at?: string
+          created_by?: string
+          ending_notice_sent_at?: string | null
           id?: string
-          image_provider?: string
-          is_active?: boolean
-          last_run_at?: string | null
-          next_run_at?: string | null
+          name?: string
+          period_end?: string | null
+          period_start?: string | null
           platforms?: string[]
-          posts_per_cycle?: number
-          preferred_days?: number[] | null
-          preferred_times?: string[] | null
-          recurrence?: string
+          raw_plan_text?: string | null
           requires_approval?: boolean
-          research_topics?: string[]
-          research_urls?: string[] | null
           social_account_ids?: string[]
+          status?: string
           timezone?: string
           updated_at?: string
-          user_id?: string
-          video_model?: string | null
-          visual_format?: string
         }
         Relationships: [
           {
-            foreignKeyName: "autopilot_configs_brand_id_fkey"
+            foreignKeyName: "autopilot_plans_brand_id_fkey"
             columns: ["brand_id"]
             isOneToOne: false
             referencedRelation: "brand_profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "autopilot_configs_company_id_fkey"
+            foreignKeyName: "autopilot_plans_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -365,81 +363,87 @@ export type Database = {
       }
       autopilot_posts: {
         Row: {
-          calendar_id: string
-          carousel_data: Json | null
-          company_id: string | null
+          art_brief: string | null
+          caption: string | null
+          category: string | null
+          company_id: string
           created_at: string
-          error_message: string | null
-          hashtags: string[] | null
+          engagement: Json | null
+          error: string | null
+          hashtags: string[]
           id: string
-          media_urls: string[] | null
+          image_prompt: string | null
+          image_url: string | null
           pfm_post_id: string | null
-          platform: string
+          plan_id: string
+          post_date: string
+          published_url: string | null
           scheduled_at: string | null
-          source_topic: string | null
-          source_url: string | null
           status: string
-          text_content: string
+          theme: string
+          time_locked: boolean
           updated_at: string
-          user_id: string
-          visual_creation_id: string | null
-          visual_provider: string | null
+          visual_provider: string
         }
         Insert: {
-          calendar_id: string
-          carousel_data?: Json | null
-          company_id?: string | null
+          art_brief?: string | null
+          caption?: string | null
+          category?: string | null
+          company_id: string
           created_at?: string
-          error_message?: string | null
-          hashtags?: string[] | null
+          engagement?: Json | null
+          error?: string | null
+          hashtags?: string[]
           id?: string
-          media_urls?: string[] | null
+          image_prompt?: string | null
+          image_url?: string | null
           pfm_post_id?: string | null
-          platform: string
+          plan_id: string
+          post_date: string
+          published_url?: string | null
           scheduled_at?: string | null
-          source_topic?: string | null
-          source_url?: string | null
           status?: string
-          text_content: string
+          theme: string
+          time_locked?: boolean
           updated_at?: string
-          user_id: string
-          visual_creation_id?: string | null
-          visual_provider?: string | null
+          visual_provider?: string
         }
         Update: {
-          calendar_id?: string
-          carousel_data?: Json | null
-          company_id?: string | null
+          art_brief?: string | null
+          caption?: string | null
+          category?: string | null
+          company_id?: string
           created_at?: string
-          error_message?: string | null
-          hashtags?: string[] | null
+          engagement?: Json | null
+          error?: string | null
+          hashtags?: string[]
           id?: string
-          media_urls?: string[] | null
+          image_prompt?: string | null
+          image_url?: string | null
           pfm_post_id?: string | null
-          platform?: string
+          plan_id?: string
+          post_date?: string
+          published_url?: string | null
           scheduled_at?: string | null
-          source_topic?: string | null
-          source_url?: string | null
           status?: string
-          text_content?: string
+          theme?: string
+          time_locked?: boolean
           updated_at?: string
-          user_id?: string
-          visual_creation_id?: string | null
-          visual_provider?: string | null
+          visual_provider?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "autopilot_posts_calendar_id_fkey"
-            columns: ["calendar_id"]
-            isOneToOne: false
-            referencedRelation: "autopilot_calendars"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "autopilot_posts_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autopilot_posts_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "autopilot_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -1118,6 +1122,35 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      autopilot_claim_jobs: {
+        Args: { _limit?: number }
+        Returns: {
+          attempts: number
+          company_id: string
+          created_at: string
+          id: string
+          kind: string
+          last_error: string | null
+          locked_at: string | null
+          max_attempts: number
+          next_attempt_at: string
+          payload: Json
+          plan_id: string
+          post_id: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "autopilot_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      autopilot_requeue_stuck_jobs: {
+        Args: { _stuck_seconds?: number }
+        Returns: number
+      }
       can_manage_brand_profiles: {
         Args: { _company: string; _user: string }
         Returns: boolean
