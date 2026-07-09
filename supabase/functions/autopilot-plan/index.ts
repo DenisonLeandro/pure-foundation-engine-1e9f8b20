@@ -291,15 +291,27 @@ async function unschedulePlan(sbUser: SB, plan: SB): Promise<number> {
   return list.length;
 }
 
-async function actionPause(sbUser: SB, planId: string): Promise<Response> {
+/** Cancela jobs pendentes (queued) do plano — evita consumir crédito de IA depois de pausar/cancelar. */
+async function cancelPendingJobs(sbSvc: SB, planId: string, reason: string): Promise<number> {
+  const { data } = await sbSvc
+    .from("autopilot_jobs")
+    .update({ status: "failed", last_error: reason, updated_at: new Date().toISOString() })
+    .eq("plan_id", planId)
+    .eq("status", "queued")
+    .select("id");
+  return Array.isArray(data) ? data.length : 0;
+}
+
+async function actionPause(sbUser: SB, sbSvc: SB, planId: string): Promise<Response> {
   const { plan, error } = await loadPlanGuarded(sbUser, planId);
   if (error) return error;
-  if (plan.status !== "active" && plan.status !== "approved") {
-    return json({ error: "Só é possível pausar um plano ativo." }, 409);
+  if (!["active", "approved", "generating"].includes(plan.status)) {
+    return json({ error: "Só é possível pausar um plano em execução." }, 409);
   }
-  const n = await unschedulePlan(sbUser, plan);
+  const unscheduled = await unschedulePlan(sbUser, plan);
+  const jobsCanceled = await cancelPendingJobs(sbSvc, planId, "plano pausado");
   await sbUser.from("autopilot_plans").update({ status: "paused", updated_at: new Date().toISOString() }).eq("id", planId);
-  return json({ ok: true, unscheduled: n });
+  return json({ ok: true, unscheduled, jobs_canceled: jobsCanceled });
 }
 
 async function actionResume(sbUser: SB, sbSvc: SB, planId: string): Promise<Response> {
@@ -330,15 +342,31 @@ async function actionResume(sbUser: SB, sbSvc: SB, planId: string): Promise<Resp
   return json({ ok: true, rescheduled: list.length });
 }
 
-async function actionCancel(sbUser: SB, planId: string): Promise<Response> {
+async function actionCancel(sbUser: SB, sbSvc: SB, planId: string): Promise<Response> {
   const { plan, error } = await loadPlanGuarded(sbUser, planId);
   if (error) return error;
   if (plan.status === "completed" || plan.status === "canceled") {
     return json({ error: "Plano já encerrado." }, 409);
   }
-  const n = await unschedulePlan(sbUser, plan);
+  const unscheduled = await unschedulePlan(sbUser, plan);
+  const jobsCanceled = await cancelPendingJobs(sbSvc, planId, "plano cancelado");
   await sbUser.from("autopilot_plans").update({ status: "canceled", updated_at: new Date().toISOString() }).eq("id", planId);
-  return json({ ok: true, unscheduled: n });
+  return json({ ok: true, unscheduled, jobs_canceled: jobsCanceled });
+}
+
+async function actionDelete(sbUser: SB, sbSvc: SB, planId: string): Promise<Response> {
+  const { plan, error } = await loadPlanGuarded(sbUser, planId);
+  if (error) return error;
+  const deletable = ["draft", "review", "completed", "canceled", "failed"];
+  if (!deletable.includes(plan.status)) {
+    return json({ error: "Cancele o plano antes de excluir (ele ainda está em execução)." }, 409);
+  }
+  // Best-effort: garante que nada fica na fila (jobs/posts vão em cascata pelas FKs, mas defensivo).
+  await sbSvc.from("autopilot_jobs").delete().eq("plan_id", planId);
+  await sbSvc.from("autopilot_posts").delete().eq("plan_id", planId);
+  const { error: delErr } = await sbUser.from("autopilot_plans").delete().eq("id", planId);
+  if (delErr) return json({ error: `Falha ao excluir: ${delErr.message}` }, 500);
+  return json({ ok: true, deleted: true });
 }
 
 // ─── Handler ────────────────────────────────────────────────────────
