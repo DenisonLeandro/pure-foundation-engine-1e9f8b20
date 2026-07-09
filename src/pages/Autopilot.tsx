@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAutopilotPlans } from "@/hooks/use-autopilot";
 import { AutopilotWizard } from "@/components/autopilot/AutopilotWizard";
 import { AutopilotPlanDetail } from "@/components/autopilot/AutopilotPlanDetail";
+import { PlanActionsMenu } from "@/components/autopilot/PlanActionsMenu";
 import type { AutopilotPlan, AutopilotPlanStatus } from "@/types";
 
 // Rótulo + cor por status do plano (identidade violeta/fúcsia, theme-aware).
