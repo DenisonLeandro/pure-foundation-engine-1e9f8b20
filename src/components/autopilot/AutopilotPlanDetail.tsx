@@ -219,11 +219,12 @@ function daysUntil(dateStr?: string | null): number | null {
   return Math.ceil((end.getTime() - now.getTime()) / 86400000);
 }
 
-function PlanDashboard({ plan, posts }: { plan: AutopilotPlan; posts: AutopilotPost[] }) {
+function PlanDashboard({ plan, posts, onDeleted }: { plan: AutopilotPlan; posts: AutopilotPost[]; onDeleted?: () => void }) {
   const { toast } = useToast();
   const pause = usePausePlan();
   const resume = useResumePlan();
   const cancel = useCancelPlan();
+  const del = useDeletePlan();
 
   const count = (s: AutopilotPostStatus) => posts.filter((p) => p.status === s).length;
   const tiles = [
