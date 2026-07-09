@@ -1,6 +1,19 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 /**
+ * True quando a chamada é uma requisição INTERNA de serviço (worker/tick),
+ * autenticada pela service role key no header Authorization. Usado por funções
+ * que normalmente exigem usuário (openai-image, generate-content) para permitir
+ * que o Autopilot as reuse em 2º plano — mantendo o mesmo caminho de geração do
+ * Studio, sem um JWT de usuário.
+ */
+export function isInternalServiceCall(req: Request): boolean {
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const auth = req.headers.get("Authorization") || req.headers.get("authorization") || "";
+  return !!key && auth === `Bearer ${key}`;
+}
+
+/**
  * Validates the caller's JWT and returns the authenticated user.
  * Returns a Response (401) if the request is unauthenticated; otherwise returns { user, authHeader }.
  *
