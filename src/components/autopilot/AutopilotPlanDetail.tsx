@@ -53,6 +53,7 @@ import {
   usePausePlan,
   useResumePlan,
   useCancelPlan,
+  useDeletePlan,
 } from "@/hooks/use-autopilot";
 import { useToast } from "@/hooks/use-toast";
 import type { AutopilotPlan, AutopilotPost, AutopilotPostStatus } from "@/types";
