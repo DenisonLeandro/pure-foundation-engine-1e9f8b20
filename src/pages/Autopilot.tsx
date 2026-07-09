@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAutopilotPlans } from "@/hooks/use-autopilot";
 import { AutopilotWizard } from "@/components/autopilot/AutopilotWizard";
+import { AutopilotPlanDetail } from "@/components/autopilot/AutopilotPlanDetail";
 import type { AutopilotPlan, AutopilotPlanStatus } from "@/types";
 
 // Rótulo + cor por status do plano (identidade violeta/fúcsia, theme-aware).
@@ -34,6 +35,7 @@ export default function Autopilot() {
   const plansQuery = useAutopilotPlans();
   const plans = plansQuery.data || [];
   const [creating, setCreating] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const startWizard = () => setCreating(true);
 
@@ -41,12 +43,17 @@ export default function Autopilot() {
     return (
       <AutopilotWizard
         onClose={() => setCreating(false)}
-        onCreated={() => {
+        onCreated={(planId?: string) => {
           setCreating(false);
           plansQuery.refetch();
+          if (planId) setSelectedPlanId(planId);
         }}
       />
     );
+  }
+
+  if (selectedPlanId) {
+    return <AutopilotPlanDetail planId={selectedPlanId} onBack={() => setSelectedPlanId(null)} />;
   }
 
   return (
@@ -97,7 +104,11 @@ export default function Autopilot() {
           {plans.map((plan) => {
             const s = PLAN_STATUS[plan.status] ?? PLAN_STATUS.draft;
             return (
-              <Card key={plan.id} className="transition-colors hover:border-violet-500/40">
+              <Card
+                key={plan.id}
+                onClick={() => setSelectedPlanId(plan.id)}
+                className="cursor-pointer transition-colors hover:border-violet-500/40"
+              >
                 <CardContent className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-semibold leading-tight">{plan.name}</h3>
