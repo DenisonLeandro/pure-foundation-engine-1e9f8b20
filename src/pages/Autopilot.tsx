@@ -113,9 +113,12 @@ export default function Autopilot() {
                 <CardContent className="space-y-3 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-semibold leading-tight">{plan.name}</h3>
-                    <Badge variant="secondary" className={s.className}>
-                      {s.label}
-                    </Badge>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="secondary" className={s.className}>
+                        {s.label}
+                      </Badge>
+                      <PlanActionsMenu plan={plan} />
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <CalendarRange className="h-3.5 w-3.5" />
