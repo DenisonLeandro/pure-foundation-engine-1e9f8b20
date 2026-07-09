@@ -170,6 +170,14 @@ export function useCancelPlan() {
   });
 }
 
+export function useDeletePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (planId: string) => api.planAction({ action: "delete", plan_id: planId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["autopilot"] }),
+  });
+}
+
 export function useRegenPost() {
   const qc = useQueryClient();
   return useMutation({
