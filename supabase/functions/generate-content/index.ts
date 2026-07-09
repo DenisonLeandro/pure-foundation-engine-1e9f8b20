@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { requireUser } from "../_shared/auth.ts";
+import { requireUser, isInternalServiceCall } from "../_shared/auth.ts";
 import { logApiUsage } from "../_shared/usage-log.ts";
 
 /**
@@ -49,6 +49,7 @@ interface RequestBody {
   /** Título literal exigido pelo usuário — passado como metadado, nunca embutido no prompt. */
   literalTitle?: string;
   companyId?: string;
+  userId?: string;      // só em chamadas internas (worker) — para o log de uso
 }
 
 /**
@@ -76,9 +77,14 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const auth = await requireUser(req, corsHeaders);
-  if (auth instanceof Response) return auth;
-
+  // Chamada interna do Autopilot (worker) reusa esta função sem JWT de usuário.
+  const internal = isInternalServiceCall(req);
+  let userId: string | undefined;
+  if (!internal) {
+    const auth = await requireUser(req, corsHeaders);
+    if (auth instanceof Response) return auth;
+    userId = auth.user.id;
+  }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -90,6 +96,7 @@ Deno.serve(async (req: Request) => {
   try {
     const body: RequestBody = await req.json();
     const { prompt, platforms, tone, language, sourceContent, brandProfile, creativeAngle, literalTitle, companyId } = body;
+    if (internal && body.userId) userId = body.userId;
 
     if (!prompt || !platforms?.length) {
       return new Response(
@@ -304,12 +311,12 @@ Responda com JSON puro.`;
     const totalTokens = data.usage?.total_tokens;
     await logApiUsage({
       companyId,
-      userId: auth.user.id,
       service: "gemini",
       operation: "default",
       units: typeof totalTokens === "number" ? totalTokens / 1000 : 2,
       unitType: "1k_tokens",
       metadata: { model: "google/gemini-3-flash-preview", platforms, totalTokens },
+      userId,
     });
 
     return new Response(JSON.stringify(parsed), {

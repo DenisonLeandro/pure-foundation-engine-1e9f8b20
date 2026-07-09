@@ -7,6 +7,7 @@ import {
   corsHeaders,
   type HandlerMap,
 } from "../_shared/autopilot-engine.ts";
+import { generationHandlers } from "../_shared/autopilot-generate.ts";
 
 /**
  * Autopilot Worker — processa a fila de jobs em 2º plano.
@@ -20,8 +21,8 @@ import {
  *   - schedule_post, confirm_post → Fase 4 (agendamento/publicação)
  */
 const handlers: HandlerMap = {
-  // Preenchido nas próximas fases. Enquanto vazio, nenhum produtor enfileira
-  // jobs, então a fila permanece inerte (sem falhas espúrias).
+  ...generationHandlers, // gen_image, gen_caption (Fase 3)
+  // schedule_post, confirm_post → Fase 4
 };
 
 Deno.serve(async (req: Request) => {

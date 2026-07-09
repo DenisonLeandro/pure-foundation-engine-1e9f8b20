@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { requireUser } from "../_shared/auth.ts";
+import { requireUser, isInternalServiceCall } from "../_shared/auth.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { logApiUsage } from "../_shared/usage-log.ts";
 
@@ -75,6 +75,7 @@ interface RequestBody {
   background?: string;  // "transparent" | "opaque" | "auto"
   companyId?: string;
   image?: string;       // presente → modo edição (data URL ou http URL)
+  userId?: string;      // só em chamadas internas (worker) — para o log de uso
 }
 
 Deno.serve(async (req: Request) => {
@@ -82,8 +83,15 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const auth = await requireUser(req, corsHeaders);
-  if (auth instanceof Response) return auth;
+  // Chamada interna do Autopilot (worker/tick) reusa esta função sem JWT de
+  // usuário; do contrário, exige usuário autenticado (comportamento original).
+  const internal = isInternalServiceCall(req);
+  let userId: string | undefined;
+  if (!internal) {
+    const auth = await requireUser(req, corsHeaders);
+    if (auth instanceof Response) return auth;
+    userId = auth.user.id;
+  }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -95,6 +103,7 @@ Deno.serve(async (req: Request) => {
   try {
     const body: RequestBody = await req.json();
     const { prompt, size = "1024x1024", n = 1, model, quality, background, companyId, image } = body;
+    if (internal && body.userId) userId = body.userId;
     const isEdit = typeof image === "string" && image.length > 0;
 
     if (!prompt?.trim()) {
@@ -175,7 +184,7 @@ Deno.serve(async (req: Request) => {
 
         await logApiUsage({
           companyId,
-          userId: auth.user.id,
+          userId,
           service: useGemini ? "gemini" : "openai_image",
           operation: isEdit ? "image_edit" : "image",
           units: images.length,
@@ -255,7 +264,7 @@ Deno.serve(async (req: Request) => {
 
     await logApiUsage({
       companyId,
-      userId: auth.user.id,
+      userId,
       service: "openai_image",
       operation: isEdit ? "edit" : "default",
       units: images.length,
