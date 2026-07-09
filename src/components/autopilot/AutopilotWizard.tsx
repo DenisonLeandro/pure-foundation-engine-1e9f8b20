@@ -147,8 +147,8 @@ export function AutopilotWizard({
       });
       const planId = (res as { plan?: { id?: string } })?.plan?.id;
       toast({
-        title: "Geração iniciada 🎨",
-        description: `O Autopilot vai criar ${validRows.length} posts em segundo plano. Você pode fechar — avisamos quando terminar.`,
+        title: "Geração iniciada",
+        description: `O Autopilot vai criar ${validRows.length} posts em segundo plano. Você pode sair e voltar quando estiver pronto.`,
       });
       onCreated(planId);
     } catch (e) {
@@ -477,7 +477,7 @@ export function AutopilotWizard({
                 ) : (
                   <Play className="mr-1 h-4 w-4" />
                 )}
-                Gerar os {validRows.length} posts
+                {create.isPending ? "Criando plano…" : `Gerar os ${validRows.length} posts`}
               </Button>
               <p className="mt-2 text-xs text-muted-foreground">
                 Cada post = 1 arte + 1 legenda. Roda em segundo plano — você pode sair e volta quando estiver pronto.

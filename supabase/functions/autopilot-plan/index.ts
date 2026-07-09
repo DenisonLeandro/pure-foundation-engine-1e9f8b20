@@ -68,6 +68,17 @@ async function invokeWorker(): Promise<void> {
   }
 }
 
+/** Dispara o worker sem bloquear a resposta da ação da UI. O tick periódico segue como fallback. */
+function triggerWorker(): void {
+  const task = invokeWorker();
+  const runtime = globalThis as unknown as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } };
+  if (typeof runtime.EdgeRuntime?.waitUntil === "function") {
+    runtime.EdgeRuntime.waitUntil(task);
+  } else {
+    task.catch((e) => console.error("[autopilot-plan] triggerWorker:", e instanceof Error ? e.message : e));
+  }
+}
+
 /** Chamada interna ao Post for Me (mesma proxy do app). */
 async function pfmCall(
   companyId: string,
@@ -187,7 +198,7 @@ async function actionCreate(
     return json({ error: `Não foi possível enfileirar a geração: ${jobsErr.message}` }, 500);
   }
 
-  await invokeWorker();
+  triggerWorker();
   return json({ plan: created, posts_count: posts.length });
 }
 
@@ -232,7 +243,7 @@ async function actionApprove(sbUser: SB, sbSvc: SB, planId: string): Promise<Res
   if (jobsErr) return json({ error: `Falha ao enfileirar agendamento: ${jobsErr.message}` }, 500);
 
   await sbUser.from("autopilot_plans").update({ status: "approved", updated_at: new Date().toISOString() }).eq("id", planId);
-  await invokeWorker();
+  triggerWorker();
   return json({ ok: true, scheduled_jobs: list.length });
 }
 
@@ -264,7 +275,7 @@ async function actionRegen(sbUser: SB, sbSvc: SB, postId: string, kind: string):
   });
   if (jobErr) return json({ error: `Falha ao enfileirar regeneração: ${jobErr.message}` }, 500);
 
-  await invokeWorker();
+  triggerWorker();
   return json({ ok: true });
 }
 
@@ -338,7 +349,7 @@ async function actionResume(sbUser: SB, sbSvc: SB, planId: string): Promise<Resp
     if (jobsErr) return json({ error: `Falha ao reenfileirar: ${jobsErr.message}` }, 500);
   }
   await sbUser.from("autopilot_plans").update({ status: "approved", updated_at: new Date().toISOString() }).eq("id", planId);
-  await invokeWorker();
+  triggerWorker();
   return json({ ok: true, rescheduled: list.length });
 }
 
