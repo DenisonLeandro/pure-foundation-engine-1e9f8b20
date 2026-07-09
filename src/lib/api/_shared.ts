@@ -52,7 +52,14 @@ export async function baseHeaders(): Promise<Record<string, string>> {
   if (anonKey) h["apikey"] = anonKey;
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const sessionRequest = supabase.auth.getSession();
+    const session = await new Promise<Awaited<typeof sessionRequest>["data"]["session"] | null>((resolve, reject) => {
+      const timer = window.setTimeout(() => resolve(null), 5000);
+      sessionRequest
+        .then(({ data }) => resolve(data.session))
+        .catch(reject)
+        .finally(() => window.clearTimeout(timer));
+    });
     const token = session?.access_token;
     h["Authorization"] = `Bearer ${token || anonKey}`;
   } catch {

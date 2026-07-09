@@ -10,10 +10,25 @@
 import { getSupabaseUrl, baseHeaders } from "./_shared";
 import type { AutopilotPlanRow } from "@/types";
 
+const FUNCTION_TIMEOUT_MS = 25000;
+
 async function callFunction<T>(name: string, body: Record<string, unknown>): Promise<T> {
   const url = `${getSupabaseUrl()}/functions/v1/${name}`;
   const headers = await baseHeaders();
-  const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), FUNCTION_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: controller.signal });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("A criação demorou demais para responder. O plano pode ter sido iniciado; atualize a lista em alguns instantes.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     let errorMsg: string;

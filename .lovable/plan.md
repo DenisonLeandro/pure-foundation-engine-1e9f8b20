@@ -1,40 +1,32 @@
-Pausar / Retomar / Cancelar já existem — falta expor melhor e cobrir o estado "generating". Também adicionar "Excluir" (permanente).
+## Objetivo
+Fazer o botão **Gerar os posts** finalizar a criação do plano rapidamente, sem deixar a tela presa no loading, e garantir que a geração continue em segundo plano.
 
-## O que muda
+## Plano de implementação
+1. **Evitar espera longa na criação**
+   - Ajustar a função `autopilot-plan` para criar plano, posts e jobs e responder imediatamente ao frontend.
+   - Não aguardar o processamento do worker de geração dentro da chamada do botão.
 
-### Backend (`autopilot-plan/index.ts`)
-- **`pause`**: aceitar também `generating` (não só `active`/`approved`). Ao pausar durante geração, os jobs pendentes de `gen_image`/`gen_caption` daquele plano viram `failed` e o plano vai para `paused`.
-- **`cancel`**: já aceita `generating`, mas hoje só desagenda no Post for Me. Passar a também derrubar jobs pendentes do plano (`autopilot_jobs.status = 'queued'` do plano → `failed`), pra parar de consumir crédito de IA.
-- **Nova action `delete`**: apaga o plano + posts + jobs em cascata (RLS por dono). Só permite se `status ∈ {draft, review, completed, canceled, failed}` — se estiver rodando, obriga cancelar antes.
+2. **Tornar o disparo do worker assíncrono e seguro**
+   - Trocar o `await invokeWorker()` por disparo em background/best-effort nas ações que enfileiram jobs.
+   - Manter o cron/tick como fallback para processar jobs mesmo se o disparo imediato falhar.
 
-### Hook + API client (`src/lib/api/autopilot.ts`, `src/hooks/use-autopilot.ts`)
-- Adicionar `deletePlan` no cliente e mutation `useDeletePlan` no hook.
-- Ajustar `PlanAction` union.
+3. **Adicionar timeout e erro visível no frontend**
+   - Colocar timeout na chamada `callFunction` para que o botão não fique preso indefinidamente.
+   - Mostrar mensagem clara em português se a função demorar ou falhar, preservando o que o usuário preencheu.
 
-### UI — Lista (`src/pages/Autopilot.tsx`)
-- Em cada card do plano, adicionar um menu "⋯" (`DropdownMenu`) no canto, com:
-  - **Pausar** (visível se `active | approved | generating`)
-  - **Retomar** (visível se `paused`)
-  - **Cancelar** (visível se não `completed | canceled`) — com confirmação
-  - **Excluir permanentemente** (sempre visível, mas desabilitado enquanto estiver rodando; com confirmação vermelha)
-- O clique no card continua abrindo o detalhe; o menu para propagação.
+4. **Melhorar estado do botão no wizard**
+   - Enquanto estiver criando, manter o botão em loading com texto mais específico, como “Criando plano…”.
+   - Depois de criado, fechar o wizard e abrir o detalhe do plano criado.
 
-### UI — Detalhe (`src/components/autopilot/AutopilotPlanDetail.tsx`)
-- Ajustar `canPause` para incluir `generating` (rótulo do botão vira "Parar geração" nesse caso).
-- Adicionar botão **Excluir** ao lado do Cancelar (mesmas regras).
-- Melhorar os tooltips/descrições nos diálogos:
-  - Pausar: "Suspende publicações agendadas. Nada é perdido — dá para retomar depois."
-  - Retomar: "Reagenda os posts aprovados que ainda não publicaram."
-  - Cancelar: "Interrompe o plano de vez. Posts não publicados são desagendados. Não dá para retomar."
-  - Excluir: "Remove o plano e todo o conteúdo dele. Ação irreversível."
+5. **Verificação**
+   - Testar a chamada `autopilot-plan`/fluxo de criação e confirmar que a resposta volta rápido.
+   - Conferir que o plano aparece como **Gerando** e que os jobs ficam enfileirados para o processamento em segundo plano.
 
-## Arquivos afetados
+## Arquivos previstos
 - `supabase/functions/autopilot-plan/index.ts`
-- `src/lib/api/autopilot.ts`
-- `src/hooks/use-autopilot.ts`
-- `src/pages/Autopilot.tsx`
-- `src/components/autopilot/AutopilotPlanDetail.tsx`
+- `src/lib/api/autopilot.ts` ou `src/lib/api/_shared.ts`
+- `src/components/autopilot/AutopilotWizard.tsx`
 
 ## Fora do escopo
-- Não altero a schema (as ações usam colunas existentes).
-- Não mexo no worker / gerador de imagem.
+- Não alterar o modelo de imagem: continuará `openai/gpt-image-2`.
+- Não mudar regras de cancelamento/pausa/exclusão já implementadas.
