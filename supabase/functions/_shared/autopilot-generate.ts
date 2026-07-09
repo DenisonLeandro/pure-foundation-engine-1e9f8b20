@@ -18,18 +18,8 @@ import { buildArtPrompt, logoPlacement, IMG_SIZE, IMG_QUALITY, type ArtBrandLike
 import { brandToAIProfile } from "./brand.ts";
 import type { Job, SB, HandlerMap } from "./autopilot-engine.ts";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
-
-/** Headers de chamada interna (service role) para reusar openai-image/generate-content. */
-function internalHeaders(): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    apikey: SERVICE_KEY,
-    Authorization: `Bearer ${SERVICE_KEY}`,
-  };
-}
+const LOVABLE_GW = "https://ai.gateway.lovable.dev/v1";
 
 // ─── Carregamento de contexto ───────────────────────────────────────
 interface Ctx {
@@ -68,11 +58,11 @@ async function expandThemeToBrief(
 Responda APENAS JSON: {"brief":"...","headline":"..."}`;
   const user = `TEMA: ${theme}\nCATEGORIA: ${category || "-"}\nMARCA: ${brand?.name || "-"} (tom: ${brand?.tone || "-"})`;
   try {
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const r = await fetch(`${LOVABLE_GW}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [{ role: "system", content: sys }, { role: "user", content: user }],
         temperature: 0.7,
         max_tokens: 512,
@@ -90,21 +80,33 @@ Responda APENAS JSON: {"brief":"...","headline":"..."}`;
   }
 }
 
-// ─── openai-image (mesma função do Studio, chamada interna) ─────────
-async function generateArtImage(prompt: string, userId?: string, companyId?: string): Promise<string> {
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/openai-image`, {
+// ─── Geração de imagem direto no Lovable AI Gateway ─────────────────
+async function generateArtImage(prompt: string): Promise<string> {
+  if (!LOVABLE_KEY) throw new Error("LOVABLE_API_KEY ausente");
+  const r = await fetch(`${LOVABLE_GW}/images/generations`, {
     method: "POST",
-    headers: internalHeaders(),
-    body: JSON.stringify({ prompt, size: IMG_SIZE, quality: IMG_QUALITY, n: 1, userId, companyId }),
+    headers: {
+      Authorization: `Bearer ${LOVABLE_KEY}`,
+      "Content-Type": "application/json",
+      "X-Lovable-AIG-SDK": "edge-function",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-image-2",
+      prompt,
+      size: IMG_SIZE,
+      n: 1,
+      quality: IMG_QUALITY,
+    }),
   });
   if (!r.ok) {
     const t = await r.text().catch(() => "");
-    throw new Error(`openai-image ${r.status}: ${t.slice(0, 200)}`);
+    throw new Error(`lovable-ai image ${r.status}: ${t.slice(0, 200)}`);
   }
   const d = await r.json();
-  const img = d.images?.[0];
-  if (typeof img !== "string") throw new Error("openai-image não retornou imagem");
-  return img; // data URL (base64) ou http URL
+  const item = d.data?.[0];
+  const img = item?.b64_json ? `data:image/png;base64,${item.b64_json}` : item?.url;
+  if (typeof img !== "string") throw new Error("lovable-ai não retornou imagem");
+  return img;
 }
 
 // ─── Decodificação de fonte (data URL ou http) → bytes ──────────────
