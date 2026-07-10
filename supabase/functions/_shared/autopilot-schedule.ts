@@ -14,10 +14,12 @@ import type { Job, SB, HandlerMap } from "./autopilot-engine.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 function internalHeaders(): Record<string, string> {
-  return { "Content-Type": "application/json", apikey: ANON, Authorization: `Bearer ${SERVICE_KEY}` };
+  // Envia apenas Authorization com a service role; adicionar `apikey` junto faz
+  // o gateway do Supabase retornar 401 "Conflicting API keys" após a migração
+  // para signing keys.
+  return { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` };
 }
 
 // ─── Melhor horário — camada de PADRÕES (fallback sempre disponível) ─
