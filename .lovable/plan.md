@@ -1,32 +1,59 @@
-## Objetivo
-Fazer o botão **Gerar os posts** finalizar a criação do plano rapidamente, sem deixar a tela presa no loading, e garantir que a geração continue em segundo plano.
+# Autopilot não está agendando posts aprovados
 
-## Plano de implementação
-1. **Evitar espera longa na criação**
-   - Ajustar a função `autopilot-plan` para criar plano, posts e jobs e responder imediatamente ao frontend.
-   - Não aguardar o processamento do worker de geração dentro da chamada do botão.
+## Diagnóstico
 
-2. **Tornar o disparo do worker assíncrono e seguro**
-   - Trocar o `await invokeWorker()` por disparo em background/best-effort nas ações que enfileiram jobs.
-   - Manter o cron/tick como fallback para processar jobs mesmo se o disparo imediato falhar.
+Consulta em `autopilot_jobs` mostra os 7 posts do plano `530559ef…` (incluindo o de 09/07) com job `schedule_post` em `status=queued`, `attempts=1`, todos com o mesmo `last_error`:
 
-3. **Adicionar timeout e erro visível no frontend**
-   - Colocar timeout na chamada `callFunction` para que o botão não fique preso indefinidamente.
-   - Mostrar mensagem clara em português se a função demorar ou falhar, preservando o que o usuário preencheu.
+```
+postforme pfm_create_post 401: {"message":"Conflicting API keys",
+"hint":"The `apikey` and `Authorization` headers provide conflicting API keys.
+Send the intended sb_ key only in the `apikey` header."}
+```
 
-4. **Melhorar estado do botão no wizard**
-   - Enquanto estiver criando, manter o botão em loading com texto mais específico, como “Criando plano…”.
-   - Depois de criado, fechar o wizard e abrir o detalhe do plano criado.
+Ou seja: ao aprovar, o motor enfileira `schedule_post` corretamente, mas a chamada interna do worker para a `postforme-proxy` é rejeitada pelo gateway do Supabase antes de chegar ao Post for Me. Nenhum post foi realmente agendado — o de ontem não saiu por causa disso.
 
-5. **Verificação**
-   - Testar a chamada `autopilot-plan`/fluxo de criação e confirmar que a resposta volta rápido.
-   - Conferir que o plano aparece como **Gerando** e que os jobs ficam enfileirados para o processamento em segundo plano.
+## Causa raiz
 
-## Arquivos previstos
-- `supabase/functions/autopilot-plan/index.ts`
-- `src/lib/api/autopilot.ts` ou `src/lib/api/_shared.ts`
-- `src/components/autopilot/AutopilotWizard.tsx`
+Em `supabase/functions/_shared/autopilot-schedule.ts`, `internalHeaders()` envia dois formatos de chave ao mesmo tempo:
 
-## Fora do escopo
-- Não alterar o modelo de imagem: continuará `openai/gpt-image-2`.
-- Não mudar regras de cancelamento/pausa/exclusão já implementadas.
+```ts
+{ "Content-Type": "application/json",
+  apikey: ANON,                        // JWT legado
+  Authorization: `Bearer ${SERVICE_KEY}` }  // sb_secret_… novo
+```
+
+Após a migração para signing keys, o gateway bloqueia essa mistura. A memória do projeto já registra a regra: usar a publishable key nova em vez da anon para evitar exatamente esse erro.
+
+## O que fazer
+
+### 1. Corrigir os headers da chamada interna (arquivo único)
+
+`supabase/functions/_shared/autopilot-schedule.ts` — em `internalHeaders()`, enviar apenas um header. Para chamada interna service-to-service basta o `Authorization` com a service role; o `apikey` conflitante sai.
+
+```ts
+function internalHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${SERVICE_KEY}`,
+  };
+}
+```
+
+(Se o gateway ainda exigir `apikey`, usar `SUPABASE_PUBLISHABLE_KEY` — nunca o ANON JWT junto com a service key.)
+
+### 2. Destravar os 7 jobs já falhados
+
+Após o deploy, resetar `next_attempt_at = now()` e zerar `last_error` dos 7 `schedule_post` do plano `530559ef-1297-4062-9fb4-52bcdf69e91a` para o próximo tick reprocessar imediatamente, em vez de esperar o backoff de 2min. Isso vai fazer o worker reagendar tudo no Post for Me.
+
+O post de 09/07 (`17b97f77…`, `scheduled_at=2026-07-10 13:00 UTC`) já está com hora passada — depois de agendado no PFM, o `confirmDuePosts` do tick vai empurrar como published/failed conforme o retorno do PFM.
+
+### 3. Verificar
+
+- Rodar `autopilot-tick` manualmente ou aguardar 1min.
+- Conferir em `autopilot_jobs` que os 7 jobs saíram de `queued` → `done` e em `autopilot_posts` que ganharam `pfm_post_id` e `status=scheduled`/`published`.
+
+## Fora de escopo
+
+- Não mexer em `postforme-proxy` (recebe corretamente).
+- Não alterar backoff nem UI de retry (assunto separado).
+- Sem mudanças no frontend.
