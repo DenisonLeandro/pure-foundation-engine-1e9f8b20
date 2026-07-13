@@ -168,7 +168,34 @@ export default function Schedule() {
     }
     setSavingEdit(true);
     try {
-      await api.pfmUpdatePost(editing.id, { scheduled_at: local.toISOString() });
+      // PFM exige o CreateSocialPostDto completo no PUT — buscamos o post atual
+      // e sobrescrevemos apenas o scheduled_at.
+      const current: any = await api.pfmGetPost(editing.id);
+      const src = current?.data ?? current ?? {};
+
+      const socialAccounts: string[] = Array.isArray(src.social_accounts)
+        ? src.social_accounts
+            .map((a: any) => (typeof a === "string" ? a : a?.id))
+            .filter((v: any): v is string => typeof v === "string" && v.length > 0)
+        : [];
+
+      const media = Array.isArray(src.media)
+        ? src.media
+            .map((m: any) => (typeof m === "string" ? { url: m } : m?.url ? { url: m.url } : null))
+            .filter((m: any) => m !== null)
+        : [];
+
+      const payload: Record<string, unknown> = {
+        caption: src.caption ?? editing.caption ?? "",
+        social_accounts: socialAccounts,
+        scheduled_at: local.toISOString(),
+        isDraft: false,
+      };
+      if (media.length > 0) payload.media = media;
+      if (src.platform_configurations) payload.platform_configurations = src.platform_configurations;
+      if (src.account_configurations) payload.account_configurations = src.account_configurations;
+
+      await api.pfmUpdatePost(editing.id, payload);
       toast({ title: "Post reagendado", description: local.toLocaleString("pt-BR") });
       setEditing(null);
       postsQuery.refetch();

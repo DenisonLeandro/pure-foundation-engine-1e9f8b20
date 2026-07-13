@@ -155,6 +155,10 @@ export async function pfmDeletePost(id: string): Promise<void> {
   await callPfm("pfm_delete_post", { id });
 }
 
+export async function pfmGetPost(id: string): Promise<any> {
+  return callPfm("pfm_get_post", { id });
+}
+
 export async function pfmUpdatePost(id: string, data: Record<string, unknown>): Promise<any> {
   return callPfm("pfm_update_post", { id, data });
 }
