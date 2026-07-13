@@ -172,7 +172,7 @@ Deno.serve(async (req: Request) => {
         await logApiUsage({
           companyId,
           userId,
-          service: useGemini ? "gemini" : "openai_image",
+          service: "gemini",
           operation: isEdit ? "image_edit" : "image",
           units: images.length,
           unitType: "image",
