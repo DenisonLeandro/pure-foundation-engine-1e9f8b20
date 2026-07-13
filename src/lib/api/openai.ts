@@ -19,6 +19,25 @@ export interface OpenAiImageResult {
   model: string;
 }
 
+async function readOpenAiImageResponse(response: Response): Promise<OpenAiImageResult> {
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    throw new Error("Resposta inválida da IA de imagem.");
+  }
+
+  const data = payload as Partial<OpenAiImageResult> & { error?: string };
+  if (!response.ok || data.error) {
+    throw new Error(data.error || `HTTP ${response.status}`);
+  }
+  if (!Array.isArray(data.images)) {
+    throw new Error("A IA não retornou imagem.");
+  }
+  return { images: data.images, model: data.model || "openai/gpt-image-2" };
+}
+
 export async function generateOpenAiImage(params: OpenAiImageParams): Promise<OpenAiImageResult> {
   const url = `${getSupabaseUrl()}/functions/v1/openai-image`;
   const headers = await baseHeaders();
@@ -29,14 +48,7 @@ export async function generateOpenAiImage(params: OpenAiImageParams): Promise<Op
     body: JSON.stringify(params),
   });
 
-  if (!response.ok) {
-    let msg: string;
-    try { const e = await response.json(); msg = e.error || `HTTP ${response.status}`; }
-    catch { msg = `HTTP ${response.status}`; }
-    throw new Error(msg);
-  }
-
-  return response.json();
+  return readOpenAiImageResponse(response);
 }
 
 export interface OpenAiImageEditParams {
@@ -62,12 +74,5 @@ export async function editOpenAiImage(params: OpenAiImageEditParams): Promise<Op
     body: JSON.stringify(params),
   });
 
-  if (!response.ok) {
-    let msg: string;
-    try { const e = await response.json(); msg = e.error || `HTTP ${response.status}`; }
-    catch { msg = `HTTP ${response.status}`; }
-    throw new Error(msg);
-  }
-
-  return response.json();
+  return readOpenAiImageResponse(response);
 }

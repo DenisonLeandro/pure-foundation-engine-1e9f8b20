@@ -194,92 +194,127 @@ Deno.serve(async (req: Request) => {
           });
         }
 
-        // Parser SSE simples: acumula linhas até um bloco terminar em \n\n.
-        // Cada evento tem opcionalmente `event: <name>` e um `data: <json>`.
-        const reader = gwResp.body.pipeThrough(new TextDecoderStream()).getReader();
-        let buffer = "";
-        let finalImage: string | null = null;
-        let streamError: string | null = null;
-        let completed = false;
+        const encoder = new TextEncoder();
+        let gatewayReader: ReadableStreamDefaultReader<string> | null = null;
 
-        const handleEvent = (eventName: string, dataStr: string) => {
-          if (!dataStr || dataStr === "[DONE]") return;
-          let payload: any = null;
-          try { payload = JSON.parse(dataStr); } catch { /* ignore */ }
-          if (!payload) return;
+        return new Response(new ReadableStream<Uint8Array>({
+          async start(controller) {
+            let heartbeat: number | undefined;
+            let closed = false;
 
-          // Erro (por nome do evento OU payload.type === "error")
-          if (eventName === "error" || payload.type === "error") {
-            streamError = payload?.error?.message || "Falha ao gerar imagem.";
-            return;
-          }
+            const write = (chunk: string) => {
+              if (!closed) controller.enqueue(encoder.encode(chunk));
+            };
+            const close = () => {
+              if (closed) return;
+              closed = true;
+              if (heartbeat !== undefined) clearInterval(heartbeat);
+              controller.close();
+            };
+            const fail = (message: string) => {
+              console.error("[openai-image] stream error:", message);
+              write(JSON.stringify({ error: message }));
+              close();
+            };
 
-          const type = eventName || payload.type;
-          if (type === "image_generation.completed" && payload.b64_json) {
-            finalImage = `data:image/png;base64,${payload.b64_json}`;
-            completed = true;
-          }
-          // image_generation.partial_image → descartado; UI atual só usa final.
-        };
+            try {
+              // Envia whitespace válido em JSON enquanto a imagem renderiza.
+              // Assim `response.json()` continua funcionando, mas a conexão não
+              // fica ociosa por 150s+ e não cai em 504.
+              write("\n");
+              heartbeat = setInterval(() => write("\n"), 10000);
 
-        try {
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buffer += value;
+              // Parser SSE simples: acumula linhas até um bloco terminar em \n\n.
+              // Cada evento tem opcionalmente `event: <name>` e um `data: <json>`.
+              gatewayReader = gwResp.body!.pipeThrough(new TextDecoderStream()).getReader();
+              let buffer = "";
+              let finalImage: string | null = null;
+              let streamError: string | null = null;
+              let completed = false;
 
-            // Processa blocos completos separados por \n\n (ou \r\n\r\n).
-            let sepIdx: number;
-            while ((sepIdx = buffer.search(/\r?\n\r?\n/)) !== -1) {
-              const rawEvent = buffer.slice(0, sepIdx);
-              buffer = buffer.slice(sepIdx).replace(/^\r?\n\r?\n/, "");
+              const handleEvent = (eventName: string, dataStr: string) => {
+                if (!dataStr || dataStr === "[DONE]") return;
+                let payload: any = null;
+                try { payload = JSON.parse(dataStr); } catch { /* ignore */ }
+                if (!payload) return;
 
-              let eventName = "";
-              const dataLines: string[] = [];
-              for (const line of rawEvent.split(/\r?\n/)) {
-                if (!line || line.startsWith(":")) continue; // comentário SSE
-                if (line.startsWith("event:")) eventName = line.slice(6).trim();
-                else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+                // Erro (por nome do evento OU payload.type === "error")
+                if (eventName === "error" || payload.type === "error") {
+                  streamError = payload?.error?.message || "Falha ao gerar imagem.";
+                  return;
+                }
+
+                const type = eventName || payload.type;
+                if (type === "image_generation.completed" && payload.b64_json) {
+                  finalImage = `data:image/png;base64,${payload.b64_json}`;
+                  completed = true;
+                }
+                // image_generation.partial_image → descartado; UI atual só usa final.
+              };
+
+              while (true) {
+                const { value, done } = await gatewayReader.read();
+                if (done) break;
+                buffer += value;
+
+                // Processa blocos completos separados por \n\n (ou \r\n\r\n).
+                let sepIdx: number;
+                while ((sepIdx = buffer.search(/\r?\n\r?\n/)) !== -1) {
+                  const rawEvent = buffer.slice(0, sepIdx);
+                  buffer = buffer.slice(sepIdx).replace(/^\r?\n\r?\n/, "");
+
+                  let eventName = "";
+                  const dataLines: string[] = [];
+                  for (const line of rawEvent.split(/\r?\n/)) {
+                    if (!line || line.startsWith(":")) continue; // comentário SSE
+                    if (line.startsWith("event:")) eventName = line.slice(6).trim();
+                    else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+                  }
+                  if (dataLines.length) handleEvent(eventName, dataLines.join("\n"));
+                }
               }
-              if (dataLines.length) handleEvent(eventName, dataLines.join("\n"));
+
+              if (streamError) {
+                fail(streamError);
+                return;
+              }
+              if (!finalImage || !completed) {
+                fail("Stream terminou sem imagem final.");
+                return;
+              }
+
+              const images = [finalImage];
+
+              await logApiUsage({
+                companyId,
+                userId,
+                service: useGemini ? "gemini" : "openai_image",
+                operation: isEdit ? "image_edit" : "image",
+                units: images.length,
+                unitType: "image",
+                metadata: { model: gwModel, fallback: true, edit: isEdit, via: "lovable-gateway", stream: true },
+              });
+
+              write(JSON.stringify({ images, model: gwModel }));
+              close();
+            } catch (streamErr) {
+              const m = streamErr instanceof Error ? streamErr.message : String(streamErr);
+              fail(m);
+            } finally {
+              if (heartbeat !== undefined) clearInterval(heartbeat);
+              try { await gatewayReader?.cancel(); } catch { /* noop */ }
             }
-          }
-        } catch (streamErr) {
-          const m = streamErr instanceof Error ? streamErr.message : String(streamErr);
-          console.error("[openai-image] SSE read error:", m);
-          streamError = streamError || m;
-        } finally {
-          try { await reader.cancel(); } catch { /* noop */ }
-        }
-
-        if (streamError) {
-          return new Response(JSON.stringify({ error: streamError }), {
-            status: 502,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (!finalImage || !completed) {
-          return new Response(JSON.stringify({ error: "Stream terminou sem imagem final." }), {
-            status: 502,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        const images = [finalImage];
-
-        await logApiUsage({
-          companyId,
-          userId,
-          service: useGemini ? "gemini" : "openai_image",
-          operation: isEdit ? "image_edit" : "image",
-          units: images.length,
-          unitType: "image",
-          metadata: { model: gwModel, fallback: true, edit: isEdit, via: "lovable-gateway", stream: true },
-        });
-
-        return new Response(JSON.stringify({ images, model: gwModel }), {
+          },
+          async cancel() {
+            try { await gatewayReader?.cancel(); } catch { /* noop */ }
+          },
+        }), {
           status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+          },
         });
       } catch (e) {
         const message = e instanceof Error ? e.message : "Erro desconhecido no fallback Lovable AI";
