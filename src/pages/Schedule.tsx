@@ -9,12 +9,23 @@ import {
   Loader2,
   AlertCircle,
   Copy,
+  Pencil,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,8 +42,6 @@ import { useCompany } from "@/contexts/CompanyContext";
 
 import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-import { PLATFORMS } from "@/lib/platforms";
-import type { Platform } from "@/types";
 import { isPfmAuthError } from "@/lib/pfm-errors";
 import { PfmAuthExpired } from "@/components/PfmAuthExpired";
 
@@ -53,6 +62,20 @@ interface PfmPost {
   media?: { url: string }[];
 }
 
+/** Formata Date -> "YYYY-MM-DD" em horário local (para <input type="date">). */
+function toLocalDateInput(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+/** Formata Date -> "HH:MM" em horário local. */
+function toLocalTimeInput(d: Date): string {
+  const h = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+  return `${h}:${min}`;
+}
+
 export default function Schedule() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -61,11 +84,15 @@ export default function Schedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // useCompanyPfmPosts já devolve array filtrado pela empresa ativa.
+  // Estado do dialog de reagendamento
+  const [editing, setEditing] = useState<PfmPost | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [editTime, setEditTime] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const posts: PfmPost[] = ((postsQuery.data as any[]) || []).filter(
     (p: any) => p.status === "scheduled" && p.scheduled_at,
   );
-
 
   const pfmAuthExpired = postsQuery.isError && isPfmAuthError(postsQuery.error);
 
@@ -81,13 +108,12 @@ export default function Schedule() {
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-  const getPostsForDay = (day: number) => {
-    return posts.filter((p) => {
+  const getPostsForDay = (day: number) =>
+    posts.filter((p) => {
       if (!p.scheduled_at) return false;
       const d = new Date(p.scheduled_at);
       return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
     });
-  };
 
   const today = new Date();
   const isToday = (day: number) =>
@@ -99,6 +125,7 @@ export default function Schedule() {
       await api.pfmDeletePost(id);
       postsQuery.refetch();
       toast({ title: "Post removido da agenda" });
+      if (editing?.id === id) setEditing(null);
     } catch (err) {
       toast({
         title: "Erro ao remover",
@@ -114,8 +141,47 @@ export default function Schedule() {
     navigate("/studio", { state: { sourceContent: post.caption, sourceTitle: "Post duplicado" } });
   };
 
-  const handleOpenPost = (post: PfmPost) => {
-    navigate("/studio", { state: { sourceContent: post.caption, sourceTitle: "Editar Post Agendado", mediaUrls: post.media?.map(m => m.url) } });
+  const openReschedule = (post: PfmPost) => {
+    if (!post.scheduled_at) return;
+    const d = new Date(post.scheduled_at);
+    setEditing(post);
+    setEditDate(toLocalDateInput(d));
+    setEditTime(toLocalTimeInput(d));
+  };
+
+  const handleSaveReschedule = async () => {
+    if (!editing) return;
+    if (!editDate || !editTime) {
+      toast({ title: "Preencha data e hora", variant: "destructive" });
+      return;
+    }
+    const [y, m, d] = editDate.split("-").map(Number);
+    const [hh, mm] = editTime.split(":").map(Number);
+    const local = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
+    if (Number.isNaN(local.getTime())) {
+      toast({ title: "Data/hora inválida", variant: "destructive" });
+      return;
+    }
+    if (local.getTime() < Date.now() - 60_000) {
+      toast({ title: "Escolha um horário futuro", variant: "destructive" });
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      await api.pfmUpdatePost(editing.id, { scheduled_at: local.toISOString() });
+      toast({ title: "Post reagendado", description: local.toLocaleString("pt-BR") });
+      setEditing(null);
+      postsQuery.refetch();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      toast({
+        title: isPfmAuthError(err) ? "Sessão do Post for Me expirou" : "Erro ao reagendar",
+        description: isPfmAuthError(err) ? "Reconecte suas contas em Contas." : msg,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   return (
@@ -182,7 +248,12 @@ export default function Schedule() {
                         </span>
                         <div className="mt-0.5 space-y-0.5">
                           {dayPosts.slice(0, 2).map((p) => (
-                            <div key={p.id} onClick={() => handleOpenPost(p)} className="rounded bg-violet-500/10 px-1 py-0.5 text-[9px] text-violet-600 truncate cursor-pointer hover:bg-violet-500/20 transition-colors">
+                            <div
+                              key={p.id}
+                              onClick={() => openReschedule(p)}
+                              className="rounded bg-violet-500/10 px-1 py-0.5 text-[9px] text-violet-600 truncate cursor-pointer hover:bg-violet-500/20 transition-colors"
+                              title="Clique para reagendar"
+                            >
                               {new Date(p.scheduled_at!).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                               {" "}{p.caption?.slice(0, 15)}
                             </div>
@@ -233,12 +304,24 @@ export default function Schedule() {
             ) : (
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {posts.map((post) => (
-                  <div key={post.id} onClick={() => handleOpenPost(post)} className="rounded-lg border p-3 space-y-2 cursor-pointer hover:border-violet-500/50 hover:bg-violet-500/5 transition-colors">
+                  <div
+                    key={post.id}
+                    onClick={() => openReschedule(post)}
+                    className="rounded-lg border p-3 space-y-2 cursor-pointer hover:border-violet-500/50 hover:bg-violet-500/5 transition-colors"
+                    title="Clique para reagendar"
+                  >
                     <div className="flex items-center justify-between">
-                      <Badge variant="secondary" className="text-[10px]">
-                        Agendado
-                      </Badge>
+                      <Badge variant="secondary" className="text-[10px]">Agendado</Badge>
                       <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => { e.stopPropagation(); openReschedule(post); }}
+                          title="Reagendar"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -254,7 +337,7 @@ export default function Schedule() {
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Remover post agendado?</AlertDialogTitle>
                               <AlertDialogDescription>
@@ -288,6 +371,98 @@ export default function Schedule() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog Reagendar */}
+      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reagendar post</DialogTitle>
+            <DialogDescription>Escolha uma nova data e hora para publicar.</DialogDescription>
+          </DialogHeader>
+
+          {editing && (
+            <div className="space-y-4">
+              <div className="rounded-md border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">
+                  {editing.caption || "(sem legenda)"}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="reschedule-date">Data</Label>
+                  <Input
+                    id="reschedule-date"
+                    type="date"
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="reschedule-time">Hora</Label>
+                  <Input
+                    id="reschedule-time"
+                    type="time"
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDuplicate(editing)}
+                >
+                  <Copy className="mr-2 h-3.5 w-3.5" />
+                  Editar conteúdo no Studio
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                      <Trash2 className="mr-2 h-3.5 w-3.5" />
+                      Excluir
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remover post agendado?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Esta ação não pode ser desfeita. O post será removido da fila de publicação.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDelete(editing.id)}
+                        className="bg-destructive text-destructive-foreground"
+                      >
+                        {deletingId === editing.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Remover
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditing(null)} disabled={savingEdit}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveReschedule}
+              disabled={savingEdit}
+              className="bg-gradient-to-r from-violet-600 to-fuchsia-500"
+            >
+              {savingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Salvar novo horário
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

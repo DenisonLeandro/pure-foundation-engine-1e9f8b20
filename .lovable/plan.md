@@ -1,59 +1,45 @@
-# Autopilot não está agendando posts aprovados
+## Objetivo
+Permitir reagendar (alterar data/hora) e excluir posts agendados **direto pela página Agenda**, sem abrir o Studio. Assim dá para, por ex., manter 1 dos 3 posts de hoje e mover os outros para outro dia com poucos cliques.
 
-## Diagnóstico
+## Escopo (o que muda)
+Somente frontend + um wrapper de API. Nada de banco, edge functions ou lógica do Autopilot.
 
-Consulta em `autopilot_jobs` mostra os 7 posts do plano `530559ef…` (incluindo o de 09/07) com job `schedule_post` em `status=queued`, `attempts=1`, todos com o mesmo `last_error`:
-
-```
-postforme pfm_create_post 401: {"message":"Conflicting API keys",
-"hint":"The `apikey` and `Authorization` headers provide conflicting API keys.
-Send the intended sb_ key only in the `apikey` header."}
-```
-
-Ou seja: ao aprovar, o motor enfileira `schedule_post` corretamente, mas a chamada interna do worker para a `postforme-proxy` é rejeitada pelo gateway do Supabase antes de chegar ao Post for Me. Nenhum post foi realmente agendado — o de ontem não saiu por causa disso.
-
-## Causa raiz
-
-Em `supabase/functions/_shared/autopilot-schedule.ts`, `internalHeaders()` envia dois formatos de chave ao mesmo tempo:
-
+### 1. `src/lib/api/postforme.ts`
+Adicionar wrapper que já existe no proxy (`pfm_update_post`, PUT `/social-posts/:id`):
 ```ts
-{ "Content-Type": "application/json",
-  apikey: ANON,                        // JWT legado
-  Authorization: `Bearer ${SERVICE_KEY}` }  // sb_secret_… novo
-```
-
-Após a migração para signing keys, o gateway bloqueia essa mistura. A memória do projeto já registra a regra: usar a publishable key nova em vez da anon para evitar exatamente esse erro.
-
-## O que fazer
-
-### 1. Corrigir os headers da chamada interna (arquivo único)
-
-`supabase/functions/_shared/autopilot-schedule.ts` — em `internalHeaders()`, enviar apenas um header. Para chamada interna service-to-service basta o `Authorization` com a service role; o `apikey` conflitante sai.
-
-```ts
-function internalHeaders(): Record<string, string> {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${SERVICE_KEY}`,
-  };
+export async function pfmUpdatePost(id: string, data: Record<string, unknown>): Promise<any> {
+  return callPfm("pfm_update_post", { id, data });
 }
 ```
+Usado para enviar `{ scheduled_at: "<ISO>" }` ao Post for Me. Excluir já existe (`pfmDeletePost`).
 
-(Se o gateway ainda exigir `apikey`, usar `SUPABASE_PUBLISHABLE_KEY` — nunca o ANON JWT junto com a service key.)
+### 2. `src/pages/Schedule.tsx` — UI de reagendamento
+Comportamento novo ao clicar num post (tanto no card de "Próximos Posts" quanto no chip do calendário):
 
-### 2. Destravar os 7 jobs já falhados
+- Abrir um **Dialog "Reagendar post"** (shadcn `Dialog`) com:
+  - Preview da legenda (read-only, 3 linhas).
+  - Campo **Data** (`<input type="date">`) e **Hora** (`<input type="time">`) já preenchidos com o `scheduled_at` atual (fuso local do navegador).
+  - Botões: **Cancelar**, **Excluir** (com confirmação), **Salvar novo horário** (primário).
+- Ao salvar: monta ISO a partir de data+hora local, chama `pfmUpdatePost(post.id, { scheduled_at })`, toast de sucesso/erro e `postsQuery.refetch()`.
+- Ao excluir: usa o fluxo já existente (`pfmDeletePost`) e fecha o modal.
+- Manter opção **"Duplicar"** já existente como um botão secundário no rodapé do dialog (redireciona ao Studio como hoje).
+- Remover o clique-abre-Studio direto; agora o Studio só é aberto explicitamente via "Duplicar/Editar conteúdo" dentro do dialog (rótulo: **Editar conteúdo no Studio**).
 
-Após o deploy, resetar `next_attempt_at = now()` e zerar `last_error` dos 7 `schedule_post` do plano `530559ef-1297-4062-9fb4-52bcdf69e91a` para o próximo tick reprocessar imediatamente, em vez de esperar o backoff de 2min. Isso vai fazer o worker reagendar tudo no Post for Me.
+Nenhuma outra tela é alterada.
 
-O post de 09/07 (`17b97f77…`, `scheduled_at=2026-07-10 13:00 UTC`) já está com hora passada — depois de agendado no PFM, o `confirmDuePosts` do tick vai empurrar como published/failed conforme o retorno do PFM.
+### 3. Fuso horário
+Usar horário local do navegador para popular/ler os inputs e converter para ISO com `new Date(y, m, d, h, min).toISOString()`. Sem dependência nova.
 
-### 3. Verificar
+### 4. Tratamento de erro
+Se `pfmUpdatePost` falhar (ex.: PFM auth expirado), mostrar toast com a mensagem; reaproveita `isPfmAuthError` já importado — se for auth, sugerir reconectar (mensagem, sem mudar de rota automaticamente).
 
-- Rodar `autopilot-tick` manualmente ou aguardar 1min.
-- Conferir em `autopilot_jobs` que os 7 jobs saíram de `queued` → `done` e em `autopilot_posts` que ganharam `pfm_post_id` e `status=scheduled`/`published`.
+## Fora do escopo
+- Não altero edge functions, banco, `autopilot_posts`, nem `pfm_update_post` no proxy (já está pronto).
+- Não implemento drag-and-drop no calendário (posso adicionar depois se você quiser).
+- Não mexo em Studio, Autopilot, nem em posts já publicados.
 
-## Fora de escopo
-
-- Não mexer em `postforme-proxy` (recebe corretamente).
-- Não alterar backoff nem UI de retry (assunto separado).
-- Sem mudanças no frontend.
+## Verificação
+1. Abrir /schedule, clicar num post agendado → dialog abre com data/hora atuais.
+2. Alterar para outro dia/hora, Salvar → toast "Post reagendado", card some do dia antigo e aparece no novo.
+3. Clicar em Excluir dentro do dialog → post some da agenda.
+4. Repetir com 3 posts do mesmo dia: manter 1, mover 2 para outra data — confirmar visualmente no calendário.
