@@ -126,35 +126,22 @@ Deno.serve(async (req: Request) => {
         );
       }
       try {
-        // Roteia via Lovable AI Gateway. Para GERAÇÃO usamos openai/gpt-image-2
-        // (mantém a qualidade). Para EDIÇÃO usamos Gemini (aceita imagem de
-        // entrada no shape chat).
-        const useGemini = isEdit;
-        const gwModel = useGemini ? "google/gemini-2.5-flash-image" : "openai/gpt-image-2";
+        // Roteia via Lovable AI Gateway. Usamos Gemini (Nano Banana) tanto para
+        // geração quanto para edição — é ~5x mais rápido que gpt-image-2 e
+        // evita timeout da edge function (~150s). O gpt-image-2 só é usado
+        // quando o usuário traz sua própria OpenAI key via header.
+        const gwModel = "google/gemini-2.5-flash-image";
         console.log(`[openai-image] Lovable AI ${isEdit ? "edit" : "generate"} model=${gwModel} size=${size} n=${n}`);
 
-        const gwBody: Record<string, unknown> = useGemini
-          ? {
-              model: gwModel,
-              messages: [
-                {
-                  role: "user",
-                  content: [
-                    { type: "text", text: prompt },
-                    { type: "image_url", image_url: { url: image } },
-                  ],
-                },
-              ],
-              modalities: ["image", "text"],
-              n,
-            }
-          : {
-              model: gwModel,
-              prompt,
-              size,
-              n,
-              quality: quality || "medium",
-            };
+        const userContent: Array<Record<string, unknown>> = [{ type: "text", text: prompt }];
+        if (isEdit && image) userContent.push({ type: "image_url", image_url: { url: image } });
+
+        const gwBody: Record<string, unknown> = {
+          model: gwModel,
+          messages: [{ role: "user", content: userContent }],
+          modalities: ["image", "text"],
+          n,
+        };
 
         const gwResp = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
           method: "POST",
