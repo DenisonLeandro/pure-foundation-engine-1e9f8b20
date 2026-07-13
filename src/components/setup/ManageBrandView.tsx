@@ -66,14 +66,14 @@ export function ManageBrandView({
     try {
       await onSave({ brandName: name.trim() || "Minha Empresa", brandLogo: logo });
       if (brandId && activeCompanyId) {
-        const payload: Record<string, unknown> = {};
+        const payload: Record<string, string | string[]> = {};
         if (artStyle) payload.art_style = artStyle;
         if (layoutPresets) payload.layout_presets = [layoutPresets];
         if (fontTitle) payload.font_title = fontTitle;
         if (fontBody) payload.font_body = fontBody;
         if (refImageUrl) payload.reference_image_url = refImageUrl;
         if (Object.keys(payload).length > 0) {
-          const { error } = await supabase.from("brand_profiles").update(payload).eq("id", brandId);
+          const { error } = await supabase.from("brand_profiles").update(payload as never).eq("id", brandId);
           if (error) throw error;
         }
         onBrandUpdate?.();
