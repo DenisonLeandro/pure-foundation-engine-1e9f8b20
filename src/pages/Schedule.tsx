@@ -337,9 +337,9 @@ export default function Schedule() {
                           {dayPosts.slice(0, 2).map((p) => (
                             <div
                               key={p.id}
-                              onClick={() => openReschedule(p)}
+                              onClick={() => openEditInStudio(p)}
                               className="rounded bg-violet-500/10 px-1 py-0.5 text-[9px] text-violet-600 truncate cursor-pointer hover:bg-violet-500/20 transition-colors"
-                              title="Clique para reagendar"
+                              title="Clique para editar no Studio"
                             >
                               {new Date(p.scheduled_at!).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                               {" "}{p.caption?.slice(0, 15)}
