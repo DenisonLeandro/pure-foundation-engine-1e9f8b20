@@ -393,9 +393,9 @@ export default function Schedule() {
                 {posts.map((post) => (
                   <div
                     key={post.id}
-                    onClick={() => openReschedule(post)}
+                    onClick={() => openEditInStudio(post)}
                     className="rounded-lg border p-3 space-y-2 cursor-pointer hover:border-violet-500/50 hover:bg-violet-500/5 transition-colors"
-                    title="Clique para reagendar"
+                    title="Clique para editar no Studio"
                   >
                     <div className="flex items-center justify-between">
                       <Badge variant="secondary" className="text-[10px]">Agendado</Badge>
@@ -407,7 +407,7 @@ export default function Schedule() {
                           onClick={(e) => { e.stopPropagation(); openReschedule(post); }}
                           title="Reagendar"
                         >
-                          <Pencil className="h-3 w-3" />
+                          <Clock className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="ghost"
