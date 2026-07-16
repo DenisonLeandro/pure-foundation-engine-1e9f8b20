@@ -205,6 +205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const finishBoot = (reason: string) => {
       if (cancelled) return;
       console.info(`[boot][AppContext] boot finalizado (${reason})`);
+      bootedRef.current = true;
       setConfigLoading(false);
     };
 
@@ -212,8 +213,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       const key = `${userId}:${activeCompanyId ?? ""}`;
       if (inFlightRef.current.has(key)) return;
-      if (blockUi) setConfigLoading(true);
-      console.info(`[boot][AppContext] carregando config (${reason})`, { userId, activeCompanyId });
+      // Só bloqueia UI se ainda não completamos o boot inicial.
+      // Depois disso, revalidações são silenciosas para não desmontar a árvore.
+      if (blockUi && !bootedRef.current) setConfigLoading(true);
+      console.info(`[boot][AppContext] carregando config (${reason})`, { userId, activeCompanyId, silent: bootedRef.current });
       await loadConfigFromDb(userId);
     };
 
@@ -234,6 +237,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
         inFlightRef.current.clear();
+        bootedRef.current = false;
         setConfigState(DEFAULT_CONFIG);
         userStorage.remove("config");
         finishBoot("signed out");
@@ -241,6 +245,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       if (!session?.user) return;
       if (event === "INITIAL_SESSION" || event === "SIGNED_IN") {
+        // Se ainda não booted, bloqueia UI. Depois de booted, silencioso.
         void startConfigLoad(session.user.id, event, true);
       } else if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
         void startConfigLoad(session.user.id, event, false);
