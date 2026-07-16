@@ -142,6 +142,65 @@ export default function Schedule() {
     navigate("/studio", { state: { sourceContent: post.caption, sourceTitle: "Post duplicado" } });
   };
 
+  /**
+   * Abre o post agendado no Studio para edição. Tenta localizar a `creation`
+   * original (com design_doc + urls finais) pela interseção de URLs entre a
+   * mídia do post no Post for Me e o campo `urls[]` da galeria da empresa.
+   * Se não encontrar (post antigo/autopilot sem vínculo), avisa e cai no
+   * fluxo de duplicar (abre o Studio só com a legenda).
+   */
+  const openEditInStudio = async (post: PfmPost) => {
+    const mediaUrls = (post.media ?? []).map((m) => m.url).filter(Boolean);
+    try {
+      const found = mediaUrls.length ? await findCreationByUrls(mediaUrls) : null;
+      const creation: Creation | null = found ? (await getCreation(found.id)) ?? found : null;
+      if (creation) {
+        const urls = creation.urls?.length ? creation.urls : mediaUrls;
+        navigate("/studio", {
+          state: {
+            mode: "edit",
+            designDoc: creation.designDoc ?? null,
+            creationId: creation.id,
+            fallbackImageUrl: urls[0] ?? null,
+            fallbackImageUrls: urls,
+            finalImageUrls: urls,
+            slideIndex: 0,
+            selectedSlideIndex: 0,
+            thumbnailUrl: creation.thumbnailUrl ?? null,
+            title: creation.templateName ?? null,
+            prompt: creation.prompt ?? null,
+            caption: post.caption ?? creation.caption ?? null,
+            returnTo: "/schedule",
+          },
+        });
+        return;
+      }
+    } catch (err) {
+      console.warn("[schedule] falha ao localizar creation para o post:", err);
+    }
+    // Sem vínculo: abre o Studio com a legenda + mídia como fallback estático,
+    // sem cair na tela roxa de "novo post".
+    if (mediaUrls.length) {
+      navigate("/studio", {
+        state: {
+          mode: "edit",
+          designDoc: null,
+          fallbackImageUrl: mediaUrls[0],
+          fallbackImageUrls: mediaUrls,
+          finalImageUrls: mediaUrls,
+          slideIndex: 0,
+          caption: post.caption ?? null,
+          returnTo: "/schedule",
+        },
+      });
+    } else {
+      toast({
+        title: "Sem versão editável",
+        description: "Este post foi agendado sem imagens vinculadas — abra a Galeria para editar a criação original.",
+      });
+    }
+  };
+
   const openReschedule = (post: PfmPost) => {
     if (!post.scheduled_at) return;
     const d = new Date(post.scheduled_at);
