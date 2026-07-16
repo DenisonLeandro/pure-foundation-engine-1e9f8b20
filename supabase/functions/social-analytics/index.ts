@@ -668,30 +668,41 @@ const PLATFORMS: Record<string, ActorConfig> = {
   },
 
   facebook: {
-    actorId: "calm_builder~facebook-posts-scraper",
+    // apify~facebook-pages-scraper devolve os campos de página (followers,
+    // likes, title, about) + uma lista de posts. O actor anterior
+    // (calm_builder~facebook-posts-scraper) só retornava posts, sem
+    // followers/likeCount, o que fazia o Analytics mostrar zerado.
+    actorId: "apify~facebook-pages-scraper",
     buildInput: (u) => {
       const url = normalizeFacebookUrl(u);
       return {
         startUrls: [{ url }],
-        maxPosts: 8,
-        includeComments: true,
-        maxComments: 5,
+        resultsLimit: 8,
         proxyConfiguration: { useApifyProxy: true },
       };
     },
     normalize: (raw) => {
       const arrItems: A[] = arr(raw);
       const pageCandidates = collectObjects(raw, (x) => Boolean(
-        x?.pageName || x?.pageUrl || x?.profileUrl || x?.followers || x?.followersCount || x?.followerCount || x?.likes || x?.title || x?.name
+        x?.pageName || x?.pageUrl || x?.profileUrl || x?.followers || x?.followersCount || x?.followerCount ||
+        x?.likes || x?.likesCount || x?.fanCount || x?.title || x?.name || x?.pageId
       ));
       const p = pageCandidates[0] || arrItems[0] || {};
       const profile = p.personalProfile || p.profile || p.about || p.pageInfo || {};
       const pageUrl = firstText(p, ["pageUrl", "profileUrl", "url", "link"]);
 
+      // O apify~facebook-pages-scraper expõe `likes` (curtidas da página) e
+      // `followers`. Alguns retornos usam `followersAmountForBio` /
+      // `likesAmountForBio`. Consideramos ambos para robustez.
       const followers = safeNum(
         p.followers || p.followersCount || p.followerCount || p.followers_count ||
-        p.followers_count_text || p.followersText || p.fans || p.fanCount ||
-        profile.followersCount || profile.followers || profile.followerCount || p.likes || p.likeCount || profile.friends || 0
+        p.followersAmountForBio || p.followersText ||
+        profile.followersCount || profile.followers || profile.followerCount ||
+        p.likes || p.likeCount || p.likesCount || p.likesAmountForBio ||
+        p.fans || p.fanCount || profile.friends || 0
+      );
+      const pageLikes = safeNum(
+        p.likes || p.likeCount || p.likesCount || p.likesAmountForBio || 0
       );
 
       const postArrays = collectArraysByKey(raw, ["posts", "latestPosts", "timelinePosts", "items", "reels", "data", "results"]);
@@ -711,15 +722,25 @@ const PLATFORMS: Record<string, ActorConfig> = {
       const avgC = posts.length ? Math.round(totalComments / cnt) : null;
       const avgS = posts.length ? Math.round(totalShares / cnt) : 0;
 
+      console.info("[social-analytics][facebook] normalized", {
+        pageUrl,
+        followers,
+        pageLikes,
+        postsFound: posts.length,
+        pageCandidateKeys: Object.keys(p).slice(0, 20),
+      });
+
       return {
         platform: "facebook",
         username: firstText(p, ["pageName", "pageUrl", "profileUrl", "username", "name"]),
         displayName: firstText(p, ["title", "name", "pageName"]) || firstText(profile, ["name", "title"]),
-        profileImageUrl: firstText(profile, ["profilePicLarge", "profilePicMedium", "profilePic", "imageUrl"]) || firstText(p, ["profileImage", "imageUrl", "logo", "avatar"]),
-        followers,
+        profileImageUrl: firstText(profile, ["profilePicLarge", "profilePicMedium", "profilePic", "imageUrl"]) || firstText(p, ["profileImage", "imageUrl", "logo", "avatar", "pageImage", "profilePhoto"]),
+        // Facebook: usamos `followers` como métrica principal; se o actor só
+        // devolveu `likes` (curtidas da página) e não seguidores, caímos nele.
+        followers: followers || pageLikes,
         following: 0,
         posts: safeNum(p.postsCollected || p.postsCount || p.postCount || profile.postsCount || posts.length || 0),
-        engagementRate: engagementRateFrom(followers, avgL, avgC, avgS),
+        engagementRate: engagementRateFrom(followers || pageLikes, avgL, avgC, avgS),
         avgLikes: avgL,
         avgComments: avgC,
         avgViews: totalViews > 0 ? Math.round(totalViews / cnt) : null,
