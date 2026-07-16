@@ -185,6 +185,33 @@ export async function getCreation(id: string): Promise<Creation | null> {
   return mapRow(data);
 }
 
+/**
+ * Localiza uma criação da empresa ativa pela interseção de URLs (usada para
+ * abrir no Studio um post que só temos referências de mídia — ex.: card na
+ * Agenda, cujo objeto de origem no Post for Me só guarda `media[].url`).
+ */
+export async function findCreationByUrls(urls: string[]): Promise<Creation | null> {
+  if (!urls?.length || !activeCompanyId) return null;
+  const normalized = urls.filter(Boolean).map(normalizeUrl);
+  if (!normalized.length) return null;
+  const { data } = await supabase
+    .from("creations")
+    .select("id,user_id,company_id,created_by,type,urls,thumbnail_url,prompt,template_id,template_name,source_id,published,created_at,caption,design_doc,title")
+    .eq("company_id", activeCompanyId)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (!data?.length) return null;
+  for (const row of data) {
+    const rowUrls: string[] = (row.urls || []) as string[];
+    const match = rowUrls.some((u) => {
+      const n = normalizeUrl(u);
+      return normalized.includes(n) || urls.includes(u);
+    });
+    if (match) return mapRow(row);
+  }
+  return null;
+}
+
 export async function saveCreation(input: Omit<Creation, "id" | "createdAt">): Promise<Creation | null> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
