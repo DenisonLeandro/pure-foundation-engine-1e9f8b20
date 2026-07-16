@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useCompanyPfmPosts } from "@/hooks/use-blotato";
 import { useCompany } from "@/contexts/CompanyContext";
+import { findCreationByUrls, getCreation, type Creation } from "@/lib/gallery";
 
 import * as api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
