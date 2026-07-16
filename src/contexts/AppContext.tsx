@@ -103,6 +103,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [schedules, setSchedules] = useState<ScheduledPost[]>([]);
   const [configLoading, setConfigLoading] = useState(true);
   const inFlightRef = useRef<Set<string>>(new Set());
+  // Após o primeiro boot, revalidações de auth (voltar de aba, refresh de token,
+  // re-emissão de SIGNED_IN pelo Supabase) NÃO devem re-mostrar o PageLoader,
+  // pois isso desmonta a árvore inteira (Studio, etc.) e perde estado em memória.
+  const bootedRef = useRef(false);
 
   const isConfigured = !!config.integrations.postforme;
   const onboardingCompleted = !!config.onboardingCompleted;
