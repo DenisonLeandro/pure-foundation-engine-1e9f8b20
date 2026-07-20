@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser, isInternalServiceCall } from "../_shared/auth.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { logApiUsage } from "../_shared/usage-log.ts";
+import { logApiUsage, imageCost } from "../_shared/usage-log.ts";
 
 /**
  * OpenAI Image proxy — geração e edição.
@@ -292,7 +292,10 @@ Deno.serve(async (req: Request) => {
                 operation: isEdit ? "image_edit" : "image",
                 units: images.length,
                 unitType: "image",
-                metadata: { model: gwModel, fallback: true, edit: isEdit, via: "lovable-gateway", stream: true },
+                costUsd: imageCost(gwModel, quality) * images.length,
+                exactness: "estimated",
+                providerEquivalent: true,
+                metadata: { model: gwModel, fallback: true, edit: isEdit, via: "lovable-gateway", stream: true, quality: quality || "medium" },
               });
 
               write(JSON.stringify({ images, model: gwModel }));
@@ -389,6 +392,9 @@ Deno.serve(async (req: Request) => {
       operation: isEdit ? "edit" : "default",
       units: images.length,
       unitType: "image",
+      costUsd: imageCost(resolvedModel, resolvedQuality) * images.length,
+      exactness: "estimated",
+      providerEquivalent: true,
       metadata: { model: resolvedModel, size, quality: resolvedQuality, edit: isEdit },
     });
 
