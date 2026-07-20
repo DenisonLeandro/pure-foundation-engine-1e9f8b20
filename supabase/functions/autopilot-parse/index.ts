@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { logGatewayChat } from "../_shared/usage-log.ts";
 
 /**
  * Autopilot Parse — cola → grade estruturada.
@@ -78,6 +79,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const data = await resp.json();
+    await logGatewayChat(data, { feature: "autopilot_parse", model: "google/gemini-3-flash-preview", userId: auth.user.id });
     const raw = (data.choices?.[0]?.message?.content || "")
       .replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 

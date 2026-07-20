@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { brandToAIProfile, brandImageDirective, type BrandRow } from "../_shared/brand.ts";
+import { logGatewayChat } from "../_shared/usage-log.ts";
 
 /**
  * Autopilot Run — Pipeline principal de automação
@@ -844,6 +845,7 @@ async function handleCurate(calendarId: string) {
 
       if (!res.ok) continue;
       const data = await res.json();
+      await logGatewayChat(data, { feature: "autopilot_review", model: "google/gemini-3-flash-preview", companyId: post.company_id ?? null });
       const raw = data.choices?.[0]?.message?.content || "";
       const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 

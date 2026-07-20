@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { logGatewayChat } from "../_shared/usage-log.ts";
 
 /**
  * AI Assist — helper de IA genérico (Lovable AI Gateway).
@@ -84,6 +85,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const data = await response.json();
+    await logGatewayChat(data, { feature: "ai_assist", model: "google/gemini-3-flash-preview", userId: auth.user.id });
     let text: string = data.choices?.[0]?.message?.content ?? "";
     text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 

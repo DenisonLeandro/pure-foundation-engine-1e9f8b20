@@ -15,6 +15,7 @@
 
 import { Image } from "https://deno.land/x/imagescript@1.2.15/mod.ts";
 import { buildArtPrompt, logoPlacement, IMG_SIZE, IMG_QUALITY, type ArtBrandLike } from "./studio-art.ts";
+import { logGatewayChat, logApiUsage, imageCost } from "./usage-log.ts";
 import { brandToAIProfile } from "./brand.ts";
 import type { Job, SB, HandlerMap } from "./autopilot-engine.ts";
 
@@ -50,6 +51,7 @@ async function expandThemeToBrief(
   category: string | null,
   // deno-lint-ignore no-explicit-any
   brand: any | null,
+  companyId: string | null,
 ): Promise<{ brief: string; headline: string }> {
   if (!LOVABLE_KEY) return { brief: theme, headline: theme };
   const sys = `Você é diretor de arte de social media. A partir do TEMA (e categoria), produza um JSON com:
@@ -70,6 +72,7 @@ Responda APENAS JSON: {"brief":"...","headline":"..."}`;
     });
     if (!r.ok) return { brief: theme, headline: theme };
     const d = await r.json();
+    await logGatewayChat(d, { feature: "autopilot_brief", model: "google/gemini-2.5-flash", companyId });
     const raw = (d.choices?.[0]?.message?.content || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     const p = JSON.parse(raw);
     const brief = typeof p.brief === "string" && p.brief.trim() ? p.brief.trim() : theme;
@@ -81,7 +84,7 @@ Responda APENAS JSON: {"brief":"...","headline":"..."}`;
 }
 
 // ─── Geração de imagem direto no Lovable AI Gateway ─────────────────
-async function generateArtImage(prompt: string): Promise<string> {
+async function generateArtImage(prompt: string, companyId: string | null): Promise<string> {
   if (!LOVABLE_KEY) throw new Error("LOVABLE_API_KEY ausente");
   const r = await fetch(`${LOVABLE_GW}/images/generations`, {
     method: "POST",
@@ -103,6 +106,21 @@ async function generateArtImage(prompt: string): Promise<string> {
     throw new Error(`lovable-ai image ${r.status}: ${t.slice(0, 200)}`);
   }
   const d = await r.json();
+
+  // Autopilot gera em quality HIGH — maior gasto por post. Preço de tabela
+  // do provedor (gpt-image-2); o débito real é em créditos Lovable.
+  await logApiUsage({
+    companyId,
+    service: "openai_image",
+    operation: "autopilot",
+    units: 1,
+    unitType: "image",
+    costUsd: imageCost("openai/gpt-image-2", IMG_QUALITY),
+    exactness: "estimated",
+    providerEquivalent: true,
+    metadata: { model: "openai/gpt-image-2", size: IMG_SIZE, quality: IMG_QUALITY, via: "lovable-gateway" },
+  });
+
   const item = d.data?.[0];
   const img = item?.b64_json ? `data:image/png;base64,${item.b64_json}` : item?.url;
   if (typeof img !== "string") throw new Error("lovable-ai não retornou imagem");
@@ -169,7 +187,7 @@ async function genImage(sb: SB, job: Job): Promise<void> {
   // Reusa o briefing já expandido (regeneração) ou expande do tema.
   let userText: string = post.art_brief || "";
   if (!userText) {
-    const { brief, headline } = await expandThemeToBrief(post.theme, post.category, brand);
+    const { brief, headline } = await expandThemeToBrief(post.theme, post.category, brand, post.company_id ?? null);
     userText = headline
       ? `${brief}\n\nTexto em destaque na arte (exatamente como escrito, sem erros ortográficos): "${headline}".`
       : brief;
@@ -177,7 +195,7 @@ async function genImage(sb: SB, job: Job): Promise<void> {
 
   const artBrand: ArtBrandLike = { colors: brand?.colors, logo_url: brand?.logo_url };
   const prompt = buildArtPrompt(userText, artBrand);
-  const img = await generateArtImage(prompt);
+  const img = await generateArtImage(prompt, post.company_id ?? null);
   const composed = await composeWithLogo(await srcToBytes(img), brand?.logo_url || null);
   const url = await uploadArt(sb, post.company_id, composed);
 
@@ -226,6 +244,7 @@ Responda APENAS JSON válido no formato: {"caption":"...","hashtags":["tag1","ta
     throw new Error(`lovable-ai chat ${r.status}: ${t.slice(0, 200)}`);
   }
   const d = await r.json();
+  await logGatewayChat(d, { feature: "autopilot_caption", model: "google/gemini-2.5-flash", companyId: post.company_id ?? null });
   const raw = (d.choices?.[0]?.message?.content || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   let caption = "";
   let hashtags: string[] = [];

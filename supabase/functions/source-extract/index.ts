@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { logGatewayChat } from "../_shared/usage-log.ts";
 import { getCompanyOwnerConfig } from "../_shared/company-secrets.ts";
 
 /**
@@ -119,6 +120,7 @@ Deno.serve(async (req: Request) => {
         });
         if (aiRes.ok) {
           const aiData = await aiRes.json();
+          await logGatewayChat(aiData, { feature: "source_extract", model: "google/gemini-3-flash-preview", companyId, userId: auth.user.id });
           const summary = aiData.choices?.[0]?.message?.content;
           if (summary) content = summary;
         }

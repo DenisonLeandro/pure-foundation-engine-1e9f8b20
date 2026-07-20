@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { requireUser } from "../_shared/auth.ts";
+import { logGatewayChat } from "../_shared/usage-log.ts";
 import { validateCompanyMembership } from "../_shared/company-secrets.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -56,6 +57,7 @@ async function callLovableAI(prompt: string): Promise<string> {
   }
 
   const data = await response.json();
+  await logGatewayChat(data, { feature: "article", model: "google/gemini-3-flash-preview" });
   const textContent = data.choices?.[0]?.message?.content;
   if (!textContent) {
     throw new Error("No content in AI response");

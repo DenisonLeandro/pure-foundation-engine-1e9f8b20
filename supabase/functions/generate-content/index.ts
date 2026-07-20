@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser, isInternalServiceCall } from "../_shared/auth.ts";
-import { logApiUsage } from "../_shared/usage-log.ts";
+import { logGatewayChat } from "../_shared/usage-log.ts";
 
 /**
  * AI Content Generation Edge Function
@@ -308,16 +308,7 @@ Responda com JSON puro.`;
 
     console.log("[generate-content] Success!");
 
-    const totalTokens = data.usage?.total_tokens;
-    await logApiUsage({
-      companyId,
-      service: "gemini",
-      operation: "default",
-      units: typeof totalTokens === "number" ? totalTokens / 1000 : 2,
-      unitType: "1k_tokens",
-      metadata: { model: "google/gemini-3-flash-preview", platforms, totalTokens },
-      userId,
-    });
+    await logGatewayChat(data, { feature: "generate_content", model: "google/gemini-3-flash-preview", companyId, userId });
 
     return new Response(JSON.stringify(parsed), {
       status: 200,

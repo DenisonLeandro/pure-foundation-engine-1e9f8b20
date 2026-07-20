@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { requireUser } from "../_shared/auth.ts";
+import { logGatewayChat } from "../_shared/usage-log.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,6 +85,7 @@ Responda APENAS com JSON válido.`;
     }
 
     const data = await response.json();
+    await logGatewayChat(data, { feature: "brand_suggest", model: "google/gemini-3-flash-preview", userId: auth.user.id });
     const text = data.choices?.[0]?.message?.content || "";
     const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
     const parsed = JSON.parse(cleaned);
