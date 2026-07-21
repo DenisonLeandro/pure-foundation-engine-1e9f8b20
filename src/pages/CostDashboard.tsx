@@ -112,6 +112,24 @@ function fmtInt(v: number): string {
   return v.toLocaleString("pt-BR");
 }
 
+/**
+ * Extrai a mensagem real de erro da edge function. O supabase-js lança
+ * FunctionsHttpError em qualquer non-2xx e a mensagem dele é genérica
+ * ("non-2xx status code") — o motivo de verdade está no corpo, em `context`.
+ */
+async function readFnError(err: unknown): Promise<string> {
+  const ctx = (err as { context?: Response })?.context;
+  if (ctx && typeof ctx.json === "function") {
+    try {
+      const body = await ctx.json();
+      if (body?.error) return String(body.error);
+    } catch {
+      /* corpo não é JSON — cai no fallback */
+    }
+  }
+  return err instanceof Error ? err.message : "Erro desconhecido";
+}
+
 export default function CostDashboard() {
   const [password, setPassword] = useState(() => sessionStorage.getItem("cost_pw") || "");
   const [unlocked, setUnlocked] = useState(false);
@@ -142,7 +160,7 @@ export default function CostDashboard() {
       setUnlocked(true);
       sessionStorage.setItem("cost_pw", pw);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Acesso negado.");
+      setError(await readFnError(err));
       if (!unlocked) setData(null);
     } finally {
       setLoading(false);
@@ -167,7 +185,7 @@ export default function CostDashboard() {
       if (res?.error) throw new Error(res.error);
       setData((d) => (d ? { ...d, fxRate: rate } : d));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao salvar câmbio.");
+      setError(await readFnError(err));
     } finally {
       setSavingFx(false);
     }
