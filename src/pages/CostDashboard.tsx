@@ -113,6 +113,47 @@ function fmtInt(v: number): string {
 }
 
 /**
+ * Normaliza a resposta da edge function preenchendo os campos que a versão
+ * ANTIGA não devolve (byOperation, tokens, fxRate, exactUsd...). Durante um
+ * deploy o front pode subir antes da função; sem isso a página quebrava com
+ * "Cannot convert undefined or null to object" no Object.entries.
+ */
+function normalizeUsage(res: Partial<UsageResponse> | null, requestedDays: number): UsageResponse {
+  const r = res ?? {};
+  const byService: Record<string, ServiceAgg> = {};
+  for (const [key, raw] of Object.entries(r.byService ?? {})) {
+    const s = (raw ?? {}) as Partial<ServiceAgg>;
+    byService[key] = {
+      calls: s.calls ?? 0,
+      costUsd: s.costUsd ?? 0,
+      exactCalls: s.exactCalls ?? 0,
+      estimatedCalls: s.estimatedCalls ?? 0,
+      estimatedUsd: s.estimatedUsd ?? 0,
+      tokensIn: s.tokensIn ?? 0,
+      tokensOut: s.tokensOut ?? 0,
+      unconfirmedPricing: s.unconfirmedPricing ?? false,
+      byOperation: s.byOperation ?? {},
+    };
+  }
+  const totalUsd = r.totalUsd ?? 0;
+  return {
+    days: r.days ?? requestedDays,
+    fxRate: r.fxRate ?? 5.4,
+    totalUsd,
+    totalCalls: r.totalCalls ?? 0,
+    // Sem o campo novo, trata tudo como exato para não inventar imprecisão.
+    exactUsd: r.exactUsd ?? totalUsd,
+    estimatedUsd: r.estimatedUsd ?? 0,
+    tokensIn: r.tokensIn ?? 0,
+    tokensOut: r.tokensOut ?? 0,
+    byService,
+    byDay: r.byDay ?? {},
+    recent: r.recent ?? [],
+    truncated: r.truncated ?? false,
+  };
+}
+
+/**
  * Extrai a mensagem real de erro da edge function. O supabase-js lança
  * FunctionsHttpError em qualquer non-2xx e a mensagem dele é genérica
  * ("non-2xx status code") — o motivo de verdade está no corpo, em `context`.
@@ -154,7 +195,7 @@ export default function CostDashboard() {
       });
       if (fnError) throw fnError;
       if (res?.error) throw new Error(res.error);
-      const parsed = res as UsageResponse;
+      const parsed = normalizeUsage(res as Partial<UsageResponse>, period);
       setData(parsed);
       setFxInput(String(parsed.fxRate));
       setUnlocked(true);
@@ -378,7 +419,7 @@ export default function CostDashboard() {
           )}
           {services.map(([service, s]) => {
             const isOpen = !!expanded[service];
-            const ops = Object.entries(s.byOperation).sort((a, b) => b[1].costUsd - a[1].costUsd);
+            const ops = Object.entries(s.byOperation ?? {}).sort((a, b) => b[1].costUsd - a[1].costUsd);
             const share = data.totalUsd > 0 ? (s.costUsd / data.totalUsd) * 100 : 0;
             const allExact = s.estimatedCalls === 0;
             return (
